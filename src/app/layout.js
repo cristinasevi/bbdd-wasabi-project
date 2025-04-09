@@ -11,7 +11,7 @@ const inter = Inter({
 });
 
 export const metadata = {
-  title: "Salesianos Zaragoza",
+  title: "Wasabi Project",
   description: "Plataforma para la administración económica de los departamentos de Salesianos Zaragoza",
 };
 
