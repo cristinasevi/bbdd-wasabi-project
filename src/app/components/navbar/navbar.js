@@ -11,14 +11,14 @@ export default function Navbar() {
 
     const navItems = [
         { name: "Inicio", href: "/", icon: Home },
-        { name: "Presupuestos", href: "/presupuestos", icon: Wallet },
-        { name: "Inversiones", href: "/inversiones", icon: ChartColumnIncreasing },
-        { name: "Órdenes de Compra", href: "/ordenes-compra", icon: ShoppingCart },
-        { name: "Facturas", href: "/facturas", icon: ReceiptText },
-        { name: "Proveedores", href: "/proveedores", icon: Truck },
-        { name: "Inventario", href: "/inventario", icon: Package },
-        { name: "Gestión de Usuarios", href: "/usuarios", icon: Users },
-        { name: "Informes", href: "/informes", icon: FileText },
+        { name: "Presupuestos", href: "/pages/presupuestos", icon: Wallet },
+        { name: "Inversiones", href: "/pages/inversiones", icon: ChartColumnIncreasing },
+        { name: "Órdenes de Compra", href: "/pages/ordenes-compra", icon: ShoppingCart },
+        { name: "Facturas", href: "/pages/facturas", icon: ReceiptText },
+        { name: "Proveedores", href: "/pages/proveedores", icon: Truck },
+        { name: "Inventario", href: "/pages/inventario", icon: Package },
+        { name: "Gestión de Usuarios", href: "/pages/usuarios", icon: Users },
+        { name: "Informes", href: "/pages/informes", icon: FileText },
     ]
 
     return (

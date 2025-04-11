@@ -8,7 +8,7 @@ export default function Header() {
         <User className="w-5 h-5" />
         <span>user</span>
       </div>
-      <Link href="/login" className="ml-6 mr-2">
+      <Link href="/pages/login" className="ml-6 mr-2">
         <LogOut className="w-4 h-4" />
       </Link>
     </header>
