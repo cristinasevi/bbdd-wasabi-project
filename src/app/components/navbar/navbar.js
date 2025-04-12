@@ -11,8 +11,8 @@ export default function Navbar() {
 
     const navItems = [
         { name: "Inicio", href: "/", icon: Home },
-        { name: "Presupuestos", href: "/pages/presupuestos", icon: Wallet },
-        { name: "Inversiones", href: "/pages/inversiones", icon: ChartColumnIncreasing },
+        { name: "Presupuestos", href: "/project/client", icon: Wallet },
+        { name: "Inversiones", href: "/project/server", icon: ChartColumnIncreasing },
         { name: "Órdenes de Compra", href: "/pages/ordenes-compra", icon: ShoppingCart },
         { name: "Facturas", href: "/pages/facturas", icon: ReceiptText },
         { name: "Proveedores", href: "/pages/proveedores", icon: Truck },
