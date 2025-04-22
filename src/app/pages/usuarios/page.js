@@ -1,9 +1,9 @@
-import { getUsuarios } from "@/app/api/functions/usuarios"
+import { getUsuariosConPermisos } from "@/app/api/functions/usuarios"
 import { ChevronDown } from "lucide-react"
 import Button from "@/app/components/ui/button";
 
 export default async function Usuarios() {
-    const usuarios = await getUsuarios()
+    const usuarios = await getUsuariosConPermisos()
 
     return (
         <div className="p-6">
@@ -19,6 +19,14 @@ export default async function Usuarios() {
                 name="usuario"
                 placeholder="Usuario"
                 //value={nuevoUsuario.usuario}
+                //onChange={handleInputChange}
+                className="border border-gray-200 rounded px-3 py-2 w-full max-w-[200px]"
+                />
+                <input
+                type="text"
+                name="rol"
+                placeholder="Rol"
+                //value={nuevoUsuario.rol}
                 //onChange={handleInputChange}
                 className="border border-gray-200 rounded px-3 py-2 w-full max-w-[200px]"
                 />
@@ -67,15 +75,15 @@ export default async function Usuarios() {
                         <td className="py-3 px-4">{usuario.Email}</td>
                         <td className="py-3 px-4">
                             <div className="relative w-40">
-                            {/* <select
-                                value={usuario.permisos}
-                                onChange={(e) => handlePermisosChange(usuario.id, e.target.value)}
+                            <select
+                                defaultValue={usuario.Permisos}
+                                //onChange={(e) => handlePermisosChange(usuario.id, e.target.value)}
                                 className="appearance-none bg-gray-100 border border-gray-200 rounded px-3 py-1 w-full pr-8"
                             >
                                 <option value="all">all</option>
                                 <option value="ver y editar">ver y editar</option>
                                 <option value="ver">ver</option>
-                            </select> */}
+                            </select>
                             <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                                 <ChevronDown className="w-4 h-4 text-gray-500" />
                             </div>

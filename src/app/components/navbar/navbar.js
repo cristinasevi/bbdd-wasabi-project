@@ -25,14 +25,16 @@ export default function Navbar() {
         <div className="h-full w-64 border-r border-gray-200 flex flex-col fixed left-0 top-0">
             <div className="p-6 flex justify-center">
                 <div className="w-60 h-32">
-                    <Image
-                        src="/images/logo.jpg"
-                        alt="Logo Salesianos"
-                        width={400}
-                        height={400}
-                        priority
-                        className="object-contain"
-                    />
+                    <Link href="/">
+                        <Image
+                            src="/images/logo.jpg"
+                            alt="Logo Salesianos"
+                            width={400}
+                            height={400}
+                            priority
+                            className="object-contain"
+                        />
+                    </Link>
                 </div>
             </div>
 

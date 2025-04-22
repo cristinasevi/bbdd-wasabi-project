@@ -1,20 +1,30 @@
 import { pool } from "@/app/api/lib/db";
 
-export async function getUsuarios() {
+export async function getUsuariosConPermisos() {
   try {
     const [rows] = await pool.query(`
       SELECT 
-        Usuario.idUsuario,
-        Usuario.Nombre,
-        Usuario.Apellidos,
-        Usuario.Email,
-        Rol.Tipo AS Rol
-      FROM Usuario
-      JOIN Rol ON Usuario.id_RolFK = Rol.idRol
+        u.idUsuario,
+        u.Nombre,
+        u.Apellidos,
+        u.Email,
+        r.Tipo AS Rol,
+        GROUP_CONCAT(
+          CASE
+            WHEN p.Puede_leer = 1 AND p.Puede_ver = 1 THEN 'ver y editar'
+            WHEN p.Puede_ver = 1 THEN 'ver'
+            ELSE 'sin permisos'
+          END
+          SEPARATOR ', '
+        ) AS Permisos
+      FROM Usuario u
+      JOIN Rol r ON u.id_RolFK = r.idRol
+      LEFT JOIN Permiso p ON u.idUsuario = p.id_UsuarioFK
+      GROUP BY u.idUsuario
     `);
     return rows;
   } catch (error) {
-    console.error('Error obteniendo usuarios:', error);
+    console.error('Error obteniendo usuarios con permisos:', error);
     throw error;
   }
 }
