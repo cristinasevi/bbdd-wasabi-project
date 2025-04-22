@@ -1,9 +1,11 @@
 import { getUsuariosConPermisos } from "@/app/api/functions/usuarios"
+import { getRol } from "@/app/api/functions/rol"
 import { ChevronDown } from "lucide-react"
-import Button from "@/app/components/ui/button";
+import Button from "@/app/components/ui/button"
 
 export default async function Usuarios() {
     const usuarios = await getUsuariosConPermisos()
+    const roles = await getRol()
 
     return (
         <div className="p-6">
@@ -22,14 +24,24 @@ export default async function Usuarios() {
                 //onChange={handleInputChange}
                 className="border border-gray-200 rounded px-3 py-2 w-full max-w-[200px]"
                 />
-                <input
-                type="text"
-                name="rol"
-                placeholder="Rol"
-                //value={nuevoUsuario.rol}
-                //onChange={handleInputChange}
-                className="border border-gray-200 rounded px-3 py-2 w-full max-w-[200px]"
-                />
+                <div className="relative w-full max-w-[250px]">
+                    <select
+                        name="rol"
+                        className="appearance-none border border-gray-200 rounded px-3 py-2 w-full pr-8 text-gray-500"
+                    >
+                        <option value="">Rol</option>
+                            {roles.map((rol) => {
+                                return (
+                                <option key={rol.idRol} value={rol.idRol}>
+                                    {rol.Tipo}
+                                </option>
+                                );
+                            })}
+                    </select>
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                        <ChevronDown className="w-4 h-4 text-gray-500" />
+                    </div>
+                </div>
                 <input
                 type="email"
                 name="correo"
@@ -39,27 +51,28 @@ export default async function Usuarios() {
                 className="border border-gray-200 rounded px-3 py-2 w-full"
                 />
                 <div className="relative w-full max-w-[200px]">
-                <select
-                    name="permisos"
-                    //value={nuevoUsuario.permisos}
-                    //onChange={handleInputChange}
-                    className="appearance-none border border-gray-200 rounded px-3 py-2 w-full pr-8"
-                >
-                    <option value="all">all</option>
-                    <option value="ver y editar">ver y editar</option>
-                    <option value="ver">ver</option>
-                </select>
-                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                    <ChevronDown className="w-4 h-4 text-gray-500" />
-                </div>
+                    <select
+                        name="permisos"
+                        //value={nuevoUsuario.permisos}
+                        //onChange={handleInputChange}
+                        className="appearance-none border border-gray-200 rounded px-3 py-2 w-full pr-8 text-gray-500"
+                    >
+                        <option value="">Permisos</option>
+                        <option value="all">all</option>
+                        <option value="ver y editar">ver y editar</option>
+                        <option value="ver">ver</option>
+                    </select>
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                        <ChevronDown className="w-4 h-4 text-gray-500" />
+                    </div>
                 </div>
                 <Button>Añadir</Button>
                 <Button>Editar</Button>
             </div>
             {/* Tabla de usuarios */}
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <div className="border border-gray-200 rounded-lg overflow-hidden mb-6 max-h-[500px] overflow-y-auto">
                 <table className="w-full">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-gray-50 sticky top-0 z-10">
                     <tr>
                         <th className="text-left py-3 px-4 font-medium text-gray-600">Usuario</th>
                         <th className="text-left py-3 px-4 font-medium text-gray-600">Rol</th>

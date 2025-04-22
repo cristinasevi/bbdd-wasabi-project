@@ -17,7 +17,7 @@ export default async function Proveedores() {
 
             <div>
                 {/* Formulario de añadir/editar proveedor */}
-                <div className="rounded-lg mb-6 flex flex-wrap items-center gap-3">
+                <div className="rounded-lg mb-6 flex flex-wrap items-center gap-3 mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
                     <input
                         type="text"
                         name="nombre"
@@ -68,14 +68,17 @@ export default async function Proveedores() {
                             <ChevronDown className="w-4 h-4 text-gray-500" />
                         </div>
                     </div>
+                </div>
+                {/* Botones de acción */}
+                <div className="flex justify-end mb-6 gap-2">
                     <Button>Añadir</Button>
                     <Button>Editar</Button>
                 </div>
 
                 {/* Tabla de proveedores */}
-                <div className="bg-white border border-gray-200 rounded-lg overflow-hidden mb-6">
+                <div className="border border-gray-200 rounded-lg overflow-hidden mb-6 max-h-[500px] overflow-y-auto">
                     <table className="w-full">
-                        <thead className="bg-gray-50">
+                        <thead className="bg-gray-50 sticky top-0 z-10">
                             <tr>
                                 <th className="text-left py-3 px-4 font-medium text-gray-600">Nombre</th>
                                 <th className="text-left py-3 px-4 font-medium text-gray-600">NIF</th>
@@ -94,7 +97,7 @@ export default async function Proveedores() {
                                     <td className="py-3 px-4">{proveedor.Telefono}</td>
                                     <td className="py-3 px-4">{proveedor.Email}</td>
                                     <td className="py-3 px-4">
-                                        <span className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full">
+                                        <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full">
                                             {proveedor.Departamento}
                                         </span>
                                     </td>
