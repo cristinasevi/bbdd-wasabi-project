@@ -1,4 +1,4 @@
-import { getData } from "@/app/api/functions/select";
+import { getData } from "@/app/api/functions/departamentos";
 import styles from "./dbPrueba.module.css"
 
 export default async function Server() {

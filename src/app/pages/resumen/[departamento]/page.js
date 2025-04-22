@@ -13,7 +13,7 @@
 // }
 
 
-import { getDepartamentos } from "@/app/api/functions/select"
+import { getDepartamentos } from "@/app/api/functions/departamentos"
 //import { getDepartamentoData } from "@/app/api/functions/getDepartamentoData"
 
 export default async function Resumen({ params }) {

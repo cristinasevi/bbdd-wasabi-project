@@ -1,6 +1,6 @@
 import Image from "next/image"
 import Link from "next/link"
-import { getDepartamentos } from "@/app/api/functions/select"
+import { getDepartamentos } from "@/app/api/functions/departamentos"
 
 const departmentImages = {
   Informática: "/images/informatica.jpg",
