@@ -1,6 +1,6 @@
 import Image from "next/image"
 import Link from "next/link"
-import { getData } from "@/app/api/functions/select"
+import { getDepartamentos } from "@/app/api/functions/select"
 
 const departmentImages = {
   Informática: "/images/informatica.jpg",
@@ -11,7 +11,7 @@ const departmentImages = {
 }
 
 export default async function Page() {
-  const departamentos = await getData()
+  const departamentos = await getDepartamentos()
 
   return (
     <main className="p-8">
@@ -26,7 +26,7 @@ export default async function Page() {
 
           return (
             <Link
-              href={`/pages/resumen/${id}`}
+              href={`/pages/resumen/${nombre}`}
               key={id}
               className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
             >
