@@ -98,7 +98,7 @@ export default async function Usuarios() {
             {/* Botones de acción */}
             <div className="flex justify-end mt-6 gap-3">
                 <Button>Eliminar</Button>
-            <   Button>Guardar</Button>
+                <Button>Guardar</Button>
             </div>
         </div>
     );

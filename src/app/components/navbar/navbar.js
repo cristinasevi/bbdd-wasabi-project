@@ -1,13 +1,13 @@
 "use client"
 
-import { useState } from "react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { Home, Wallet, ChartColumnIncreasing, ShoppingCart,
         ReceiptText, Truck, Package, Users, FileText } from "lucide-react"
 import Image from "next/image"
 
 export default function Navbar() {
-    const [activeItem, setActiveItem] = useState("Inicio")
+    const pathname = usePathname()
 
     const navItems = [
         { name: "Inicio", href: "/", icon: Home },
@@ -42,15 +42,15 @@ export default function Navbar() {
                 <ul className="py-4">
                     {navItems.map((item) => {
                         const Icon = item.icon
+                        const isActive = pathname === item.href
 
                         return (
                             <li key={item.name} className="mb-2">
                                 <Link
                                     href={item.href}
-                                    className={`flex items-center px-6 py-3 ${activeItem === item.name
+                                    className={`flex items-center px-6 py-3 ${isActive
                                         ? "text-red-600 bg-red-50 border-l-2 border-red-600" 
                                         : "text-gray-700 hover:bg-gray-100"}`}
-                                    onClick={() => setActiveItem(item.name)}
                                 >
                                     <Icon className="w-5 h-5 mr-7" />
                                     {item.name}
