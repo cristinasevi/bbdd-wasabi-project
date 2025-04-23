@@ -17,7 +17,7 @@ export default async function Proveedores() {
 
             <div>
                 {/* Formulario de añadir/editar proveedor */}
-                <div className="rounded-lg mb-6 flex flex-wrap items-center gap-3 mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="rounded-lg items-center mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
                     <input
                         type="text"
                         name="nombre"
