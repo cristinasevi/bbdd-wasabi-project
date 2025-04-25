@@ -1,20 +1,5 @@
-// import { getDepartamentos } from "@/app/api/functions/select"
-
-// export default async function Resumen({ params }) {
-//     const departamento = decodeURIComponent(params.departamento);
-//     const data = await getDepartamentos(departamento);
-
-//     return (
-//         <div className="p-8">
-//             <h1 className="text-3xl font-bold mb-2">Resumen</h1>
-//             <h2 className="text-lg text-gray-400">Departamento {departamento}</h2>
-//         </div>
-//     );
-// }
-
-
 import { getDepartamentos } from "@/app/api/functions/departamentos"
-//import { getDepartamentoData } from "@/app/api/functions/getDepartamentoData"
+import { getResumenPresupuesto, getResumenInversion, getResumenOrden } from "@/app/api/functions/resumen"
 
 export default async function Resumen({ params }) {
     const departamento = decodeURIComponent(params.departamento);
@@ -24,7 +9,9 @@ export default async function Resumen({ params }) {
     const departamentoInfo = departamentos.find(d => d.Nombre === departamento) || {};
     
     // Obtener datos financieros y órdenes de compra
-    //const data = await getDepartamentoData(departamento);
+    const resumenprep = await getResumenPresupuesto(departamentoInfo.id_Departamento);
+    const resumeninv = await getResumenInversion(departamentoInfo.id_Departamento);
+    const resumenord = await getResumenOrden(departamentoInfo.id_Departamento);
     
     // Obtener el mes actual y año
     const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
@@ -59,7 +46,9 @@ export default async function Resumen({ params }) {
                     {/* Presupuesto total anual */}
                     <div className="bg-white rounded-lg p-6 shadow-sm">
                         <h3 className="text-gray-500 mb-2">Presupuesto total anual</h3>
-                        <div className="text-4xl font-bold"></div>
+                        <div className="text-4xl font-bold">
+                            {resumenprep?.[0]?.total_presupuesto?.toLocaleString("es-ES")} €
+                        </div>
                         <div className="mt-4 flex justify-end">
                             <div className="w-4 h-4 rounded-full bg-green-500"></div>
                         </div>
@@ -68,7 +57,9 @@ export default async function Resumen({ params }) {
                     {/* Inversión total anual */}
                     <div className="bg-white rounded-lg p-6 shadow-sm">
                         <h3 className="text-gray-500 mb-2">Inversión total anual</h3>
-                        <div className="text-4xl font-bold"></div>
+                        <div className="text-4xl font-bold">
+                            {resumeninv?.[0]?.total_inversion?.toLocaleString("es-ES")} €
+                        </div>
                     </div>
 
                     {/* Gasto acumulado anual */}
@@ -101,10 +92,20 @@ export default async function Resumen({ params }) {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td className="py-2"></td>
-                                <td className="py-2 text-right"></td>
+                        {resumenord?.length > 0 ? (
+                            resumenord.map((item) => (
+                            <tr key={item.idOrden} className="border-t border-gray-200">
+                                <td className="py-3 px-4">{item.Num_orden}</td>
+                                <td className="py-3 px-4 text-right">{item.Importe}€</td>
                             </tr>
+                            ))
+                        ) : (
+                            <tr>
+                            <td colSpan="2" className="py-4 text-center text-gray-400">
+                                No hay órdenes registradas
+                            </td>
+                            </tr>
+                        )}
                         </tbody>
                     </table>
                 </div>
