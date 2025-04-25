@@ -15,6 +15,8 @@
 
 import { getDepartamentos } from "@/app/api/functions/departamentos"
 //import { getDepartamentoData } from "@/app/api/functions/getDepartamentoData"
+import { getResumenDepPrep, getResumenDepInv, getOrden } from "@/app/api/resumenDep"
+
 
 export default async function Resumen({ params }) {
     const departamento = decodeURIComponent(params.departamento);
@@ -22,7 +24,10 @@ export default async function Resumen({ params }) {
     
     // Encontrar el departamento específico en la lista
     const departamentoInfo = departamentos.find(d => d.Nombre === departamento) || {};
-    
+
+    const resumenDepPrep = await getResumenDepPrep(departamentoInfo.id_Departamento);
+    const resumenDepInv = await getResumenDepInv(departamentoInfo.id_Departamento);
+    const ordenesCompra = await getOrden(departamentoInfo.id_Departamento);
     // Obtener datos financieros y órdenes de compra
     //const data = await getDepartamentoData(departamento);
     
@@ -59,7 +64,9 @@ export default async function Resumen({ params }) {
                     {/* Presupuesto total anual */}
                     <div className="bg-white rounded-lg p-6 shadow-sm">
                         <h3 className="text-gray-500 mb-2">Presupuesto total anual</h3>
-                        <div className="text-4xl font-bold"></div>
+                        <div className="text-4xl font-bold">
+                            {resumenDepPrep?.[0]?.total_presupuesto?.toLocaleString("es-ES")} €
+                        </div>
                         <div className="mt-4 flex justify-end">
                             <div className="w-4 h-4 rounded-full bg-green-500"></div>
                         </div>
@@ -68,7 +75,9 @@ export default async function Resumen({ params }) {
                     {/* Inversión total anual */}
                     <div className="bg-white rounded-lg p-6 shadow-sm">
                         <h3 className="text-gray-500 mb-2">Inversión total anual</h3>
-                        <div className="text-4xl font-bold"></div>
+                        <div className="text-4xl font-bold">
+                            {resumenDepInv?.[0]?.total_inversion?.toLocaleString("es-ES")} €
+                        </div>
                     </div>
 
                     {/* Gasto acumulado anual */}
@@ -101,11 +110,14 @@ export default async function Resumen({ params }) {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td className="py-2"></td>
-                                <td className="py-2 text-right"></td>
-                            </tr>
-                        </tbody>
+            {ordenesCompra.map((item) => (
+              <tr key={item.idOrden} className="border-t border-gray-200">
+                  <td className="py-3 px-4">{item.Num_orden}</td>
+                  <td className="py-3 px-4 text-right">{item.Importe}€</td>
+                  
+              </tr>
+            ))}
+          </tbody>
                     </table>
                 </div>
 
