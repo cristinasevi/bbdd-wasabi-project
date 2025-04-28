@@ -92,8 +92,8 @@ export default async function Inventario() {
                     </tr>
                 </thead>
                 <tbody>
-                    {inventarios.map((item) => (
-                        <tr key={item.idOrden} className="border-t border-gray-200">
+                    {inventarios.map((item, index) => (
+                        <tr key={`${item.idOrden}-${index}`} className="border-t border-gray-200">
                             <td className="py-3 px-4">{item.Descripcion}</td>
                             <td className="py-3 px-4">{item.Proveedor}</td>
                             <td className="py-3 px-4">

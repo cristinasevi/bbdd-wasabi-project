@@ -83,7 +83,7 @@ export default async function OrdenesCompraPage() {
           </thead>
           <tbody>
             {orden.map((item) => (
-              <tr key={item.idOrden} className="border-t border-gray-200">
+              <tr key={`${item.idOrden}-${index}`} className="border-t border-gray-200">
                   <td className="py-3 px-4">{item.Num_orden}</td>
                   <td className="py-3 px-4">{item.Importe}€</td>
                   <td className="py-3 px-4">{formatDate(item.Fecha)}</td>
