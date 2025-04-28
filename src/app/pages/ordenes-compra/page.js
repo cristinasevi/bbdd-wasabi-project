@@ -73,7 +73,7 @@ export default async function OrdenesCompraPage() {
         <table className="w-full">
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr className="border-b border-gray-200">
-              <th className="text-left py-3 px-4 font-medium text-gray-600">Num Inversión</th>
+              <th className="text-left py-3 px-4 font-medium text-gray-600">Num Orden</th>
               <th className="text-left py-3 px-4 font-medium text-gray-600">Importe</th>
               <th className="text-left py-3 px-4 font-medium text-gray-600">Fecha</th>
               <th className="text-left py-3 px-4 font-medium text-gray-600">Descripción</th>
