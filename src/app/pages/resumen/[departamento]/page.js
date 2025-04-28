@@ -68,7 +68,7 @@ export default async function Resumen({ params }) {
 
                         {/* Gasto acumulado anual */}
                         <div className="bg-white rounded-lg p-6 shadow-sm">
-                            <h3 className="text-gray-500 mb-2">Gasto acumulado anual</h3>
+                            <h3 className="text-gray-500 mb-2">Gasto en presupuesto acumulado</h3>
                             <div className="text-4xl font-bold">
                                 {resumengasto?.[0]?.total_importe?.toLocaleString("es-ES")} €
                             </div>
