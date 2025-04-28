@@ -7,10 +7,7 @@ export default async function Resumen({ params }) {
     
     // Encontrar el departamento específico en la lista
     const departamentoInfo = departamentos.find(d => d.Nombre === departamento) || {};
-
-    const resumenDepPrep = await getResumenDepPrep(departamentoInfo.id_Departamento);
-    const resumenDepInv = await getResumenDepInv(departamentoInfo.id_Departamento);
-    const ordenesCompra = await getOrden(departamentoInfo.id_Departamento);
+    
     // Obtener datos financieros y órdenes de compra
     const resumenprep = await getResumenPresupuesto(departamentoInfo.id_Departamento);
     const resumeninv = await getResumenInversion(departamentoInfo.id_Departamento);
