@@ -81,8 +81,8 @@ export default async function InversionDepartamento() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {orden.map((item) => (
-                                    <tr key={item.idOrden} className="border-t border-gray-200">
+                                    {orden.map((item, index) => (
+                                    <tr key={`${item.idOrden}-${index}`} className="border-t border-gray-200">
                                         <td className="py-2">{item.Num_orden}</td>
                                         <td className="py-2 text-right">{item.Importe}€</td>
                                     </tr>

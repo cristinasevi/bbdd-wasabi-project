@@ -66,3 +66,20 @@ export async function getResumenOrden(idDepartamento) {
       throw error;
     }
 }
+
+export async function getResumenGasto(idDepartamento) {
+  try {
+    const [rows] = await pool.query(`
+      SELECT 
+        SUM(oc.Importe) AS total_importe
+      FROM Orden_Compra oc
+      JOIN Orden o ON oc.id_OrdenFK = o.idOrden
+      WHERE o.id_DepartamentoFK = ?
+    `, [idDepartamento]);
+    
+    return rows;
+  } catch (error) {
+    console.error('Error executing query:', error);
+    throw error;
+  }
+}
