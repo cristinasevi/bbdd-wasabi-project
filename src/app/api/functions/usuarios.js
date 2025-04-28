@@ -9,9 +9,14 @@ export async function getUsuariosConPermisos() {
         u.Apellidos,
         u.Email,
         r.Tipo AS Rol,
+        CASE
+          WHEN r.Tipo = 'Administrador' THEN 'Admin'
+          WHEN r.Tipo = 'Contable' THEN 'Contable'
+          ELSE MAX(d.Nombre)
+        END AS Departamento,
         GROUP_CONCAT(
           CASE
-            WHEN p.Puede_leer = 1 AND p.Puede_ver = 1 THEN 'ver y editar'
+            WHEN p.Puede_editar = 1 AND p.Puede_ver = 1 THEN 'ver y editar'
             WHEN p.Puede_ver = 1 THEN 'ver'
             ELSE 'sin permisos'
           END
@@ -20,7 +25,8 @@ export async function getUsuariosConPermisos() {
       FROM Usuario u
       JOIN Rol r ON u.id_RolFK = r.idRol
       LEFT JOIN Permiso p ON u.idUsuario = p.id_UsuarioFK
-      GROUP BY u.idUsuario
+      LEFT JOIN Departamento d ON p.id_DepFK = d.id_Departamento
+      GROUP BY u.idUsuario, u.Nombre, u.Apellidos, u.Email, r.Tipo
     `);
     return rows;
   } catch (error) {
