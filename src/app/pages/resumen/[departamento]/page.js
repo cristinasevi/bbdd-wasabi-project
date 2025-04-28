@@ -1,5 +1,5 @@
 import { getDepartamentos } from "@/app/api/functions/departamentos"
-import { getResumenPresupuesto, getResumenInversion, getResumenOrden } from "@/app/api/functions/resumen"
+import { getResumenPresupuesto, getResumenInversion, getResumenOrden, getResumenGasto, getResumenInversionAcum } from "@/app/api/functions/resumen"
 
 export default async function Resumen({ params }) {
     const departamento = decodeURIComponent(params.departamento);
@@ -12,6 +12,8 @@ export default async function Resumen({ params }) {
     const resumenprep = await getResumenPresupuesto(departamentoInfo.id_Departamento);
     const resumeninv = await getResumenInversion(departamentoInfo.id_Departamento);
     const resumenord = await getResumenOrden(departamentoInfo.id_Departamento);
+    const resumengasto = await getResumenGasto(departamentoInfo.id_Departamento);
+    const resumeninvacum = await getResumenInversionAcum(departamentoInfo.id_Departamento);
     
     // Obtener el mes actual y año
     const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
@@ -67,13 +69,17 @@ export default async function Resumen({ params }) {
                         {/* Gasto acumulado anual */}
                         <div className="bg-white rounded-lg p-6 shadow-sm">
                             <h3 className="text-gray-500 mb-2">Gasto acumulado anual</h3>
-                            <div className="text-4xl font-bold"></div>
+                            <div className="text-4xl font-bold">
+                                {resumengasto?.[0]?.total_importe?.toLocaleString("es-ES")} €
+                            </div>
                         </div>
 
                         {/* Inversión acumulada anual */}
                         <div className="bg-white rounded-lg p-6 shadow-sm">
                             <h3 className="text-gray-500 mb-2">Inversión acumulada anual</h3>
-                            <div className="text-4xl font-bold"></div>
+                            <div className="text-4xl font-bold">
+                                {resumeninvacum?.[0]?.Total_Importe?.toLocaleString("es-ES")} €
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -82,7 +88,7 @@ export default async function Resumen({ params }) {
                 <div className="col-span-1">
                     <div className="bg-white rounded-lg p-6 shadow-sm mb-6">
                         <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-bold">ÓRDENES DE COMPRA</h3>
+                            <h3 className="font-bold">ÓRDENES</h3>
                             <button className="bg-black text-white text-sm px-3 py-1 rounded-md">
                                 Ver detalles
                             </button>
@@ -93,14 +99,16 @@ export default async function Resumen({ params }) {
                                 <thead className="bg-white sticky top-0 z-10">
                                     <tr className="text-left">
                                         <th className="pb-2 font-normal text-gray-500">Número</th>
+                                        <th className="pb-2 font-normal text-gray-500">Num Inversión</th>
                                         <th className="pb-2 font-normal text-gray-500 text-right">Total</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                 {resumenord?.length > 0 ? (
                                     resumenord.map((item) => (
-                                    <tr key={item.idOrden} className="border-t border-gray-200">
+                                    <tr key={`${item.idOrden}`} className="border-t border-gray-200">
                                         <td className="py-3 px-4">{item.Num_orden}</td>
+                                        <td className="py-3 px-4">{item.Num_inversion}</td>
                                         <td className="py-3 px-4 text-right">{item.Importe}€</td>
                                     </tr>
                                     ))

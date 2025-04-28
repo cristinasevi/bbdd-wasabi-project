@@ -9,6 +9,13 @@ export default async function Inventario() {
     const departamentos = await getDepartamentos()
     const proveedores = await getProveedores()
 
+    const inventariosUnicos = inventarios.filter((value, index, self) =>
+        index === self.findIndex((t) => (
+            t.idOrden === value.idOrden
+        ))
+    );
+    
+
     return (
         <div className="p-6">
             {/* Encabezado */}
@@ -92,7 +99,7 @@ export default async function Inventario() {
                     </tr>
                 </thead>
                 <tbody>
-                    {inventarios.map((item, index) => (
+                    {inventariosUnicos.map((item, index) => (
                         <tr key={`${item.idOrden}-${index}`} className="border-t border-gray-200">
                             <td className="py-3 px-4">{item.Descripcion}</td>
                             <td className="py-3 px-4">{item.Proveedor}</td>
