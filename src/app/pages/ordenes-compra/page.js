@@ -74,7 +74,6 @@ export default async function OrdenesCompraPage() {
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr className="border-b border-gray-200">
               <th className="text-left py-3 px-4 font-medium text-gray-600">Num Orden</th>
-              <th className="text-left py-3 px-4 font-medium text-gray-600">Num Inversión</th>
               <th className="text-left py-3 px-4 font-medium text-gray-600">Importe</th>
               <th className="text-left py-3 px-4 font-medium text-gray-600">Fecha</th>
               <th className="text-left py-3 px-4 font-medium text-gray-600">Descripción</th>
@@ -84,9 +83,8 @@ export default async function OrdenesCompraPage() {
           </thead>
           <tbody>
             {orden.map((item) => (
-              <tr key={`${item.idOrden}-${item.Num_inversion}`} className="border-t border-gray-200">
+              <tr key={`${item.idOrden}-${index}`} className="border-t border-gray-200">
                   <td className="py-3 px-4">{item.Num_orden}</td>
-                  <td className="py-3 px-4">{item.Num_inversion}</td>
                   <td className="py-3 px-4">{item.Importe}€</td>
                   <td className="py-3 px-4">{formatDate(item.Fecha)}</td>
                   <td className="py-3 px-4">{item.Descripcion}</td>
