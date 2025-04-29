@@ -24,7 +24,7 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
     const getPermisosPorRol = (rol) => {
         switch(rol) {
             case "Administrador":
-                return "all";
+                return "admin";
             case "Contable":
                 return "ver";
             case "Jefe de Departamento":
@@ -313,7 +313,11 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
                         const permisosBasadosEnRol = getPermisosPorRol(usuario.Rol);
                         
                         return (
-                            <tr key={usuario.idUsuario} className="border-t border-gray-200">
+                            <tr 
+                                key={usuario.idUsuario} 
+                                className={`border-t border-gray-200 cursor-pointer ${usuarioSeleccionado === usuario.idUsuario ? "bg-red-100" : ""}`} 
+                                onClick={() => handleSeleccionarUsuario(usuario)}
+                            >
                                 <td className="py-3 px-4 text-center">
                                     <div 
                                         onClick={() => handleSeleccionarUsuario(usuario)}
