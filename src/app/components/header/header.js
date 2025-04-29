@@ -8,7 +8,7 @@ export default function Header() {
   const { data: session, status } = useSession()
 
   const handleLogout = async () => {
-    await signOut({ callbackUrl: "/pages/login" })
+    await signOut({ callbackUrl: "/" })
   }
 
   return (

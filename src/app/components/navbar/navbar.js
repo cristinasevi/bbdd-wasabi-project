@@ -10,7 +10,7 @@ export default function Navbar() {
     const pathname = usePathname()
 
     const navItems = [
-        { name: "Inicio", href: "/", icon: Home },
+        { name: "Inicio", href: "/pages/home", icon: Home },
         { name: "Presupuestos", href: "/pages/presupuestos", icon: Wallet },
         { name: "Inversiones", href: "/pages/inversiones", icon: ChartColumnIncreasing },
         { name: "Órdenes de Compra", href: "/pages/ordenes-compra", icon: ShoppingCart },
