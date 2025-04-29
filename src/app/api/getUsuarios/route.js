@@ -42,24 +42,14 @@ export async function GET() {
   }
 }
 
-// POST - Crear un nuevo usuario
+// Sección POST - Crear un nuevo usuario
+
 export async function POST(request) {
   try {
     const userData = await request.json();
     
-    // Depuración para ver qué datos estamos recibiendo
-    console.log("Datos recibidos para crear usuario:", userData);
-    
     // Validar que tenemos los datos mínimos necesarios
     if (!userData.DNI || !userData.Nombre || !userData.Apellidos || !userData.Email || !userData.Contrasena || !userData.id_RolFK) {
-      console.error("Faltan datos obligatorios:", { 
-        DNI: !!userData.DNI, 
-        Nombre: !!userData.Nombre, 
-        Apellidos: !!userData.Apellidos,
-        Email: !!userData.Email,
-        Contrasena: !!userData.Contrasena,
-        id_RolFK: !!userData.id_RolFK
-      });
       return NextResponse.json({ 
         error: "Faltan datos obligatorios para crear el usuario" 
       }, { status: 400 });
@@ -114,7 +104,6 @@ export async function POST(request) {
         }
       } else if (rolTipo === 'Jefe de Departamento') {
         // Jefe tiene acceso solo a su departamento
-        // Necesitamos obtener el ID del departamento basado en el nombre
         const [deptResult] = await connection.query('SELECT id_Departamento FROM Departamento WHERE Nombre = ?', [userData.Departamento]);
         
         if (deptResult.length > 0) {
@@ -162,7 +151,7 @@ export async function DELETE(request) {
     await connection.beginTransaction();
     
     try {
-      // 1. Eliminar permisos asociados
+      // 1. Eliminar permisos asociados a los usuarios
       await connection.query('DELETE FROM Permiso WHERE id_UsuarioFK IN (?)', [ids]);
       
       // 2. Eliminar los usuarios
