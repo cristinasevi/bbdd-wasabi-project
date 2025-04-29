@@ -1,9 +1,9 @@
-//File : src/app/api/functions/usuarios.js
+// File: src/app/api/functions/usuarios.js
+// Esta función hace llamadas a la API para gestionar usuarios
 import { pool } from "@/app/api/lib/db";
 
 export async function getUsuariosConPermisos() {
   try {
-    console.log("Intentando obtener usuarios con permisos...");
     const [rows] = await pool.query(`
       SELECT 
         u.idUsuario,
@@ -33,15 +33,9 @@ export async function getUsuariosConPermisos() {
       LEFT JOIN Departamento d ON p.id_DepFK = d.id_Departamento
       GROUP BY u.idUsuario, u.DNI, u.Nombre, u.Apellidos, u.Telefono, u.Direccion, u.Email, r.Tipo
     `);
-    console.log(`Obtenidos ${rows.length} usuarios con éxito`);
     return rows;
   } catch (error) {
     console.error('Error obteniendo usuarios con permisos:', error);
-    // Si hay un error, intentamos devolver una lista vacía en lugar de fallar
-    if (error.code === 'ER_NO_SUCH_TABLE') {
-      console.warn('La tabla de usuarios no existe aún. Se devolverá una lista vacía.');
-      return [];
-    }
     throw error;
   }
 }

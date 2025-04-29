@@ -38,6 +38,7 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
         idUsuario: null,
         nombre: "",
         apellidos: "",
+        usuario: "", // Añadido el campo de usuario
         email: "",
         dni: "",
         telefono: "",
@@ -77,12 +78,18 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
             default:
                 return "";
         }
+        
+        // Removed invalid export statement
     }
 
     // Función para validar el formulario
     const validarFormulario = () => {
         if (!formularioUsuario.nombre || !formularioUsuario.apellidos || !formularioUsuario.email) {
             setFormError("Por favor, completa los campos de nombre, apellidos y email");
+            return false;
+        }
+        if (!formularioUsuario.usuario) {
+            setFormError("Por favor, ingresa un nombre de usuario");
             return false;
         }
         if (!formularioUsuario.dni) {
@@ -119,6 +126,7 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
             idUsuario: usuario.idUsuario,
             nombre: usuario.Nombre || "",
             apellidos: usuario.Apellidos || "",
+            usuario: usuario.Usuario || "", // Añadido el campo de usuario
             email: usuario.Email || "",
             dni: usuario.DNI || "",
             telefono: usuario.Telefono || "",
@@ -144,6 +152,7 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
             idUsuario: null,
             nombre: "",
             apellidos: "",
+            usuario: "", // Añadido el campo de usuario
             email: "",
             dni: "",
             telefono: "",
@@ -202,6 +211,7 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
     };
 
     // Manejar añadir o editar usuario
+    // Manejar añadir o editar usuario
     const handleGuardarUsuario = async () => {
         if (!validarFormulario()) return;
         
@@ -216,94 +226,43 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
                 method = 'PUT';
             }
             
+            // Obtener el ID del rol a partir del tipo de rol seleccionado
+            const rolId = roles.find(r => r.Tipo === formularioUsuario.rol)?.idRol;
+            
+            if (!rolId) {
+                throw new Error("No se pudo encontrar el ID del rol seleccionado");
+            }
+            
+            // Preparar datos para enviar
+            const datosUsuario = {
+                DNI: formularioUsuario.dni,
+                Nombre: formularioUsuario.nombre,
+                Apellidos: formularioUsuario.apellidos,
+                Telefono: formularioUsuario.telefono,
+                Direccion: formularioUsuario.direccion,
+                Contrasena: formularioUsuario.contrasena,
+                Email: formularioUsuario.email,
+                id_RolFK: rolId,
+                Departamento: formularioUsuario.departamento
+            };
+            
+            console.log("Enviando datos al servidor:", datosUsuario);
+                
             const response = await fetch(url, {
                 method,
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    DNI: formularioUsuario.dni,
-                    Nombre: formularioUsuario.nombre,
-                    Apellidos: formularioUsuario.apellidos,
-                    Telefono: formularioUsuario.telefono,
-                    Direccion: formularioUsuario.direccion,
-                    Contrasena: formularioUsuario.contrasena,
-                    Email: formularioUsuario.email,
-                    id_RolFK: roles.find(r => r.Tipo === formularioUsuario.rol)?.idRol,
-                    Departamento: formularioUsuario.departamento
-                }),
+                body: JSON.stringify(datosUsuario),
             });
-            
+                
             if (!response.ok) {
-                throw new Error(`Error del servidor: ${response.status}`);
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Error del servidor: ${response.status}`);
             }
-            
-            const data = await response.json();
-            
-            if (modalMode === 'add') {
-                // Añadir el nuevo usuario a la lista local
-                const nuevoUsuario = {
-                    idUsuario: data.id,
-                    Nombre: formularioUsuario.nombre,
-                    Apellidos: formularioUsuario.apellidos,
-                    DNI: formularioUsuario.dni,
-                    Telefono: formularioUsuario.telefono,
-                    Direccion: formularioUsuario.direccion,
-                    Email: formularioUsuario.email,
-                    Rol: formularioUsuario.rol,
-                    Departamento: formularioUsuario.departamento,
-                    Permisos: formularioUsuario.permisos
-                };
-                
-                setUsuarios([...usuarios, nuevoUsuario]);
-                
-                // Mostrar notificación de éxito
-                addNotification("Usuario creado correctamente", "success");
-            } else {
-                // Actualizar el usuario existente en la lista local
-                setUsuarios(usuarios.map(u => 
-                    u.idUsuario === formularioUsuario.idUsuario 
-                        ? {
-                            ...u,
-                            Nombre: formularioUsuario.nombre,
-                            Apellidos: formularioUsuario.apellidos,
-                            DNI: formularioUsuario.dni,
-                            Telefono: formularioUsuario.telefono,
-                            Direccion: formularioUsuario.direccion,
-                            Email: formularioUsuario.email,
-                            Rol: formularioUsuario.rol,
-                            Departamento: formularioUsuario.departamento,
-                            Permisos: formularioUsuario.permisos
-                        } 
-                        : u
-                ));
-                
-                // Mostrar notificación de éxito
-                addNotification("Usuario actualizado correctamente", "success");
-            }
-            
-            setShowModal(false);
-            limpiarFormulario();
-            
-            // En caso de crear un nuevo usuario, podemos recargar los datos
-            if (modalMode === 'add') {
-                // Opcional: Recargar todos los usuarios de la base de datos para asegurar datos frescos
-                try {
-                    const refreshResponse = await fetch('/api/usuarios');
-                    if (refreshResponse.ok) {
-                        const refreshedUsers = await refreshResponse.json();
-                        setUsuarios(refreshedUsers);
-                    }
-                } catch (refreshError) {
-                    console.warn("No se pudieron actualizar los datos:", refreshError);
-                    // No bloqueamos el flujo por este error
-                }
-            }
-            
         } catch (error) {
-            console.error('Error:', error);
-            setFormError(`Error: ${error.message}`);
-            addNotification(`Error: ${error.message}`, "error");
+            console.error("Error al guardar el usuario:", error);
+            addNotification(`Error al guardar el usuario: ${error.message}`, "error");
         } finally {
             setIsLoading(false);
         }
@@ -451,6 +410,7 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
                             )}
                         </th>
                         <th className="text-left py-3 px-4 font-medium text-gray-600">Usuario</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-600">Nombre</th>
                         <th className="text-left py-3 px-4 font-medium text-gray-600">DNI</th>
                         <th className="text-left py-3 px-4 font-medium text-gray-600">Rol</th>
                         <th className="text-left py-3 px-4 font-medium text-gray-600">Correo</th>
@@ -475,6 +435,7 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
                                             className="h-4 w-4 text-red-600 border-gray-300 rounded"
                                         />
                                     </td>
+                                    <td className="py-3 px-4">{usuario.Usuario || "-"}</td>
                                     <td className="py-3 px-4">{usuario.Nombre} {usuario.Apellidos}</td>
                                     <td className="py-3 px-4">{usuario.DNI || "-"}</td>
                                     <td className="py-3 px-4">{usuario.Rol}</td>
@@ -504,7 +465,7 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
                         })
                     ) : (
                         <tr>
-                            <td colSpan="8" className="py-6 text-center text-gray-500">
+                            <td colSpan="9" className="py-6 text-center text-gray-500">
                                 No se encontraron usuarios{searchTerm || filterRole ? " con los criterios de búsqueda actuales" : ""}
                             </td>
                         </tr>
@@ -513,10 +474,16 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
                 </table>
             </div>
 
-            {/* Modal para añadir/editar usuario */}
+            {/* Modal para añadir/editar usuario con fondo difuminado */}
             {showModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div 
+                    className="fixed inset-0 flex items-center justify-center z-50"
+                    style={{
+                        backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                        backdropFilter: 'blur(2px)'
+                    }}
+                >
+                    <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-xl">
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-xl font-bold">
                                 {modalMode === 'add' ? 'Añadir Nuevo Usuario' : 'Editar Usuario'}
@@ -544,6 +511,39 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
                                     type="text"
                                     name="nombre"
                                     value={formularioUsuario.nombre}
+                                    onChange={handleInputChange}
+                                    className="border border-gray-200 rounded px-3 py-2 w-full"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 mb-1">Apellidos</label>
+                                <input
+                                    type="text"
+                                    name="apellidos"
+                                    value={formularioUsuario.apellidos}
+                                    onChange={handleInputChange}
+                                    className="border border-gray-200 rounded px-3 py-2 w-full"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 mb-1">Nombre de Usuario</label>
+                                <input
+                                    type="text"
+                                    name="usuario"
+                                    value={formularioUsuario.usuario}
+                                    onChange={handleInputChange}
+                                    className="border border-gray-200 rounded px-3 py-2 w-full"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 mb-1">DNI</label>
+                                <input
+                                    type="text"
+                                    name="dni"
+                                    value={formularioUsuario.dni}
                                     onChange={handleInputChange}
                                     className="border border-gray-200 rounded px-3 py-2 w-full"
                                     required
