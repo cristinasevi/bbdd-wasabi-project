@@ -1,11 +1,14 @@
 // File: src/app/pages/usuarios/usuariosClient.js
 "use client"
 
-import { useState } from "react"
-import { ChevronDown, Pencil, X } from "lucide-react"
+import { useState, useMemo } from "react"
+import { ChevronDown, Pencil, X, Search, Filter } from "lucide-react"
 import Button from "@/app/components/ui/button"
+import useNotifications from "@/app/hooks/useNotifications"
+import ConfirmationDialog from "@/app/components/ui/confirmation-dialog"
 
 export default function UsuariosClient({ initialUsuarios, initialRoles, initialDepartamentos }) {
+    // Estados principales
     const [usuarios, setUsuarios] = useState(initialUsuarios);
     const [roles] = useState(initialRoles);
     const [departamentos] = useState(initialDepartamentos);
@@ -14,6 +17,23 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
     const [selectedUsers, setSelectedUsers] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [formError, setFormError] = useState("");
+    
+    // Estados para búsqueda y filtrado
+    const [searchTerm, setSearchTerm] = useState("")
+    const [filterRole, setFilterRole] = useState("")
+    
+    // Estado para diálogo de confirmación
+    const [confirmDialog, setConfirmDialog] = useState({
+        isOpen: false,
+        title: "",
+        message: "",
+        onConfirm: () => {}
+    })
+    
+    // Hook de notificaciones
+    const { addNotification, notificationComponents } = useNotifications()
+    
+    // Estado del formulario
     const [formularioUsuario, setFormularioUsuario] = useState({
         idUsuario: null,
         nombre: "",
@@ -27,6 +47,23 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
         departamento: "",
         permisos: ""
     });
+
+    // Filtrar usuarios según los criterios de búsqueda y filtrado
+    const filteredUsuarios = useMemo(() => {
+        return usuarios.filter(usuario => {
+            // Filtro por término de búsqueda (nombre, apellidos, email o dni)
+            const matchesSearch = searchTerm === "" || 
+                usuario.Nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                usuario.Apellidos?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                usuario.Email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (usuario.DNI && usuario.DNI.toLowerCase().includes(searchTerm.toLowerCase()))
+            
+            // Filtro por rol
+            const matchesRole = filterRole === "" || usuario.Rol === filterRole
+            
+            return matchesSearch && matchesRole
+        })
+    }, [usuarios, searchTerm, filterRole])
 
     // Función para determinar los permisos según el rol
     const getPermisosPorRol = (rol) => {
@@ -52,7 +89,7 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
             setFormError("Por favor, ingresa el DNI");
             return false;
         }
-        if (!formularioUsuario.contrasena) {
+        if (modalMode === 'add' && !formularioUsuario.contrasena) {
             setFormError("Por favor, establece una contraseña");
             return false;
         }
@@ -173,12 +210,10 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
         try {
             let url = '/api/usuarios';
             let method = 'POST';
-            let successMessage = 'Usuario creado correctamente';
             
             if (modalMode === 'edit') {
                 url = `/api/usuarios/${formularioUsuario.idUsuario}`;
                 method = 'PUT';
-                successMessage = 'Usuario actualizado correctamente';
             }
             
             const response = await fetch(url, {
@@ -194,7 +229,8 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
                     Direccion: formularioUsuario.direccion,
                     Contrasena: formularioUsuario.contrasena,
                     Email: formularioUsuario.email,
-                    id_RolFK: roles.find(r => r.Tipo === formularioUsuario.rol)?.idRol
+                    id_RolFK: roles.find(r => r.Tipo === formularioUsuario.rol)?.idRol,
+                    Departamento: formularioUsuario.departamento
                 }),
             });
             
@@ -220,6 +256,9 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
                 };
                 
                 setUsuarios([...usuarios, nuevoUsuario]);
+                
+                // Mostrar notificación de éxito
+                addNotification("Usuario creado correctamente", "success");
             } else {
                 // Actualizar el usuario existente en la lista local
                 setUsuarios(usuarios.map(u => 
@@ -238,9 +277,11 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
                         } 
                         : u
                 ));
+                
+                // Mostrar notificación de éxito
+                addNotification("Usuario actualizado correctamente", "success");
             }
-            // Mostrar mensaje de éxito y actualizar UI
-            alert(successMessage);
+            
             setShowModal(false);
             limpiarFormulario();
             
@@ -262,22 +303,30 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
         } catch (error) {
             console.error('Error:', error);
             setFormError(`Error: ${error.message}`);
+            addNotification(`Error: ${error.message}`, "error");
         } finally {
             setIsLoading(false);
         }
     };
 
     // Manejar eliminar usuarios
-    const handleEliminarUsuarios = async () => {
+    const handleEliminarUsuarios = () => {
         if (selectedUsers.length === 0) {
-            alert("Por favor, selecciona al menos un usuario para eliminar");
+            addNotification("Por favor, selecciona al menos un usuario para eliminar", "warning");
             return;
         }
         
-        if (!confirm(`¿Estás seguro de que deseas eliminar ${selectedUsers.length} usuario(s)?`)) {
-            return;
-        }
-        
+        // Mostrar diálogo de confirmación
+        setConfirmDialog({
+            isOpen: true,
+            title: "Confirmar eliminación",
+            message: `¿Estás seguro de que deseas eliminar ${selectedUsers.length} usuario(s)? Esta acción no se puede deshacer.`,
+            onConfirm: confirmDeleteUsers
+        });
+    };
+    
+    // Función de confirmación para eliminar usuarios
+    const confirmDeleteUsers = async () => {
         setIsLoading(true);
         
         try {
@@ -297,11 +346,11 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
             setUsuarios(usuarios.filter(u => !selectedUsers.includes(u.idUsuario)));
             setSelectedUsers([]);
             
-            alert('Usuarios eliminados correctamente');
+            addNotification('Usuarios eliminados correctamente', 'success');
             
         } catch (error) {
             console.error('Error:', error);
-            alert(`Error al eliminar usuarios: ${error.message}`);
+            addNotification(`Error al eliminar usuarios: ${error.message}`, 'error');
         } finally {
             setIsLoading(false);
         }
@@ -309,6 +358,18 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
 
     return (
         <div className="p-6">
+            {/* Mostrar componentes de notificación */}
+            {notificationComponents}
+            
+            {/* Diálogo de confirmación */}
+            <ConfirmationDialog 
+                isOpen={confirmDialog.isOpen}
+                title={confirmDialog.title}
+                message={confirmDialog.message}
+                onConfirm={confirmDialog.onConfirm}
+                onClose={() => setConfirmDialog({...confirmDialog, isOpen: false})}
+            />
+            
             {/* Encabezado */}
             <div className="mb-6">
                 <h1 className="text-3xl font-bold">Gestión de Usuarios</h1>
@@ -324,12 +385,71 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
                 </Button>
             </div>
 
+            {/* Filtros y búsqueda */}
+            <div className="mb-6 flex flex-col md:flex-row gap-4">
+                <div className="flex-1">
+                    <div className="relative">
+                        <input
+                            type="text"
+                            placeholder="Buscar por nombre, email o DNI..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full p-2 border border-gray-300 rounded-md pl-10"
+                        />
+                        <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                            <Search className="h-5 w-5 text-gray-400" />
+                        </div>
+                    </div>
+                </div>
+                
+                <div className="w-64">
+                    <div className="relative">
+                        <select
+                            value={filterRole}
+                            onChange={(e) => setFilterRole(e.target.value)}
+                            className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10"
+                        >
+                            <option value="">Todos los roles</option>
+                            {roles.map(rol => (
+                                <option key={rol.idRol} value={rol.Tipo}>{rol.Tipo}</option>
+                            ))}
+                        </select>
+                        <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                            <Filter className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                            <ChevronDown className="w-4 h-4 text-gray-500" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Indicador de resultados */}
+            <div className="mb-4 text-sm text-gray-500">
+                Mostrando {filteredUsuarios.length} de {usuarios.length} usuarios
+            </div>
+
             {/* Tabla de usuarios */}
             <div className="border border-gray-200 rounded-lg overflow-hidden mb-6 max-h-[650px] overflow-y-auto">
                 <table className="w-full">
                     <thead className="bg-gray-50 sticky top-0 z-10">
                     <tr>
-                        <th className="py-3 px-4 w-10"></th>
+                        <th className="py-3 px-4 w-10">
+                            {filteredUsuarios.length > 0 && (
+                                <input 
+                                    type="checkbox" 
+                                    checked={selectedUsers.length === filteredUsuarios.length}
+                                    onChange={() => {
+                                        if (selectedUsers.length === filteredUsuarios.length) {
+                                            setSelectedUsers([]);
+                                        } else {
+                                            setSelectedUsers(filteredUsuarios.map(u => u.idUsuario));
+                                        }
+                                    }}
+                                    className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                                />
+                            )}
+                        </th>
                         <th className="text-left py-3 px-4 font-medium text-gray-600">Usuario</th>
                         <th className="text-left py-3 px-4 font-medium text-gray-600">DNI</th>
                         <th className="text-left py-3 px-4 font-medium text-gray-600">Rol</th>
@@ -340,47 +460,55 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
                     </tr>
                     </thead>
                     <tbody>
-                    {usuarios.map((usuario) => {
-                        // Determinar permisos basados en el rol
-                        const permisosBasadosEnRol = getPermisosPorRol(usuario.Rol);
-                        
-                        return (
-                            <tr key={usuario.idUsuario} className="border-t border-gray-200 hover:bg-gray-50">
-                                <td className="py-3 px-4 text-center">
-                                    <input 
-                                        type="checkbox" 
-                                        checked={selectedUsers.includes(usuario.idUsuario)}
-                                        onChange={() => toggleSelectUser(usuario.idUsuario)}
-                                        className="h-4 w-4 text-red-600 border-gray-300 rounded"
-                                    />
-                                </td>
-                                <td className="py-3 px-4">{usuario.Nombre} {usuario.Apellidos}</td>
-                                <td className="py-3 px-4">{usuario.DNI || "-"}</td>
-                                <td className="py-3 px-4">{usuario.Rol}</td>
-                                <td className="py-3 px-4">{usuario.Email}</td>
-                                <td className="py-3 px-4">
-                                    <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full">
-                                        {usuario.Departamento || "No asignado"}
-                                    </span>
-                                </td>
-                                <td className="py-3 px-4">
-                                    <div className="w-40">
-                                        <div className="bg-gray-100 border border-gray-200 rounded px-3 py-1">
-                                            {permisosBasadosEnRol}
+                    {filteredUsuarios.length > 0 ? (
+                        filteredUsuarios.map((usuario) => {
+                            // Determinar permisos basados en el rol
+                            const permisosBasadosEnRol = getPermisosPorRol(usuario.Rol);
+                            
+                            return (
+                                <tr key={usuario.idUsuario} className="border-t border-gray-200 hover:bg-gray-50">
+                                    <td className="py-3 px-4 text-center">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={selectedUsers.includes(usuario.idUsuario)}
+                                            onChange={() => toggleSelectUser(usuario.idUsuario)}
+                                            className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                                        />
+                                    </td>
+                                    <td className="py-3 px-4">{usuario.Nombre} {usuario.Apellidos}</td>
+                                    <td className="py-3 px-4">{usuario.DNI || "-"}</td>
+                                    <td className="py-3 px-4">{usuario.Rol}</td>
+                                    <td className="py-3 px-4">{usuario.Email}</td>
+                                    <td className="py-3 px-4">
+                                        <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full">
+                                            {usuario.Departamento || "No asignado"}
+                                        </span>
+                                    </td>
+                                    <td className="py-3 px-4">
+                                        <div className="w-40">
+                                            <div className="bg-gray-100 border border-gray-200 rounded px-3 py-1">
+                                                {permisosBasadosEnRol}
+                                            </div>
                                         </div>
-                                    </div>
-                                </td>
-                                <td className="py-3 px-4 text-center">
-                                    <button 
-                                        onClick={() => handleOpenEditModal(usuario)} 
-                                        className="text-gray-500 hover:text-red-600"
-                                    >
-                                        <Pencil className="w-5 h-5" />
-                                    </button>
-                                </td>
-                            </tr>
-                        );
-                    })}
+                                    </td>
+                                    <td className="py-3 px-4 text-center">
+                                        <button 
+                                            onClick={() => handleOpenEditModal(usuario)} 
+                                            className="text-gray-500 hover:text-red-600"
+                                        >
+                                            <Pencil className="w-5 h-5" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            );
+                        })
+                    ) : (
+                        <tr>
+                            <td colSpan="8" className="py-6 text-center text-gray-500">
+                                No se encontraron usuarios{searchTerm || filterRole ? " con los criterios de búsqueda actuales" : ""}
+                            </td>
+                        </tr>
+                    )}
                     </tbody>
                 </table>
             </div>
@@ -416,28 +544,6 @@ export default function UsuariosClient({ initialUsuarios, initialRoles, initialD
                                     type="text"
                                     name="nombre"
                                     value={formularioUsuario.nombre}
-                                    onChange={handleInputChange}
-                                    className="border border-gray-200 rounded px-3 py-2 w-full"
-                                    required
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 mb-1">Apellidos</label>
-                                <input
-                                    type="text"
-                                    name="apellidos"
-                                    value={formularioUsuario.apellidos}
-                                    onChange={handleInputChange}
-                                    className="border border-gray-200 rounded px-3 py-2 w-full"
-                                    required
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 mb-1">DNI</label>
-                                <input
-                                    type="text"
-                                    name="dni"
-                                    value={formularioUsuario.dni}
                                     onChange={handleInputChange}
                                     className="border border-gray-200 rounded px-3 py-2 w-full"
                                     required
