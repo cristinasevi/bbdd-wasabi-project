@@ -427,21 +427,6 @@ export default function UsuariosClient({
         <h1 className="text-3xl font-bold">Gestión de Usuarios</h1>
       </div>
 
-      {/* Botones de acción superiores */}
-      <div className="flex justify-between mb-6">
-        <Button onClick={handleOpenAddModal}>Nuevo Usuario</Button>
-        <Button
-          onClick={handleEliminarUsuarios}
-          disabled={selectedUsers.length === 0 || isLoading}
-        >
-          {isLoading
-            ? "Procesando..."
-            : `Eliminar ${
-                selectedUsers.length > 0 ? `(${selectedUsers.length})` : ""
-              }`}
-        </Button>
-      </div>
-
       {/* Filtros y búsqueda */}
       <div className="mb-6 flex flex-col md:flex-row gap-4">
         <div className="flex-1">
@@ -536,9 +521,10 @@ export default function UsuariosClient({
                 return (
                   <tr
                     key={usuario.idUsuario}
-                    className="border-t border-gray-200 hover:bg-gray-50"
+                    className={`border-t border-gray-200 cursor-pointer ${selectedUsers.includes(usuario.idUsuario) ? "bg-red-50" : ""}`}
+                    onClick={() => toggleSelectUser(usuario.idUsuario)}
                   >
-                    <td className="py-3 px-4 text-center">
+                    <td className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selectedUsers.includes(usuario.idUsuario)}
@@ -584,6 +570,21 @@ export default function UsuariosClient({
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Botones de acción superiores */}
+      <div className="flex justify-between mb-6">
+        <Button onClick={handleOpenAddModal}>Nuevo Usuario</Button>
+        <Button
+          onClick={handleEliminarUsuarios}
+          disabled={selectedUsers.length === 0 || isLoading}
+        >
+          {isLoading
+            ? "Procesando..."
+            : `Eliminar ${
+                selectedUsers.length > 0 ? `(${selectedUsers.length})` : ""
+              }`}
+        </Button>
       </div>
 
       {/* Modal para añadir/editar usuario con fondo difuminado */}

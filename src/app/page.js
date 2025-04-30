@@ -142,7 +142,7 @@ export default function Login() {
             type="submit"
             onClick={handleGoogleLogin}
             disabled={isLoading}
-            className="w-full bg-red-600 text-white py-3 rounded-md hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 cursor-pointer"
+            className="w-full bg-red-600 opacity-80 text-white py-3 rounded-md hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 cursor-pointer"
           >
             {isLoading ? "Cargando..." : "Acceder"}
           </button>
