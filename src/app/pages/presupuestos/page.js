@@ -1,9 +1,12 @@
 import { getOrden } from "@/app/api/functions/orden"
+import { getPresupuestoMensual } from "@/app/api/functions/presupuestos"
 import { ChevronDown } from "lucide-react"
 import Link from "next/link"
 
 export default async function PresupuestoDepartamento() {
-    const orden = await getOrden()
+    const departamentoInfo = { id_Departamento: 1 }; // Define el departamento aquí
+    const orden = await getOrden();
+    const presupuestoMensual = await getPresupuestoMensual(departamentoInfo.id_Departamento);
 
     return (
         <div className="p-6">
@@ -37,7 +40,9 @@ export default async function PresupuestoDepartamento() {
                         <div className="bg-white border border-gray-200 rounded-lg p-6">
                             <h3 className="text-gray-500 mb-2">Presupuesto mensual</h3>
                             <div className="text-right">
-                                <div className="text-5xl font-bold"></div>
+                                <div className="text-5xl font-bold">
+                                    {presupuestoMensual?.[0]?.presupuesto_mensual?.toLocaleString("es-ES")} €
+                                </div>
                             </div>
                         </div>
 
