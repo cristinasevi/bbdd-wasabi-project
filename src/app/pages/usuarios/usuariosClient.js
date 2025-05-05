@@ -1,7 +1,7 @@
 // File: src/app/pages/usuarios/usuariosClient.js
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ChevronDown, Pencil, X, Search, Filter } from "lucide-react";
 import Button from "@/app/components/ui/button";
 import useNotifications from "@/app/hooks/useNotifications";
@@ -22,7 +22,7 @@ export default function UsuariosClient({
   const [isLoading, setIsLoading] = useState(false);
   const [formError, setFormError] = useState("");
 
-  // Estados para búsqueda y filtrado
+  // Estados para búsqueda y filtrado - Mantener estos separados del formulario
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState("");
 
@@ -37,12 +37,11 @@ export default function UsuariosClient({
   // Hook de notificaciones
   const { addNotification, notificationComponents } = useNotifications();
 
-  // Estado del formulario
+  // Estado del formulario - COMPLETAMENTE SEPARADO del estado de búsqueda
   const [formularioUsuario, setFormularioUsuario] = useState({
     idUsuario: null,
     nombre: "",
     apellidos: "",
-    // Eliminar esta línea: usuario: "",
     email: "",
     dni: "",
     telefono: "",
@@ -84,8 +83,6 @@ export default function UsuariosClient({
       default:
         return "";
     }
-
-    // Removed invalid export statement
   };
 
   // Función para validar el formulario
@@ -126,20 +123,38 @@ export default function UsuariosClient({
     return true;
   };
 
+  // Limpiar el formulario
+  const limpiarFormulario = () => {
+    setFormularioUsuario({
+      idUsuario: null,
+      nombre: "",
+      apellidos: "",
+      email: "",
+      dni: "",
+      telefono: "",
+      direccion: "",
+      contrasena: "",
+      rol: "",
+      departamento: "",
+      permisos: "",
+    });
+    setFormError("");
+  };
+
   // Abrir modal de añadir usuario
   const handleOpenAddModal = () => {
-    limpiarFormulario();
+    limpiarFormulario(); // Aseguramos que el formulario esté limpio
     setModalMode("add");
     setShowModal(true);
   };
 
   // Abrir modal de editar usuario
   const handleOpenEditModal = (usuario) => {
+    // Importante: No afectar el estado de búsqueda/filtrado
     setFormularioUsuario({
       idUsuario: usuario.idUsuario,
       nombre: usuario.Nombre || "",
       apellidos: usuario.Apellidos || "",
-      // Eliminar esta línea: usuario: usuario.Usuario || "",
       email: usuario.Email || "",
       dni: usuario.DNI || "",
       telefono: usuario.Telefono || "",
@@ -153,32 +168,14 @@ export default function UsuariosClient({
     setShowModal(true);
   };
 
-  // Cerrar modal
+  // Cerrar modal - CORRECCIÓN AQUÍ
   const handleCloseModal = () => {
     setShowModal(false);
     setFormError("");
+    // No modificamos el searchTerm ni el filterRole aquí
   };
 
-  // Limpiar el formulario
-  const limpiarFormulario = () => {
-    setFormularioUsuario({
-      idUsuario: null,
-      nombre: "",
-      apellidos: "",
-      // Eliminar esta línea: usuario: "",
-      email: "",
-      dni: "",
-      telefono: "",
-      direccion: "",
-      contrasena: "",
-      rol: "",
-      departamento: "",
-      permisos: "",
-    });
-    setFormError("");
-  };
-
-  // Manejar cambios en el formulario
+  // Manejar cambios en el formulario - NUNCA ACTUALIZA SEARCHTERM
   const handleInputChange = (e) => {
     const { name, value } = e.target;
 
@@ -216,12 +213,9 @@ export default function UsuariosClient({
 
   // Toggle selección de usuario
   const toggleSelectUser = (userId) => {
-    // Verifica si el usuario ya está seleccionado
     if (selectedUsers.includes(userId)) {
-      // Si ya está seleccionado, lo quitamos de la selección
       setSelectedUsers(selectedUsers.filter((id) => id !== userId));
     } else {
-      // Si no está seleccionado, lo añadimos a la selección
       setSelectedUsers([...selectedUsers, userId]);
     }
   };
@@ -235,7 +229,17 @@ export default function UsuariosClient({
     }
   };
 
-  // Modificación de la función handleGuardarUsuario en usuariosClient.js
+  // Manejar búsqueda - mantenemos esto separado del formulario
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
+  };
+
+  // Manejar cambio de filtro de rol - separado del formulario
+  const handleFilterRoleChange = (e) => {
+    setFilterRole(e.target.value);
+  };
+
+  // Función handleGuardarUsuario - CORREGIDA
   const handleGuardarUsuario = async () => {
     if (!validarFormulario()) return;
 
@@ -341,7 +345,7 @@ export default function UsuariosClient({
         "success"
       );
 
-      // Cerrar el modal
+      // Cerrar el modal SIN afectar searchTerm
       handleCloseModal();
     } catch (error) {
       console.error("Error al guardar el usuario:", error);
@@ -435,7 +439,7 @@ export default function UsuariosClient({
               type="text"
               placeholder="Buscar por nombre, email o DNI..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={handleSearchChange} // Usamos la función específica
               className="w-full p-2 border border-gray-300 rounded-md pl-10"
             />
             <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
@@ -448,7 +452,7 @@ export default function UsuariosClient({
           <div className="relative">
             <select
               value={filterRole}
-              onChange={(e) => setFilterRole(e.target.value)}
+              onChange={handleFilterRoleChange} // Usamos la función específica
               className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10"
             >
               <option value="">Todos los roles</option>
@@ -552,7 +556,10 @@ export default function UsuariosClient({
                     </td>
                     <td className="py-3 px-4 text-center">
                       <button
-                        onClick={() => handleOpenEditModal(usuario)}
+                        onClick={(e) => {
+                          e.stopPropagation(); // Evitar que se seleccione al editar
+                          handleOpenEditModal(usuario);
+                        }}
                         className="text-gray-500 hover:text-red-600"
                       >
                         <Pencil className="w-5 h-5" />
