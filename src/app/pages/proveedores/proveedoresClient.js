@@ -5,11 +5,15 @@ import { ChevronDown, Pencil, X, Search, Filter } from "lucide-react";
 import Button from "@/app/components/ui/button";
 import useNotifications from "@/app/hooks/useNotifications";
 import ConfirmationDialog from "@/app/components/ui/confirmation-dialog";
+import useUserDepartamento from "@/app/hooks/useUserDepartamento";
 
 export default function ProveedoresClient({
   initialProveedores,
   initialDepartamentos,
 }) {
+  // Agregamos el hook para obtener el departamento del usuario
+  const { departamento, isLoading: isDepartamentoLoading } = useUserDepartamento();
+  
   // Estados principales
   const [proveedores, setProveedores] = useState(initialProveedores);
   const [departamentos] = useState(initialDepartamentos);
@@ -264,6 +268,11 @@ export default function ProveedoresClient({
     }
   };
 
+  // Mostramos un indicador de carga si estamos esperando el departamento
+  if (isDepartamentoLoading) {
+    return <div className="p-6">Cargando...</div>;
+  }
+
   return (
     <div className="p-6">
       {/* Notificaciones */}
@@ -281,7 +290,7 @@ export default function ProveedoresClient({
       {/* Encabezado */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Proveedores</h1>
-        <h2 className="text-xl text-gray-400">Departamento</h2>
+        <h2 className="text-xl text-gray-400">Departamento {departamento}</h2>
       </div>
 
       {/* Filtros y búsqueda */}

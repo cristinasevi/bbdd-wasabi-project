@@ -9,6 +9,7 @@ export async function middleware(request) {
   })
 
   const isLoginPage = request.nextUrl.pathname === "/pages/login"
+  const isHomePage = request.nextUrl.pathname === "/pages/home"
 
   // Si el usuario no está autenticado y no está en la página de login, redirigir a login
   if (!token && !isLoginPage) {
@@ -18,6 +19,27 @@ export async function middleware(request) {
   // Si el usuario está autenticado y está en la página de login, redirigir a la página principal
   if (token && isLoginPage) {
     return NextResponse.redirect(new URL("/", request.url))
+  }
+
+  // Si es la página de inicio, verificar el rol del usuario
+  if (token && isHomePage) {
+    try {
+      // Hacer una petición a la API para obtener información del usuario
+      const userResponse = await fetch(new URL(`/api/getUsuarios/${token.id}`, request.url).toString())
+      
+      if (userResponse.ok) {
+        const userData = await userResponse.json()
+        
+        // Si es Jefe de Departamento, redirigir al resumen de su departamento
+        if (userData.Rol === "Jefe de Departamento" && userData.Departamento) {
+          return NextResponse.redirect(
+            new URL(`/pages/resumen/${userData.Departamento}`, request.url)
+          )
+        }
+      }
+    } catch (error) {
+      console.error("Error verificando rol de usuario:", error)
+    }
   }
 
   return NextResponse.next()
@@ -31,9 +53,8 @@ export const config = {
      * 1. /api/auth (rutas de autenticación)
      * 2. /_next (archivos de Next.js)
      * 3. /images (archivos estáticos)
-     * 4. /login (página de login)
-     * 5. /favicon.ico (favicon)
+     * 4. /favicon.ico (favicon)
      */
-    "/((?!api/auth|_next|images|login|favicon.ico).*)",
+    "/((?!api/auth|_next|images|favicon.ico).*)",
   ],
 }

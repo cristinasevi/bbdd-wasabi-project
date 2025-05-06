@@ -20,12 +20,36 @@ export default function Login() {
   const { data: session } = useSession()
   const router = useRouter()
 
-  // Redirigir si ya está autenticado
+  // Redirigir si ya está autenticado, comprobando el rol
   useEffect(() => {
     if (session) {
-      router.push("/")
+      // Obtener el rol del usuario para determinar la redirección
+      const checkUserRole = async () => {
+        try {
+          const response = await fetch(`/api/getUsuarios/${session.user.id}`);
+          if (response.ok) {
+            const userData = await response.json();
+            
+            // Redireccionar según el rol
+            if (userData.Rol === "Jefe de Departamento" && userData.Departamento) {
+              router.push(`/pages/resumen/${userData.Departamento}`);
+            } else {
+              // Para Admin y Contable
+              router.push("/pages/home");
+            }
+          } else {
+            // Si hay algún error, redirigir por defecto a home
+            router.push("/pages/home");
+          }
+        } catch (error) {
+          console.error("Error obteniendo información del usuario:", error);
+          router.push("/pages/home");
+        }
+      };
+      
+      checkUserRole();
     }
-  }, [session, router])
+  }, [session, router]);
 
   // Este efecto se ejecuta en el cliente para ocultar solo el header y navbar
   useEffect(() => {
@@ -76,13 +100,12 @@ export default function Login() {
 
       if (result?.error) {
         setError("Usuario o contraseña incorrectos")
-      } else {
-        router.push("/")
+        setIsLoading(false)
       }
+      // No redirigimos aquí, el useEffect con session se encargará de la redirección
     } catch (err) {
       setError("Error al iniciar sesión")
       console.error(err)
-    } finally {
       setIsLoading(false)
     }
   }
@@ -91,10 +114,10 @@ export default function Login() {
     setIsLoading(true)
     try {
       // Usar NextAuth.js para autenticación con Google
-      await signIn("google", { callbackUrl: "/pages/home" })
+      // No especificamos callbackUrl para que el useEffect maneje la redirección
+      await signIn("google", { callbackUrl: undefined })
     } catch (err) {
       console.error("Error al iniciar sesión con Google:", err)
-    } finally {
       setIsLoading(false)
     }
   }
@@ -140,7 +163,6 @@ export default function Login() {
 
           <button
             type="submit"
-            onClick={handleGoogleLogin}
             disabled={isLoading}
             className="w-full bg-red-600 opacity-80 text-white py-3 rounded-md hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 cursor-pointer"
           >

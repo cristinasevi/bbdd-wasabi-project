@@ -5,23 +5,25 @@ import { ChevronDown, Pencil, X, Search, Filter, Info } from "lucide-react"
 import Button from "@/app/components/ui/button"
 import useNotifications from "@/app/hooks/useNotifications"
 import ConfirmationDialog from "@/app/components/ui/confirmation-dialog"
+import useUserDepartamento from "@/app/hooks/useUserDepartamento";
 
 export default function OrdenesCompraClient({
   initialOrdenes,
   initialDepartamentos,
   initialProveedores,
 }) {
-  // Mapeo de departamentos para código
-  const departamentoCodigoMapping = {
-    'Informática': 'INFO',
-    'Marketing': 'MARK',
-    'Recursos Humanos': 'RRHH',
-    'Contabilidad': 'CONT',
-    'Operaciones': 'OPER',
-    'Mecánica': 'MEC',
-    'Electricidad': 'ELE',
-    'Automoción': 'AUT',
-    'Robótica': 'ROB',
+  // Mapeo de departamentos
+  const departamentoMapping = {
+    'INFO': 'Informática',
+    'MARK': 'Marketing',
+    'RRHH': 'Recursos Humanos',
+    'CONT': 'Contabilidad',
+    'OPER': 'Operaciones',
+    'MEC': 'Mecánica',
+    'ELE': 'Electricidad',
+    'AUT': 'Automoción',
+    'ROB': 'Robótica',
+    'INF': 'Informática'
   }
 
   // Obtener el año actual
@@ -572,7 +574,7 @@ export default function OrdenesCompraClient({
     } finally {
       setIsLoading(false);
     }
-  };
+  }
 
   return (
     <div className="p-6">
@@ -590,7 +592,7 @@ export default function OrdenesCompraClient({
 
       {/* Encabezado */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">Órdenes de Compra</h1>
+        <h1 className="text-3xl font-bold">Orden de Compra</h1>
         <h2 className="text-xl text-gray-400">Departamento</h2>
       </div>
 
