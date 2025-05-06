@@ -1,16 +1,21 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react" // Añadimos useEffect
 import { ChevronDown, Pencil, X, Search, Filter } from "lucide-react"
 import Button from "@/app/components/ui/button"
 import useNotifications from "@/app/hooks/useNotifications"
 import ConfirmationDialog from "@/app/components/ui/confirmation-dialog"
+import useUserDepartamento from "@/app/hooks/useUserDepartamento" // Importamos el hook
 
 export default function InventarioClient({
   initialInventarios,
   initialDepartamentos,
   initialProveedores,
 }) {
+  // Obtenemos el departamento del usuario
+  const { departamento, isLoading: isDepartamentoLoading } = useUserDepartamento()
+  const [userRole, setUserRole] = useState(null) // Estado para el rol del usuario
+  
   // Estados principales
   const [inventarios, setInventarios] = useState(initialInventarios);
   const [departamentos] = useState(initialDepartamentos);
@@ -47,6 +52,29 @@ export default function InventarioClient({
     cantidad: "",
     inventariable: "",
   });
+
+  // Efecto para obtener el rol del usuario y configurar filtros iniciales
+  useEffect(() => {
+    async function fetchUserRole() {
+      try {
+        const response = await fetch('/api/getSessionUser')
+        if (response.ok) {
+          const data = await response.json()
+          const role = data.usuario?.rol || ''
+          setUserRole(role)
+          
+          // Si es Jefe de Departamento, establecer el filtro automáticamente
+          if (role === "Jefe de Departamento" && departamento) {
+            setFilterDepartamento(departamento)
+          }
+        }
+      } catch (error) {
+        console.error("Error obteniendo rol del usuario:", error)
+      }
+    }
+
+    fetchUserRole()
+  }, [departamento])
 
   // Proveedores filtrados por departamento
   const proveedoresFiltrados = useMemo(() => {
@@ -110,6 +138,15 @@ export default function InventarioClient({
   // Abrir modal de añadir item
   const handleOpenAddModal = () => {
     limpiarFormulario();
+    
+    // Si es Jefe de Departamento, preseleccionamos su departamento
+    if (userRole === "Jefe de Departamento" && departamento) {
+      setFormularioItem(prev => ({
+        ...prev,
+        departamento: departamento
+      }));
+    }
+    
     setModalMode("add");
     setShowModal(true);
   };
@@ -273,6 +310,11 @@ export default function InventarioClient({
     if (value === 0 || value === "0" || value === false) return "No";
     return value || "-";
   }
+  
+  // Mostramos un indicador de carga si estamos esperando el departamento
+  if (isDepartamentoLoading) {
+    return <div className="p-6">Cargando...</div>;
+  }
 
   return (
     <div className="p-6">
@@ -291,7 +333,7 @@ export default function InventarioClient({
       {/* Encabezado */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Inventario</h1>
-        <h2 className="text-xl text-gray-400">Departamento</h2>
+        <h2 className="text-xl text-gray-400">Departamento {departamento}</h2>
       </div>
 
       {/* Filtros y búsqueda */}
@@ -314,6 +356,7 @@ export default function InventarioClient({
             value={filterDepartamento}
             onChange={(e) => setFilterDepartamento(e.target.value)}
             className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10"
+            disabled={userRole === "Jefe de Departamento"} // Deshabilitar si es jefe de departamento
           >
             <option value="">Todos los departamentos</option>
             {departamentos.map((departamento) => (
@@ -544,6 +587,7 @@ export default function InventarioClient({
                     value={formularioItem.departamento}
                     onChange={handleInputChange}
                     className="appearance-none border border-gray-300 rounded px-3 py-2 w-full pr-8 text-gray-500"
+                    disabled={userRole === "Jefe de Departamento"} // Deshabilitar si es jefe de departamento
                   >
                     <option value="">Seleccionar departamento</option>
                     {departamentos.map((departamento) => (
