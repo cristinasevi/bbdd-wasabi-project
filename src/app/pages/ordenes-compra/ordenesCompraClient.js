@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { ChevronDown, Pencil, X, Search, Filter } from "lucide-react"
+import { useState, useMemo, useEffect } from "react"
+import { ChevronDown, Pencil, X, Search, Filter, Info } from "lucide-react"
 import Button from "@/app/components/ui/button"
 import useNotifications from "@/app/hooks/useNotifications"
 import ConfirmationDialog from "@/app/components/ui/confirmation-dialog"
@@ -11,49 +11,24 @@ export default function OrdenesCompraClient({
   initialDepartamentos,
   initialProveedores,
 }) {
-  // Mapeo de departamentos
-  const departamentoMapping = {
-    'INFO': 'Informática',
-    'MARK': 'Marketing',
-    'RRHH': 'Recursos Humanos',
-    'CONT': 'Contabilidad',
-    'OPER': 'Operaciones',
-    'MEC': 'Mecánica',
-    'ELE': 'Electricidad',
-    'AUT': 'Automoción',
-    'ROB': 'Robótica',
-    'INF': 'Informática'
+  // Mapeo de departamentos para código
+  const departamentoCodigoMapping = {
+    'Informática': 'INFO',
+    'Marketing': 'MARK',
+    'Recursos Humanos': 'RRHH',
+    'Contabilidad': 'CONT',
+    'Operaciones': 'OPER',
+    'Mecánica': 'MEC',
+    'Electricidad': 'ELE',
+    'Automoción': 'AUT',
+    'Robótica': 'ROB',
   }
 
-  // Normalizar departamentos
-  const normalizarDepartamento = (dept) => {
-    if (!dept) return dept
-    // Si ya está en formato normal, devolver
-    if (Object.values(departamentoMapping).includes(dept)) {
-      return dept
-    }
-    // Si es un código, mapear al nombre completo
-    return departamentoMapping[dept] || dept
-  }
+  // Obtener el año actual
+  const currentYear = new Date().getFullYear().toString().substring(2); // Solo tomamos los 2 últimos dígitos
 
   // Estados principales
-  const [ordenes, setOrdenes] = useState(() => 
-    initialOrdenes.map(orden => ({
-      ...orden,
-      Departamento: normalizarDepartamento(orden.Departamento)
-    }))
-  )
-  
-  // Obtener todos los departamentos únicos de las órdenes
-  const departamentosUnicos = useMemo(() => {
-    const depts = new Set()
-    ordenes.forEach(orden => {
-      if (orden.Departamento) {
-        depts.add(orden.Departamento)
-      }
-    })
-    return Array.from(depts).sort()
-  }, [ordenes])
+  const [ordenes, setOrdenes] = useState(initialOrdenes)
   const [departamentos] = useState(initialDepartamentos)
   const [proveedores] = useState(initialProveedores)
   const [selectedOrdenes, setSelectedOrdenes] = useState([])
@@ -82,16 +57,112 @@ export default function OrdenesCompraClient({
   // Estado del formulario
   const [formularioOrden, setFormularioOrden] = useState({
     idOrden: null,
-    numero: "",
+    numero: "", // Se generará automáticamente
+    esInversion: false, // Nuevo campo para marcar si es inversión
     numInversion: "",
     importe: "",
     fecha: "",
     descripcion: "",
-    inventariable: "",
+    inventariable: false, // Cambiado a booleano
     cantidad: "",
     departamento: "",
     proveedor: "",
+    numeroOrdenDepartamento: 1, // Para control interno, no visible al usuario
   })
+
+  // Obtenemos el siguiente número de orden para un departamento
+  const getNextNumeroOrden = (departamentoCodigo) => {
+    // Filtrar órdenes del mismo departamento y año
+    const ordenesDelDepartamento = ordenes.filter(orden => {
+      // Extraer el código de departamento de Num_orden (primeras letras antes de /)
+      const ordenDepCodigo = orden.Num_orden?.split('/')[0];
+      return ordenDepCodigo === departamentoCodigo;
+    });
+    
+    // Si no hay órdenes previas, empezar con 001
+    if (ordenesDelDepartamento.length === 0) {
+      return '001';
+    }
+    
+    // Buscar el número más alto y sumar 1
+    let maxNumero = 0;
+    ordenesDelDepartamento.forEach(orden => {
+      // Extraer el número de orden (segundo segmento después del primer /)
+      const numOrden = parseInt(orden.Num_orden?.split('/')[1], 10);
+      if (!isNaN(numOrden) && numOrden > maxNumero) {
+        maxNumero = numOrden;
+      }
+    });
+    
+    // Incrementar y formatear con leading zeros
+    return (maxNumero + 1).toString().padStart(3, '0');
+  };
+
+  // Generar el código de orden automáticamente
+  const generarNumeroOrden = () => {
+    if (!formularioOrden.departamento) return "";
+    
+    const departamentoCodigo = departamentoCodigoMapping[formularioOrden.departamento] || 
+                               formularioOrden.departamento.substring(0, 4).toUpperCase();
+    
+    const numeroOrden = getNextNumeroOrden(departamentoCodigo);
+    const esInventariable = formularioOrden.inventariable ? "1" : "0";
+    
+    // Formato: [DEPCOD]/[NUMORDEN]/[AÑO]/[0-1]
+    return `${departamentoCodigo}/${numeroOrden}/${currentYear}/${esInventariable}`;
+  };
+
+  // Actualizar número orden cuando cambia departamento o inventariable
+  useEffect(() => {
+    if (modalMode === "add" && formularioOrden.departamento) {
+      const nuevoNumeroOrden = generarNumeroOrden();
+      setFormularioOrden(prev => ({
+        ...prev,
+        numero: nuevoNumeroOrden
+      }));
+    }
+  }, [formularioOrden.departamento, formularioOrden.inventariable, modalMode]);
+
+  // Generar número de inversión automáticamente
+  const generarNumeroInversion = () => {
+    if (!formularioOrden.departamento || !formularioOrden.esInversion) return "";
+    
+    // Buscar el departamento seleccionado para obtener su ID
+    const departamentoSeleccionado = departamentos.find(
+      dep => dep.Nombre === formularioOrden.departamento
+    );
+    
+    if (!departamentoSeleccionado) return "";
+    
+    const idDepartamento = departamentoSeleccionado.id_Departamento;
+    
+    // Filtrar inversiones previas del mismo departamento
+    const inversionesDepartamento = ordenes.filter(orden => {
+      const ordenDep = orden.Departamento === formularioOrden.departamento;
+      return ordenDep && orden.Num_inversion;
+    });
+    
+    // Determinar el siguiente número
+    let siguienteNumero = inversionesDepartamento.length + 1;
+    
+    // Formato: [ID_DEPARTAMENTO][00000X] - 7 dígitos en total
+    return `${idDepartamento}${siguienteNumero.toString().padStart(6, '0')}`;
+  };
+
+  // Actualizar número de inversión cuando se activa la casilla
+  useEffect(() => {
+    if (formularioOrden.esInversion && !formularioOrden.numInversion) {
+      setFormularioOrden(prev => ({
+        ...prev,
+        numInversion: generarNumeroInversion()
+      }));
+    } else if (!formularioOrden.esInversion) {
+      setFormularioOrden(prev => ({
+        ...prev,
+        numInversion: ""
+      }));
+    }
+  }, [formularioOrden.esInversion, formularioOrden.departamento]);
 
   // Función para formatear fechas
   function formatDate(dateString) {
@@ -184,14 +255,18 @@ export default function OrdenesCompraClient({
 
   // Abrir modal de editar orden
   const handleOpenEditModal = (orden) => {
+    const esInventariable = orden.Inventariable === 1 || orden.Inventariable === true;
+    const esInversion = orden.Num_inversion ? true : false;
+    
     setFormularioOrden({
       idOrden: orden.idOrden,
       numero: orden.Num_orden || "",
+      esInversion: esInversion,
       numInversion: orden.Num_inversion || "",
       importe: orden.Importe || "",
       fecha: formatDateForInput(orden.Fecha) || "",
       descripcion: orden.Descripcion || "",
-      inventariable: orden.Inventariable || "",
+      inventariable: esInventariable,
       cantidad: orden.Cantidad || "",
       departamento: orden.Departamento || "",
       proveedor: orden.Proveedor || "",
@@ -225,11 +300,12 @@ export default function OrdenesCompraClient({
     setFormularioOrden({
       idOrden: null,
       numero: "",
+      esInversion: false,
       numInversion: "",
       importe: "",
-      fecha: "",
+      fecha: formatDateForInput(new Date()),
       descripcion: "",
-      inventariable: "",
+      inventariable: false,
       cantidad: "",
       departamento: "",
       proveedor: "",
@@ -239,7 +315,17 @@ export default function OrdenesCompraClient({
 
   // Manejar cambios en el formulario
   const handleInputChange = (e) => {
-    const { name, value } = e.target
+    const { name, value, type, checked } = e.target
+    
+    // Para inputs de checkbox
+    if (type === 'checkbox') {
+      setFormularioOrden({
+        ...formularioOrden,
+        [name]: checked,
+      })
+      return;
+    }
+    
     setFormularioOrden({
       ...formularioOrden,
       [name]: value,
@@ -248,8 +334,12 @@ export default function OrdenesCompraClient({
 
   // Validar formulario
   const validarFormulario = () => {
-    if (!formularioOrden.numero) {
-      setFormError("Por favor, ingresa el número de orden")
+    if (!formularioOrden.departamento) {
+      setFormError("Por favor, selecciona un departamento")
+      return false
+    }
+    if (!formularioOrden.proveedor) {
+      setFormError("Por favor, selecciona un proveedor")
       return false
     }
     if (!formularioOrden.importe) {
@@ -268,16 +358,8 @@ export default function OrdenesCompraClient({
       setFormError("Por favor, ingresa la cantidad")
       return false
     }
-    if (!formularioOrden.inventariable) {
-      setFormError("Por favor, selecciona si es inventariable")
-      return false
-    }
-    if (!formularioOrden.departamento) {
-      setFormError("Por favor, selecciona un departamento")
-      return false
-    }
-    if (!formularioOrden.proveedor) {
-      setFormError("Por favor, selecciona un proveedor")
+    if (formularioOrden.esInversion && !formularioOrden.numInversion) {
+      setFormError("Por favor, ingresa el número de inversión")
       return false
     }
 
@@ -289,10 +371,56 @@ export default function OrdenesCompraClient({
   const handleGuardarOrden = async () => {
     if (!validarFormulario()) return
 
+    // Asegurar que el número de orden se genera
+    if (!formularioOrden.numero) {
+      setFormularioOrden({
+        ...formularioOrden,
+        numero: generarNumeroOrden()
+      })
+    }
+
     setIsLoading(true)
 
     try {
-      let response
+      // Encontrar los IDs necesarios
+      const departamentoSeleccionado = departamentos.find(
+        dep => dep.Nombre === formularioOrden.departamento
+      );
+      
+      const proveedorSeleccionado = proveedores.find(
+        prov => prov.Nombre === formularioOrden.proveedor
+      );
+      
+      if (!departamentoSeleccionado || !proveedorSeleccionado) {
+        throw new Error("No se encontró el departamento o proveedor seleccionado");
+      }
+      
+      // Preparar los datos para enviar
+      const ordenData = {
+        Num_orden: formularioOrden.numero,
+        Importe: parseFloat(formularioOrden.importe),
+        Fecha: formularioOrden.fecha,
+        Descripcion: formularioOrden.descripcion,
+        Inventariable: formularioOrden.inventariable ? 1 : 0,
+        Cantidad: parseInt(formularioOrden.cantidad),
+        id_DepartamentoFK: departamentoSeleccionado.id_Departamento,
+        id_ProveedorFK: proveedorSeleccionado.idProveedor,
+        id_UsuarioFK: 1, // Aquí deberías obtener el usuario actual
+      };
+      
+      // Añadir datos de inversión si es necesario
+      if (formularioOrden.esInversion) {
+        ordenData.Num_inversion = formularioOrden.numInversion;
+        
+        // Buscar ID de la bolsa de inversión para este departamento
+        // Aquí podrías hacer una llamada a la API para obtener este ID
+        ordenData.id_InversionFK = departamentoSeleccionado.id_Departamento; // Esto es una simplificación
+      } else {
+        // Si no es inversión, podría ir a presupuesto
+        ordenData.id_PresupuestoFK = departamentoSeleccionado.id_Departamento; // Simplificación
+      }
+
+      let response;
       if (modalMode === "add") {
         // Lógica para añadir nueva orden
         response = await fetch("/api/getOrden", {
@@ -300,48 +428,85 @@ export default function OrdenesCompraClient({
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            Num_orden: formularioOrden.numero,
-            Importe: parseFloat(formularioOrden.importe),
-            Fecha: formularioOrden.fecha,
-            Descripcion: formularioOrden.descripcion,
-            Inventariable: formularioOrden.inventariable === "Sí" ? 1 : 0,
-            Cantidad: parseInt(formularioOrden.cantidad),
-            id_DepartamentoFK: 1, // Esto debería obtenerlo de alguna manera
-            id_ProveedorFK: proveedores.find(p => p.Nombre === formularioOrden.proveedor)?.idProveedor,
-            id_UsuarioFK: 1, // Aquí deberías obtener el usuario actual
-            Num_inversion: formularioOrden.numInversion,
-          }),
-        })
+          body: JSON.stringify(ordenData),
+        });
       } else {
-        // Lógica para editar orden existente
-        console.log("Edición no implementada aún")
+        // Lógica para editar orden existente (a implementar)
+        ordenData.idOrden = formularioOrden.idOrden;
+        response = await fetch(`/api/getOrden/${formularioOrden.idOrden}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(ordenData),
+        });
       }
 
-      if (response?.ok) {
-        const data = await response.json()
-        
-        // Actualizar lista de órdenes con normalización de departamentos
-        const updatedOrdenes = await fetch("/api/getOrden").then(res => res.json())
-        setOrdenes(updatedOrdenes.map(orden => ({
-          ...orden,
-          Departamento: normalizarDepartamento(orden.Departamento)
-        })))
-
-        addNotification(
-          modalMode === "add" ? "Orden creada correctamente" : "Orden actualizada correctamente",
-          "success"
-        )
-
-        handleCloseModal()
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Error al guardar la orden");
       }
+
+      const data = await response.json();
+      
+      // Actualizar lista de órdenes
+      if (modalMode === "add") {
+        // Recargar órdenes desde el servidor para mayor consistencia
+        const updatedOrdersResponse = await fetch("/api/getOrden");
+        if (updatedOrdersResponse.ok) {
+          const updatedOrders = await updatedOrdersResponse.json();
+          setOrdenes(updatedOrders);
+        } else {
+          // Crear una versión local de la nueva orden para actualizar la UI
+          const nuevaOrden = {
+            idOrden: data.insertedId,
+            Num_orden: ordenData.Num_orden,
+            Importe: ordenData.Importe,
+            Fecha: ordenData.Fecha,
+            Descripcion: ordenData.Descripcion,
+            Inventariable: ordenData.Inventariable,
+            Cantidad: ordenData.Cantidad,
+            Departamento: formularioOrden.departamento,
+            Proveedor: formularioOrden.proveedor,
+            Num_inversion: formularioOrden.esInversion ? formularioOrden.numInversion : null,
+          };
+          setOrdenes([...ordenes, nuevaOrden]);
+        }
+      } else {
+        // Actualizar orden existente en la lista local
+        setOrdenes(
+          ordenes.map((orden) =>
+            orden.idOrden === formularioOrden.idOrden
+              ? {
+                  ...orden,
+                  Num_orden: ordenData.Num_orden,
+                  Importe: ordenData.Importe,
+                  Fecha: ordenData.Fecha,
+                  Descripcion: ordenData.Descripcion,
+                  Inventariable: ordenData.Inventariable,
+                  Cantidad: ordenData.Cantidad,
+                  Departamento: formularioOrden.departamento,
+                  Proveedor: formularioOrden.proveedor,
+                  Num_inversion: formularioOrden.esInversion ? formularioOrden.numInversion : null,
+                }
+              : orden
+          )
+        );
+      }
+
+      addNotification(
+        modalMode === "add" ? "Orden creada correctamente" : "Orden actualizada correctamente",
+        "success"
+      );
+
+      handleCloseModal();
     } catch (error) {
-      console.error("Error al guardar la orden:", error)
-      addNotification(`Error al guardar la orden: ${error.message}`, "error")
+      console.error("Error al guardar la orden:", error);
+      addNotification(`Error al guardar la orden: ${error.message}`, "error");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   // Eliminar órdenes seleccionadas
   const handleEliminarOrdenes = () => {
@@ -359,22 +524,55 @@ export default function OrdenesCompraClient({
   }
 
   // Confirmar eliminación de órdenes
+  // Confirmar eliminación de órdenes - Versión mejorada
+  // Confirmar eliminación de órdenes - Con mejor manejo de errores
+  // Confirmar eliminación de órdenes - Versión corregida
   const confirmDeleteOrdenes = async () => {
-    setIsLoading(true)
-
+    setIsLoading(true);
+  
     try {
-      // Aquí necesitarás implementar la API para eliminar órdenes
-      // Por ahora solo actualizamos la UI localmente
-      setOrdenes(ordenes.filter((o) => !selectedOrdenes.includes(o.idOrden)))
-      setSelectedOrdenes([])
-      addNotification(`${selectedOrdenes.length} orden(es) eliminadas correctamente`, "success")
+      // Cambiar a POST con un parámetro de acción
+      const response = await fetch("/api/getOrden/eliminar", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          action: "delete",
+          ids: selectedOrdenes 
+        }),
+      });
+  
+      if (!response.ok) {
+        let errorMessage = `Error del servidor: ${response.status}`;
+        throw new Error(errorMessage);
+      }
+  
+      // Procesar respuesta
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        console.error("Error al parsear la respuesta:", parseError);
+        data = { deletedCount: selectedOrdenes.length };
+      }
+  
+      // Actualizar lista local
+      setOrdenes(ordenes.filter((o) => !selectedOrdenes.includes(o.idOrden)));
+      setSelectedOrdenes([]);
+      
+      // Mostrar notificación de éxito
+      addNotification(
+        `${data?.deletedCount || selectedOrdenes.length} orden(es) eliminadas correctamente`, 
+        "success"
+      );
     } catch (error) {
-      console.error("Error al eliminar órdenes:", error)
-      addNotification(`Error al eliminar órdenes: ${error.message}`, "error")
+      console.error("Error al eliminar órdenes:", error);
+      addNotification(`Error al eliminar órdenes: ${error.message}`, "error");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="p-6">
@@ -392,7 +590,7 @@ export default function OrdenesCompraClient({
 
       {/* Encabezado */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">Orden de Compra</h1>
+        <h1 className="text-3xl font-bold">Órdenes de Compra</h1>
         <h2 className="text-xl text-gray-400">Departamento</h2>
       </div>
 
@@ -418,9 +616,9 @@ export default function OrdenesCompraClient({
             className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10"
           >
             <option value="">Todos los departamentos</option>
-            {departamentosUnicos.map((departamento, index) => (
-              <option key={`${departamento}-${index}`} value={departamento}>
-                {departamento}
+            {departamentos.map((departamento) => (
+              <option key={departamento.id_Departamento} value={departamento.Nombre}>
+                {departamento.Nombre}
               </option>
             ))}
           </select>
@@ -461,7 +659,7 @@ export default function OrdenesCompraClient({
           >
             <option value="">Todos</option>
             <option value="inventariable">Inventariable</option>
-            <option value="no-inventariable">No Inventariable</option>
+            <option value="no-inventariable">Fungible</option>
           </select>
           <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
             <ChevronDown className="w-4 h-4 text-gray-500" />
@@ -477,7 +675,7 @@ export default function OrdenesCompraClient({
       {/* Tabla de órdenes */}
       <div className="border border-gray-200 rounded-lg overflow-hidden mb-6">
         <div className="max-h-[450px] overflow-y-auto">
-          <table className="w-full table-fixed">
+          <table className="w-full">
             <thead className="bg-gray-50 sticky top-0 z-10">
               <tr className="border-b border-gray-200">
                 <th className="py-3 px-4 w-10">
@@ -493,15 +691,15 @@ export default function OrdenesCompraClient({
                     />
                   )}
                 </th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600 w-32">Num Orden</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600 w-32">Num Inversión</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600 w-24">Importe</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600 w-28">Fecha</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600" style={{width: "120px"}}>Num Orden</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600" style={{width: "120px"}}>Num Inversión</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600" style={{width: "80px"}}>Importe</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600" style={{width: "100px"}}>Fecha</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-600">Descripción</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600 w-28">Inventariable</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600 w-20">Cantidad</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600 w-36">Departamento</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600 w-32">Proveedor</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600" style={{width: "100px"}}>Tipo</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600" style={{width: "80px"}}>Cantidad</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600" style={{width: "140px"}}>Departamento</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600" style={{width: "120px"}}>Proveedor</th>
                 <th className="py-3 px-4 w-10"></th>
               </tr>
             </thead>
@@ -523,19 +721,21 @@ export default function OrdenesCompraClient({
                         className="h-4 w-4 text-red-600 border-gray-300 rounded"
                       />
                     </td>
-                    <td className="py-3 px-4 w-32">{orden.Num_orden}</td>
-                    <td className="py-3 px-4 w-32">{orden.Num_inversion || "-"}</td>
-                    <td className="py-3 px-4 w-24">{orden.Importe}€</td>
-                    <td className="py-3 px-4 w-28">{formatDate(orden.Fecha)}</td>
+                    <td className="py-3 px-4" style={{width: "120px"}}>{orden.Num_orden}</td>
+                    <td className="py-3 px-4" style={{width: "120px"}}>{orden.Num_inversion || "-"}</td>
+                    <td className="py-3 px-4" style={{width: "80px"}}>{orden.Importe}€</td>
+                    <td className="py-3 px-4" style={{width: "100px"}}>{formatDate(orden.Fecha)}</td>
                     <td className="py-3 px-4 truncate" title={orden.Descripcion}>{orden.Descripcion}</td>
-                    <td className="py-3 px-4 w-28">{formatInventariable(orden.Inventariable)}</td>
-                    <td className="py-3 px-4 w-20">{orden.Cantidad}</td>
-                    <td className="py-3 px-4 w-36">
+                    <td className="py-3 px-4" style={{width: "100px"}}>
+                      {orden.Inventariable === 1 ? "Inventariable" : "Fungible"}
+                    </td>
+                    <td className="py-3 px-4" style={{width: "80px"}}>{orden.Cantidad}</td>
+                    <td className="py-3 px-4" style={{width: "140px"}}>
                       <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs">
                         {orden.Departamento}
                       </span>
                     </td>
-                    <td className="py-3 px-4 w-32">{orden.Proveedor}</td>
+                    <td className="py-3 px-4" style={{width: "120px"}}>{orden.Proveedor}</td>
                     <td className="py-3 px-4 text-center w-10">
                       <button
                         onClick={(e) => {
@@ -608,102 +808,21 @@ export default function OrdenesCompraClient({
 
             {/* Formulario */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              {/* Campos principales */}
               <div>
-                <label className="block text-gray-700 mb-1">Número</label>
-                <input
-                  type="text"
-                  name="numero"
-                  value={formularioOrden.numero}
-                  onChange={handleInputChange}
-                  className="border border-gray-300 rounded px-3 py-2 w-full"
-                  placeholder="Número"
-                />
-              </div>
-              <div>
-                <label className="block text-gray-700 mb-1">Num Inversión</label>
-                <input
-                  type="text"
-                  name="numInversion"
-                  value={formularioOrden.numInversion}
-                  onChange={handleInputChange}
-                  className="border border-gray-300 rounded px-3 py-2 w-full"
-                  placeholder="Num Inversión"
-                />
-              </div>
-              <div>
-                <label className="block text-gray-700 mb-1">Importe</label>
-                <input
-                  type="text"
-                  name="importe"
-                  value={formularioOrden.importe}
-                  onChange={handleInputChange}
-                  className="border border-gray-300 rounded px-3 py-2 w-full"
-                  placeholder="Importe"
-                />
-              </div>
-              <div>
-                <label className="block text-gray-700 mb-1">Fecha</label>
-                <input
-                  type="date"
-                  name="fecha"
-                  value={formularioOrden.fecha}
-                  onChange={handleInputChange}
-                  className="border border-gray-300 rounded px-3 py-2 w-full text-gray-500"
-                />
-              </div>
-              <div>
-                <label className="block text-gray-700 mb-1">Descripción</label>
-                <input
-                  type="text"
-                  name="descripcion"
-                  value={formularioOrden.descripcion}
-                  onChange={handleInputChange}
-                  className="border border-gray-300 rounded px-3 py-2 w-full"
-                  placeholder="Descripción"
-                />
-              </div>
-              <div>
-                <label className="block text-gray-700 mb-1">Cantidad</label>
-                <input
-                  type="number"
-                  name="cantidad"
-                  value={formularioOrden.cantidad}
-                  onChange={handleInputChange}
-                  className="border border-gray-300 rounded px-3 py-2 w-full"
-                  placeholder="Cantidad"
-                />
-              </div>
-              <div>
-                <label className="block text-gray-700 mb-1">Inventariable</label>
-                <div className="relative">
-                  <select
-                    name="inventariable"
-                    value={formularioOrden.inventariable}
-                    onChange={handleInputChange}
-                    className="appearance-none border border-gray-300 rounded px-3 py-2 w-full pr-8 text-gray-500"
-                  >
-                    <option value="">Seleccionar</option>
-                    <option value="Sí">Inventariable</option>
-                    <option value="No">No Inventariable</option>
-                  </select>
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                    <ChevronDown className="w-4 h-4 text-gray-500" />
-                  </div>
-                </div>
-              </div>
-              <div>
-                <label className="block text-gray-700 mb-1">Departamento</label>
+                <label className="block text-gray-700 mb-1">Departamento *</label>
                 <div className="relative">
                   <select
                     name="departamento"
                     value={formularioOrden.departamento}
                     onChange={handleInputChange}
                     className="appearance-none border border-gray-300 rounded px-3 py-2 w-full pr-8 text-gray-500"
+                    required
                   >
                     <option value="">Seleccionar departamento</option>
-                    {departamentosUnicos.map((departamento, index) => (
-                      <option key={`form-${departamento}-${index}`} value={departamento}>
-                        {departamento}
+                    {departamentos.map((departamento) => (
+                      <option key={departamento.id_Departamento} value={departamento.Nombre}>
+                        {departamento.Nombre}
                       </option>
                     ))}
                   </select>
@@ -712,14 +831,16 @@ export default function OrdenesCompraClient({
                   </div>
                 </div>
               </div>
+              
               <div>
-                <label className="block text-gray-700 mb-1">Proveedor</label>
+                <label className="block text-gray-700 mb-1">Proveedor *</label>
                 <div className="relative">
                   <select
                     name="proveedor"
                     value={formularioOrden.proveedor}
                     onChange={handleInputChange}
                     className="appearance-none border border-gray-300 rounded px-3 py-2 w-full pr-8 text-gray-500"
+                    required
                   >
                     <option value="">Seleccionar proveedor</option>
                     {proveedores.map((proveedor) => (
@@ -733,17 +854,153 @@ export default function OrdenesCompraClient({
                   </div>
                 </div>
               </div>
+              
+              <div>
+                <label className="block text-gray-700 mb-1">Importe (€) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  name="importe"
+                  value={formularioOrden.importe}
+                  onChange={handleInputChange}
+                  className="border border-gray-300 rounded px-3 py-2 w-full"
+                  placeholder="0.00"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-gray-700 mb-1">Fecha *</label>
+                <input
+                  type="date"
+                  name="fecha"
+                  value={formularioOrden.fecha}
+                  onChange={handleInputChange}
+                  className="border border-gray-300 rounded px-3 py-2 w-full text-gray-500"
+                  required
+                />
+              </div>
+              
+              <div className="md:col-span-2">
+                <label className="block text-gray-700 mb-1">Descripción *</label>
+                <input
+                  type="text"
+                  name="descripcion"
+                  value={formularioOrden.descripcion}
+                  onChange={handleInputChange}
+                  className="border border-gray-300 rounded px-3 py-2 w-full"
+                  placeholder="Descripción del artículo o servicio"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-gray-700 mb-1">Cantidad *</label>
+                <input
+                  type="number"
+                  min="1"
+                  name="cantidad"
+                  value={formularioOrden.cantidad}
+                  onChange={handleInputChange}
+                  className="border border-gray-300 rounded px-3 py-2 w-full"
+                  placeholder="1"
+                  required
+                />
+              </div>
+              
+              {/* Campos para tipo y número de orden */}
+              <div className="flex flex-col">
+                <label className="block text-gray-700 mb-1">Tipo *</label>
+                <div className="flex items-center space-x-6 py-2">
+                  <label className="inline-flex items-center">
+                    <input
+                      type="checkbox"
+                      name="inventariable"
+                      checked={formularioOrden.inventariable}
+                      onChange={handleInputChange}
+                      className="form-checkbox h-5 w-5 text-red-600"
+                    />
+                    <span className="ml-2">Inventariable</span>
+                  </label>
+                  <span className="text-gray-500">
+                    {!formularioOrden.inventariable && "Fungible"}
+                  </span>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-gray-700 mb-1">
+                  Número Orden
+                  <span className="ml-2 text-gray-500 text-xs">
+                    (generado automáticamente)
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  name="numero"
+                  value={formularioOrden.numero}
+                  className="border border-gray-300 rounded px-3 py-2 w-full bg-gray-100"
+                  placeholder={formularioOrden.departamento ? "Se generará al guardar" : "Selecciona departamento"}
+                  disabled
+                />
+              </div>
+              
+              {/* Casilla y campo para inversión */}
+              <div className="flex flex-col">
+                <label className="block text-gray-700 mb-1">Inversión</label>
+                <div className="flex items-center space-x-4 py-2">
+                  <label className="inline-flex items-center">
+                    <input
+                      type="checkbox"
+                      name="esInversion"
+                      checked={formularioOrden.esInversion}
+                      onChange={handleInputChange}
+                      className="form-checkbox h-5 w-5 text-red-600"
+                    />
+                    <span className="ml-2">Es inversión</span>
+                  </label>
+                  {formularioOrden.esInversion && (
+                    <div className="flex items-center">
+                      <Info className="w-4 h-4 text-gray-400 mr-1" />
+                      <span className="text-xs text-gray-500">
+                        Se cargará a inversiones
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {formularioOrden.esInversion && (
+                <div>
+                  <label className="block text-gray-700 mb-1">
+                    Número Inversión *
+                    <span className="ml-2 text-gray-500 text-xs">
+                      (generado automáticamente)
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    name="numInversion"
+                    value={formularioOrden.numInversion}
+                    onChange={handleInputChange}
+                    className="border border-gray-300 rounded px-3 py-2 w-full bg-gray-100"
+                    placeholder={formularioOrden.departamento ? "Se generará al guardar" : "Selecciona departamento"}
+                    disabled
+                  />
+                </div>
+              )}
             </div>
 
             {/* Botones del formulario */}
             <div className="flex justify-end gap-4">
-              <Button
-                variant="secondary"
+              <button
+                type="button"
                 onClick={handleCloseModal}
+                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
                 disabled={isLoading}
               >
                 Cancelar
-              </Button>
+              </button>
               <Button
                 onClick={handleGuardarOrden}
                 disabled={isLoading}
