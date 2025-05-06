@@ -5,33 +5,23 @@ import { ChevronDown, Pencil, X, Search, Filter, Info } from "lucide-react"
 import Button from "@/app/components/ui/button"
 import useNotifications from "@/app/hooks/useNotifications"
 import ConfirmationDialog from "@/app/components/ui/confirmation-dialog"
-import useUserDepartamento from "@/app/hooks/useUserDepartamento";
+import useUserDepartamento from "@/app/hooks/useUserDepartamento"
 
 export default function OrdenesCompraClient({
   initialOrdenes,
   initialDepartamentos,
   initialProveedores,
 }) {
-  // Mapeo de departamentos
-  const departamentoMapping = {
-    'INFO': 'Informática',
-    'MARK': 'Marketing',
-    'RRHH': 'Recursos Humanos',
-    'CONT': 'Contabilidad',
-    'OPER': 'Operaciones',
-    'MEC': 'Mecánica',
-    'ELE': 'Electricidad',
-    'AUT': 'Automoción',
-    'ROB': 'Robótica',
-    'INF': 'Informática'
-  }
+  // Obtener el departamento del usuario
+  const { departamento, isLoading: isDepartamentoLoading } = useUserDepartamento()
+  const [userRole, setUserRole] = useState(null)
 
   // Obtener el año actual
   const currentYear = new Date().getFullYear().toString().substring(2); // Solo tomamos los 2 últimos dígitos
 
   // Estados principales
   const [ordenes, setOrdenes] = useState(initialOrdenes)
-  const [departamentos] = useState(initialDepartamentos)
+  const [departamentos, setDepartamentos] = useState(Array.isArray(initialDepartamentos) ? initialDepartamentos : [])
   const [proveedores] = useState(initialProveedores)
   const [selectedOrdenes, setSelectedOrdenes] = useState([])
   const [isLoading, setIsLoading] = useState(false)
@@ -71,6 +61,28 @@ export default function OrdenesCompraClient({
     proveedor: "",
     numeroOrdenDepartamento: 1, // Para control interno, no visible al usuario
   })
+  
+  // Efecto para obtener el rol del usuario
+  useEffect(() => {
+    async function fetchUserRole() {
+      try {
+        const response = await fetch('/api/getSessionUser')
+        if (response.ok) {
+          const data = await response.json()
+          setUserRole(data.usuario?.rol || '')
+          
+          // Si es Jefe de Departamento, establecer el filtro automáticamente
+          if (data.usuario?.rol === "Jefe de Departamento" && departamento) {
+            setFilterDepartamento(departamento)
+          }
+        }
+      } catch (error) {
+        console.error("Error obteniendo rol del usuario:", error)
+      }
+    }
+
+    fetchUserRole()
+  }, [departamento])
 
   // Obtenemos el siguiente número de orden para un departamento
   const getNextNumeroOrden = (departamentoCodigo) => {
@@ -104,8 +116,8 @@ export default function OrdenesCompraClient({
   const generarNumeroOrden = () => {
     if (!formularioOrden.departamento) return "";
     
-    const departamentoCodigo = departamentoCodigoMapping[formularioOrden.departamento] || 
-                               formularioOrden.departamento.substring(0, 4).toUpperCase();
+    // Obtener las primeras 4 letras del departamento para el código
+    const departamentoCodigo = formularioOrden.departamento.substring(0, 4).toUpperCase();
     
     const numeroOrden = getNextNumeroOrden(departamentoCodigo);
     const esInventariable = formularioOrden.inventariable ? "1" : "0";
@@ -251,6 +263,15 @@ export default function OrdenesCompraClient({
   // Abrir modal de añadir orden
   const handleOpenAddModal = () => {
     limpiarFormulario()
+    
+    // Si es Jefe de Departamento, preseleccionamos su departamento
+    if (userRole === "Jefe de Departamento" && departamento) {
+      setFormularioOrden(prev => ({
+        ...prev,
+        departamento: departamento
+      }))
+    }
+    
     setModalMode("add")
     setShowModal(true)
   }
@@ -433,7 +454,7 @@ export default function OrdenesCompraClient({
           body: JSON.stringify(ordenData),
         });
       } else {
-        // Lógica para editar orden existente (a implementar)
+        // Lógica para editar orden existente
         ordenData.idOrden = formularioOrden.idOrden;
         response = await fetch(`/api/getOrden/${formularioOrden.idOrden}`, {
           method: "PUT",
@@ -526,9 +547,6 @@ export default function OrdenesCompraClient({
   }
 
   // Confirmar eliminación de órdenes
-  // Confirmar eliminación de órdenes - Versión mejorada
-  // Confirmar eliminación de órdenes - Con mejor manejo de errores
-  // Confirmar eliminación de órdenes - Versión corregida
   const confirmDeleteOrdenes = async () => {
     setIsLoading(true);
   
@@ -576,6 +594,11 @@ export default function OrdenesCompraClient({
     }
   }
 
+  // Mostrar indicador de carga mientras esperamos el departamento
+  if (isDepartamentoLoading) {
+    return <div className="p-6">Cargando...</div>
+  }
+
   return (
     <div className="p-6">
       {/* Notificaciones */}
@@ -593,7 +616,7 @@ export default function OrdenesCompraClient({
       {/* Encabezado */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Orden de Compra</h1>
-        <h2 className="text-xl text-gray-400">Departamento</h2>
+        <h2 className="text-xl text-gray-400">Departamento {departamento}</h2>
       </div>
 
       {/* Filtros y búsqueda */}
@@ -611,16 +634,18 @@ export default function OrdenesCompraClient({
           </div>
         </div>
 
+        {/* Filtro de departamento */}
         <div className="relative">
           <select
             value={filterDepartamento}
             onChange={(e) => setFilterDepartamento(e.target.value)}
             className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10"
+            disabled={userRole === "Jefe de Departamento"}
           >
             <option value="">Todos los departamentos</option>
-            {departamentos.map((departamento) => (
-              <option key={departamento.id_Departamento} value={departamento.Nombre}>
-                {departamento.Nombre}
+            {Array.isArray(departamentos) && departamentos.map(dep => (
+              <option key={dep.id_Departamento || dep.id || dep._id} value={dep.Nombre}>
+                {dep.Nombre}
               </option>
             ))}
           </select>
@@ -820,6 +845,7 @@ export default function OrdenesCompraClient({
                     onChange={handleInputChange}
                     className="appearance-none border border-gray-300 rounded px-3 py-2 w-full pr-8 text-gray-500"
                     required
+                    disabled={userRole === "Jefe de Departamento"} // Deshabilitar si es jefe de departamento
                   >
                     <option value="">Seleccionar departamento</option>
                     {departamentos.map((departamento) => (
