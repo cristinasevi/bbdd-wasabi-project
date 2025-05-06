@@ -1,25 +1,90 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
 import { Home, Wallet, ChartColumnIncreasing, ShoppingCart,
         ReceiptText, Truck, Package, Users, FileText } from "lucide-react"
 import Image from "next/image"
 
 export default function Navbar() {
     const pathname = usePathname()
+    const router = useRouter()
+    const [userInfo, setUserInfo] = useState(null)
+    const [isLoading, setIsLoading] = useState(true)
+    
+    // Obtener información del usuario al cargar el componente
+    useEffect(() => {
+        const getUserInfo = async () => {
+            try {
+                setIsLoading(true)
+                const res = await fetch('/api/getSessionUser')
+                if (res.ok) {
+                    const data = await res.json()
+                    setUserInfo(data.usuario)
+                    
+                    // Si el usuario es Jefe de Departamento y está intentando acceder a /pages/home
+                    if (data.usuario.rol === "Jefe de Departamento" && 
+                        pathname === "/pages/home" && 
+                        data.usuario.departamento) {
+                        router.push(`/pages/resumen/${data.usuario.departamento}`)
+                    }
+                }
+            } catch (error) {
+                console.error("Error obteniendo información del usuario:", error)
+            } finally {
+                setIsLoading(false)
+            }
+        }
+        
+        getUserInfo()
+    }, [pathname, router])
 
-    const navItems = [
-        { name: "Inicio", href: "/pages/home", icon: Home },
-        { name: "Presupuestos", href: "/pages/presupuestos", icon: Wallet },
-        { name: "Inversiones", href: "/pages/inversiones", icon: ChartColumnIncreasing },
-        { name: "Órdenes de Compra", href: "/pages/ordenes-compra", icon: ShoppingCart },
-        { name: "Facturas", href: "/pages/facturas", icon: ReceiptText },
-        { name: "Proveedores", href: "/pages/proveedores", icon: Truck },
-        { name: "Inventario", href: "/pages/inventario", icon: Package },
-        { name: "Gestión de Usuarios", href: "/pages/usuarios", icon: Users },
-        { name: "Informes", href: "/pages/informes", icon: FileText },
-    ]
+    // Determinar los elementos de navegación según el rol
+    const getNavItems = (role) => {
+        // Items básicos para todos los roles
+        const baseItems = [
+            { name: "Inicio", href: userInfo?.rol === "Jefe de Departamento" ? `/pages/resumen/${userInfo.departamento}` : "/pages/home", icon: Home },
+            { name: "Presupuestos", href: "/pages/presupuestos", icon: Wallet },
+            { name: "Inversiones", href: "/pages/inversiones", icon: ChartColumnIncreasing },
+            { name: "Órdenes de Compra", href: "/pages/ordenes-compra", icon: ShoppingCart },
+            { name: "Facturas", href: "/pages/facturas", icon: ReceiptText },
+            { name: "Proveedores", href: "/pages/proveedores", icon: Truck },
+            { name: "Inventario", href: "/pages/inventario", icon: Package },
+            { name: "Informes", href: "/pages/informes", icon: FileText },
+        ]
+        
+        // Items adicionales solo para Admin y Contable
+        const adminItems = [
+            { name: "Gestión de Usuarios", href: "/pages/usuarios", icon: Users },
+        ]
+        
+        if (role === "Administrador") {
+            return [...baseItems, ...adminItems]
+        }
+        
+        return baseItems
+    }
+    
+    // Determinar los items de navegación según el rol del usuario
+    const navItems = userInfo ? getNavItems(userInfo.rol) : []
+
+    if (isLoading) {
+        return <div className="h-full w-64 border-r border-gray-200 flex flex-col fixed left-0 top-0">
+            <div className="p-6 flex justify-center">
+                <div className="w-60 h-32">
+                    <div className="animate-pulse bg-gray-200 h-full w-full"></div>
+                </div>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+                {[1, 2, 3, 4, 5].map(i => (
+                    <div key={i} className="px-6 py-3 mb-2">
+                        <div className="animate-pulse bg-gray-200 h-8 w-full"></div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    }
 
     return (
         <div className="h-full w-64 border-r border-gray-200 flex flex-col fixed left-0 top-0">

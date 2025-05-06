@@ -24,12 +24,14 @@ export const authOptions = {
           console.log("Email recibido de Google:", user.email)
           console.log("Resultado de la query:", rows)
 
-
           if (rows.length === 0) {
             console.log("Acceso denegado para:", user.email)
             return false
           }
 
+          // Guardar el idUsuario para usarlo en el token y la sesión
+          user.id = rows[0].idUsuario
+          
           console.log("Acceso permitido para:", user.email)
           return true
         } catch (err) {
@@ -42,11 +44,13 @@ export const authOptions = {
     },
 
     async session({ session, token }) {
+      // Pasar el id del usuario a la sesión
       session.user.id = token.id
       return session
     },
 
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
+      // Guardar el id del usuario en el token
       if (user) {
         token.id = user.id
       }
