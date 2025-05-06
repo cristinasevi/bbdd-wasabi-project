@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react"; // Añadimos useEffect
 import { ChevronDown, Pencil, X, Search, Filter } from "lucide-react";
 import Button from "@/app/components/ui/button";
 import useNotifications from "@/app/hooks/useNotifications";
@@ -13,6 +13,7 @@ export default function ProveedoresClient({
 }) {
   // Agregamos el hook para obtener el departamento del usuario
   const { departamento, isLoading: isDepartamentoLoading } = useUserDepartamento();
+  const [userRole, setUserRole] = useState(null); // Añadimos estado para el rol
   
   // Estados principales
   const [proveedores, setProveedores] = useState(initialProveedores);
@@ -26,6 +27,29 @@ export default function ProveedoresClient({
   // Estados para búsqueda y filtrado
   const [searchTerm, setSearchTerm] = useState("");
   const [filterDepartamento, setFilterDepartamento] = useState("");
+  
+  // Efecto para obtener el rol del usuario
+  useEffect(() => {
+    async function fetchUserRole() {
+      try {
+        const response = await fetch('/api/getSessionUser');
+        if (response.ok) {
+          const data = await response.json();
+          const role = data.usuario?.rol || '';
+          setUserRole(role);
+          
+          // Si es Jefe de Departamento, establecer el filtro automáticamente
+          if (role === "Jefe de Departamento" && departamento) {
+            setFilterDepartamento(departamento);
+          }
+        }
+      } catch (error) {
+        console.error("Error obteniendo rol del usuario:", error);
+      }
+    }
+    
+    fetchUserRole();
+  }, [departamento]);
 
   // Estado para diálogo de confirmación
   const [confirmDialog, setConfirmDialog] = useState({
@@ -88,6 +112,15 @@ export default function ProveedoresClient({
   // Abrir modal de añadir proveedor
   const handleOpenAddModal = () => {
     limpiarFormulario();
+    
+    // Si es Jefe de Departamento, preseleccionamos su departamento
+    if (userRole === "Jefe de Departamento" && departamento) {
+      setFormularioProveedor(prev => ({
+        ...prev,
+        departamento: departamento
+      }));
+    }
+    
     setModalMode("add");
     setShowModal(true);
   };
@@ -313,6 +346,7 @@ export default function ProveedoresClient({
             value={filterDepartamento}
             onChange={(e) => setFilterDepartamento(e.target.value)}
             className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10"
+            disabled={userRole === "Jefe de Departamento"} // Deshabilitar si es jefe de departamento
           >
             <option value="">Todos los departamentos</option>
             {departamentos.map((departamento) => (
@@ -529,6 +563,7 @@ export default function ProveedoresClient({
                     value={formularioProveedor.departamento}
                     onChange={handleInputChange}
                     className="appearance-none border border-gray-300 rounded px-3 py-2 w-full pr-8 text-gray-500"
+                    disabled={userRole === "Jefe de Departamento"} // Deshabilitar si es jefe de departamento
                   >
                     <option value="">Seleccionar departamento</option>
                     {departamentos.map((departamento) => (
