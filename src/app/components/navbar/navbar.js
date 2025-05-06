@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { Home, Wallet, ChartColumnIncreasing, ShoppingCart,
         ReceiptText, Truck, Package, Users, FileText } from "lucide-react"
 import Image from "next/image"
@@ -13,11 +13,10 @@ export default function Navbar() {
     const [userInfo, setUserInfo] = useState(null)
     const [isLoading, setIsLoading] = useState(true)
     
-    // Obtener información del usuario al cargar el componente
+    // Obtener información del usuario solo al montar el componente
     useEffect(() => {
         const getUserInfo = async () => {
             try {
-                setIsLoading(true)
                 const res = await fetch('/api/getSessionUser')
                 if (res.ok) {
                     const data = await res.json()
@@ -29,6 +28,12 @@ export default function Navbar() {
                         data.usuario.departamento) {
                         router.push(`/pages/resumen/${data.usuario.departamento}`)
                     }
+                    
+                    // Compartir la información del usuario a nivel global
+                    // para que otras páginas puedan acceder a ella
+                    if (typeof window !== 'undefined') {
+                        window.userDepartamento = data.usuario.departamento || '';
+                    }
                 }
             } catch (error) {
                 console.error("Error obteniendo información del usuario:", error)
@@ -38,10 +43,11 @@ export default function Navbar() {
         }
         
         getUserInfo()
-    }, [pathname, router])
-
-    // Determinar los elementos de navegación según el rol
-    const getNavItems = (role) => {
+        // Eliminamos las dependencias para que solo se ejecute al montar el componente
+    }, [])
+    
+    // Memoizamos la función getNavItems para evitar recálculos innecesarios
+    const getNavItems = useCallback((role) => {
         // Items básicos para todos los roles
         const baseItems = [
             { name: "Inicio", href: userInfo?.rol === "Jefe de Departamento" ? `/pages/resumen/${userInfo.departamento}` : "/pages/home", icon: Home },
@@ -54,7 +60,7 @@ export default function Navbar() {
             { name: "Informes", href: "/pages/informes", icon: FileText },
         ]
         
-        // Items adicionales solo para Admin y Contable
+        // Items adicionales solo para Admin
         const adminItems = [
             { name: "Gestión de Usuarios", href: "/pages/usuarios", icon: Users },
         ]
@@ -64,10 +70,20 @@ export default function Navbar() {
         }
         
         return baseItems
-    }
+    }, [userInfo])
     
     // Determinar los items de navegación según el rol del usuario
     const navItems = userInfo ? getNavItems(userInfo.rol) : []
+
+    // Función para manejar el clic en el logo
+    const handleLogoClick = (e) => {
+        e.preventDefault();
+        if (userInfo?.rol === "Jefe de Departamento" && userInfo.departamento) {
+            router.push(`/pages/resumen/${userInfo.departamento}`);
+        } else {
+            router.push("/pages/home");
+        }
+    };
 
     if (isLoading) {
         return <div className="h-full w-64 border-r border-gray-200 flex flex-col fixed left-0 top-0">
@@ -90,7 +106,7 @@ export default function Navbar() {
         <div className="h-full w-64 border-r border-gray-200 flex flex-col fixed left-0 top-0">
             <div className="p-6 flex justify-center">
                 <div className="w-60 h-32">
-                    <Link href="/">
+                    <a href="#" onClick={handleLogoClick}>
                         <Image
                             src="/images/logo.jpg"
                             alt="Logo Salesianos"
@@ -99,7 +115,7 @@ export default function Navbar() {
                             priority
                             className="object-contain"
                         />
-                    </Link>
+                    </a>
                 </div>
             </div>
 
@@ -116,6 +132,7 @@ export default function Navbar() {
                                     className={`flex items-center px-6 py-3 ${isActive
                                         ? "text-red-600 bg-red-50 border-l-2 border-red-600" 
                                         : "text-gray-700 hover:bg-gray-100"}`}
+                                    prefetch={false}
                                 >
                                     <Icon className="w-5 h-5 mr-7" />
                                     {item.name}
