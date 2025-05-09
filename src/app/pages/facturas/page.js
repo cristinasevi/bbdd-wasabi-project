@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
-import { ChevronDown, ArrowUpDown, Search, Filter } from "lucide-react"
+import { useState, useEffect, useMemo, useRef } from "react"
+import { ChevronDown, ArrowUpDown, Search, Filter, Upload, X, Pencil } from "lucide-react"
 import Link from "next/link"
 import useUserDepartamento from "@/app/hooks/useUserDepartamento"
 import useNotifications from "@/app/hooks/useNotifications"
@@ -12,7 +12,7 @@ export default function Facturas() {
     const [facturas, setFacturas] = useState([])
     const [userRole, setUserRole] = useState(null)
     const [filteredFacturas, setFilteredFacturas] = useState([])
-    const [loading, setLoading] = useState(true)
+    const [loading, setIsLoading] = useState(true)
     const [error, setError] = useState(null)
     const [updatingFactura, setUpdatingFactura] = useState(null)
     
@@ -28,6 +28,35 @@ export default function Facturas() {
     
     // Estado de dropdown abierto
     const [openDropdown, setOpenDropdown] = useState(null)
+
+    // Estado para modal de subir factura
+    const [showUploadModal, setShowUploadModal] = useState(false)
+    const [selectedFacturaId, setSelectedFacturaId] = useState(null)
+    const [selectedFile, setSelectedFile] = useState(null)
+    const [uploadProgress, setUploadProgress] = useState(0)
+    const [isUploading, setIsUploading] = useState(false)
+    
+    // Estado para modal de edición de factura
+    const [showEditModal, setShowEditModal] = useState(false)
+    const [editingFactura, setEditingFactura] = useState(null)
+    const [formFactura, setFormFactura] = useState({
+        num_factura: "",
+        fecha_emision: "",
+        estado: "",
+        ruta_pdf: "",
+        // Mantenemos los campos no editables para referencia
+        idFactura: null,
+        num_orden: "",
+        proveedor: "",
+        departamento: "",
+        // Control de archivo nuevo
+        newFile: null,
+        hasNewFile: false
+    })
+    
+    // Referencia al input de archivo
+    const fileInputRef = useRef(null)
+    const editFileInputRef = useRef(null)
 
     // Lista de posibles estados
     const estadoOptions = ["Pendiente", "Pagada", "Anulada"]
@@ -100,7 +129,7 @@ export default function Facturas() {
                 setFilteredFacturas(facturasData)
             }
             
-            setLoading(false)
+            setIsLoading(false)
         }
         
         loadData()
@@ -137,8 +166,8 @@ export default function Facturas() {
             setFilteredFacturas(filtered);
         }
     }, [facturas, searchTerm, filterDepartamento, filterProveedor, filterEstado]);
-
-    // Función para formatear fechas
+    
+    // Función para formatear fechas para mostrar
     function formatDate(dateString) {
         if (!dateString) return "-"
     
@@ -152,6 +181,246 @@ export default function Facturas() {
           return dateString
         }
     }
+    
+    // Función para formatear fechas para input type="date"
+    function formatDateForInput(dateString) {
+        if (!dateString) return ""
+        
+        try {
+            const date = new Date(dateString)
+            return date.toISOString().split('T')[0]
+        } catch (error) {
+            return ""
+        }
+    }
+    
+    // Función para manejar el click en "Insertar Factura"
+    const handleInsertarFactura = (facturaId) => {
+        setSelectedFacturaId(facturaId);
+        setSelectedFile(null);
+        setUploadProgress(0);
+        setShowUploadModal(true);
+    };
+    
+    // Función para manejar la selección de archivos en el modal de inserción
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file && file.type === 'application/pdf') {
+            setSelectedFile(file);
+        } else {
+            addNotification("Por favor, selecciona un archivo PDF válido", "error");
+            setSelectedFile(null);
+        }
+    };
+    
+    // Función para manejar la selección de archivos en el modal de edición
+    const handleEditFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file && file.type === 'application/pdf') {
+            setFormFactura(prev => ({
+                ...prev,
+                newFile: file,
+                hasNewFile: true
+            }));
+        } else if (file) {
+            addNotification("Por favor, selecciona un archivo PDF válido", "error");
+            setFormFactura(prev => ({
+                ...prev,
+                newFile: null,
+                hasNewFile: false
+            }));
+        }
+    };
+    
+    // Función para abrir el modal de edición
+    const handleEditFactura = (factura) => {
+        // Llenamos el formulario con los datos de la factura
+        setFormFactura({
+            num_factura: factura.Num_factura || "",
+            fecha_emision: formatDateForInput(factura.Fecha_emision) || "",
+            estado: factura.Estado || "",
+            ruta_pdf: factura.Ruta_pdf || "",
+            // Campos no editables
+            idFactura: factura.idFactura,
+            num_orden: factura.Num_orden || "",
+            proveedor: factura.Proveedor || "",
+            departamento: factura.Departamento || "",
+            // Control de archivo nuevo
+            newFile: null,
+            hasNewFile: false
+        });
+        
+        setEditingFactura(factura);
+        setShowEditModal(true);
+    };
+    
+    // Función para manejar cambios en el formulario de edición
+    const handleEditFormChange = (e) => {
+        const { name, value } = e.target;
+        setFormFactura(prev => ({
+            ...prev,
+            [name]: value
+        }));
+    };
+    
+    // Función para guardar cambios de factura
+    const handleSaveFacturaChanges = async () => {
+        // Validaciones básicas
+        if (!formFactura.num_factura || !formFactura.fecha_emision || !formFactura.estado) {
+            addNotification("Por favor, completa todos los campos obligatorios", "warning");
+            return;
+        }
+        
+        setIsUploading(true);
+        
+        try {
+            // Si hay un nuevo archivo, primero habría que subirlo
+            if (formFactura.hasNewFile && formFactura.newFile) {
+                // Simulación de progreso para el archivo
+                const simulateProgress = () => {
+                    let progress = 0;
+                    const interval = setInterval(() => {
+                        progress += 10;
+                        setUploadProgress(progress);
+                        if (progress >= 100) {
+                            clearInterval(interval);
+                        }
+                    }, 200);
+                    return interval;
+                };
+                
+                const progressInterval = simulateProgress();
+                
+                // Simulamos la subida del archivo
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+                clearInterval(progressInterval);
+                setUploadProgress(100);
+                
+                // En una implementación real, aquí se subiría el archivo y se obtendría su ruta
+                // Simulamos una nueva ruta
+                const fechaActual = new Date();
+                const año = fechaActual.getFullYear();
+                const nombreArchivo = `fac-${formFactura.proveedor.toLowerCase().substring(0, 3)}-${formFactura.num_factura.toLowerCase()}`;
+                const nuevaRuta = `/facturas/${año}/${formFactura.departamento?.toLowerCase().substring(0, 4) || 'dept'}/${nombreArchivo}.pdf`;
+                
+                // Actualizamos la ruta en el formulario
+                setFormFactura(prev => ({
+                    ...prev,
+                    ruta_pdf: nuevaRuta
+                }));
+            }
+            
+            // En una implementación real, aquí se enviarían los datos a la API
+            // Simulamos la actualización localmente
+            const updatedFacturas = facturas.map(factura => 
+                factura.idFactura === formFactura.idFactura 
+                    ? {
+                        ...factura,
+                        Num_factura: formFactura.num_factura,
+                        Fecha_emision: new Date(formFactura.fecha_emision),
+                        Estado: formFactura.estado,
+                        Ruta_pdf: formFactura.hasNewFile ? formFactura.ruta_pdf : factura.Ruta_pdf
+                    } 
+                    : factura
+            );
+            
+            setFacturas(updatedFacturas);
+            
+            // Mostrar notificación de éxito
+            addNotification("Factura actualizada correctamente", "success");
+            
+            // Cerrar el modal después de un breve retraso
+            setTimeout(() => {
+                setShowEditModal(false);
+                setEditingFactura(null);
+                setUploadProgress(0);
+            }, 1000);
+            
+        } catch (error) {
+            console.error("Error actualizando factura:", error);
+            addNotification(`Error al actualizar la factura: ${error.message}`, "error");
+        } finally {
+            setIsUploading(false);
+        }
+    };
+    
+    // Función para manejar el envío del formulario de subida
+    const handleFileUpload = async () => {
+        if (!selectedFile || !selectedFacturaId) {
+            addNotification("Por favor, selecciona un archivo PDF", "warning");
+            return;
+        }
+        
+        setIsUploading(true);
+        
+        // Crear FormData para enviar el archivo
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('facturaId', selectedFacturaId);
+        
+        try {
+            // Simulación de progreso (en una implementación real, podrías usar un endpoint que soporte reportar progreso)
+            const simulateProgress = () => {
+                let progress = 0;
+                const interval = setInterval(() => {
+                    progress += 10;
+                    setUploadProgress(progress);
+                    if (progress >= 100) {
+                        clearInterval(interval);
+                    }
+                }, 300);
+                return interval;
+            };
+            
+            const progressInterval = simulateProgress();
+            
+            // En una implementación real, aquí iría la llamada al endpoint de API
+            // const response = await fetch('/api/facturas/upload', {
+            //     method: 'POST',
+            //     body: formData,
+            // });
+            
+            // Simulamos una carga exitosa después de que el progreso llegue al 100%
+            await new Promise((resolve) => setTimeout(resolve, 3500));
+            clearInterval(progressInterval);
+            setUploadProgress(100);
+            
+            // Actualizamos el estado de la factura localmente
+            const facturaIndex = facturas.findIndex(f => f.idFactura === selectedFacturaId);
+            if (facturaIndex !== -1) {
+                const updatedFacturas = [...facturas];
+                // En una implementación real, obtendrías la ruta real del servidor
+                const fechaActual = new Date();
+                const año = fechaActual.getFullYear();
+                const factura = updatedFacturas[facturaIndex];
+                // Generamos una ruta siguiendo el patrón observado
+                const nombreArchivo = `fac-${factura.Proveedor.toLowerCase().substring(0, 3)}-${factura.Num_factura.toLowerCase()}`;
+                const ruta = `/facturas/${año}/${factura.Departamento?.toLowerCase().substring(0, 4) || 'dept'}/${nombreArchivo}.pdf`;
+                
+                updatedFacturas[facturaIndex] = {
+                    ...updatedFacturas[facturaIndex],
+                    Ruta_pdf: ruta
+                };
+                setFacturas(updatedFacturas);
+            }
+            
+            addNotification("Factura subida correctamente", "success");
+            
+            // Cerrar el modal después de un breve retraso para mostrar el 100%
+            setTimeout(() => {
+                setShowUploadModal(false);
+                setSelectedFacturaId(null);
+                setSelectedFile(null);
+                setUploadProgress(0);
+            }, 1000);
+            
+        } catch (error) {
+            console.error("Error subiendo factura:", error);
+            addNotification(`Error al subir la factura: ${error.message}`, "error");
+        } finally {
+            setIsUploading(false);
+        }
+    };
     
     // Función para cerrar dropdown cuando se hace clic fuera
     useEffect(() => {
@@ -348,7 +617,7 @@ export default function Facturas() {
                                 <th className="py-3 px-4 text-left font-medium text-gray-600">Num Orden</th>
                                 <th className="py-3 px-4 text-left font-medium text-gray-600">Estado</th>
                                 <th className="py-3 px-4 text-left font-medium text-gray-600">Departamento</th>
-                                <th className="py-3 px-4 text-center font-medium text-gray-600"></th>
+                                <th className="py-3 px-4 text-center font-medium text-gray-600">Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -401,16 +670,37 @@ export default function Facturas() {
                                         </td>
                                         <td className="py-3 px-4">
                                             <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full">
-                                            {factura.Departamento}
+                                                {factura.Departamento}
                                             </span>
                                         </td>
                                         <td className="py-3 px-4 text-center">
-                                            <Link
-                                            href={`/api/facturas/descargar?id=${factura.idFactura}`}
-                                            className="bg-red-600 text-white text-sm px-3 py-1 rounded hover:bg-red-700"
-                                            >
-                                            Descargar
-                                            </Link>
+                                            <div className="flex justify-center gap-2 items-center">
+                                                {/* Botón de editar */}
+                                                <button
+                                                    onClick={() => handleEditFactura(factura)}
+                                                    className="text-gray-500 hover:text-blue-600"
+                                                    title="Editar factura"
+                                                >
+                                                    <Pencil className="w-5 h-5" />
+                                                </button>
+                                                
+                                                {/* Botón de descargar/insertar */}
+                                                {factura.Ruta_pdf ? (
+                                                    <Link
+                                                        href={`/api/facturas/descargar?id=${factura.idFactura}`}
+                                                        className="bg-red-600 text-white text-sm px-3 py-1 rounded hover:bg-red-700"
+                                                    >
+                                                        Descargar
+                                                    </Link>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => handleInsertarFactura(factura.idFactura)}
+                                                        className="bg-green-600 text-white text-sm px-3 py-1 rounded hover:bg-green-700"
+                                                    >
+                                                        Insertar Factura
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))
@@ -429,6 +719,283 @@ export default function Facturas() {
                     </table>
                 </div>
             </div>
+            
+            {/* Modal para subir factura */}
+            {showUploadModal && (
+                <div
+                    className="fixed inset-0 flex items-center justify-center z-50"
+                    style={{
+                        backgroundColor: "rgba(0, 0, 0, 0.3)",
+                        backdropFilter: "blur(2px)"
+                    }}
+                >
+                    <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-xl font-bold">Subir Factura PDF</h2>
+                            <button
+                                onClick={() => !isUploading && setShowUploadModal(false)}
+                                className="text-gray-500 hover:text-red-600"
+                                disabled={isUploading}
+                            >
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+                        
+                        <div className="mb-6">
+                            <div className="mb-4">
+                                <label className="block text-gray-700 mb-2">Selecciona un archivo PDF:</label>
+                                <div className="flex items-center">
+                                    <input
+                                        type="file"
+                                        accept=".pdf"
+                                        onChange={handleFileChange}
+                                        className="hidden"
+                                        ref={fileInputRef}
+                                        disabled={isUploading}
+                                    />
+                                    <button
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md flex items-center gap-2"
+                                        disabled={isUploading}
+                                    >
+                                        <Upload className="w-4 h-4" />
+                                        Seleccionar PDF
+                                    </button>
+                                    <span className="ml-3 text-sm text-gray-500">
+                                        {selectedFile ? selectedFile.name : "Ningún archivo seleccionado"}
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            {isUploading && (
+                                <div className="mt-4">
+                                    <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                        <div 
+                                            className="bg-green-600 h-2.5 rounded-full" 
+                                            style={{ width: `${uploadProgress}%` }}
+                                        ></div>
+                                    </div>
+                                    <p className="text-sm text-gray-500 mt-1 text-center">
+                                        {uploadProgress < 100 ? 'Subiendo...' : 'Completado!'}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => !isUploading && setShowUploadModal(false)}
+                                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
+                                disabled={isUploading}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleFileUpload}
+                                disabled={!selectedFile || isUploading}
+                                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                            >
+                                {isUploading ? "Subiendo..." : "Subir Factura"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            
+            {/* Modal para editar factura */}
+            {showEditModal && (
+                <div
+                    className="fixed inset-0 flex items-center justify-center z-50"
+                    style={{
+                        backgroundColor: "rgba(0, 0, 0, 0.3)",
+                        backdropFilter: "blur(2px)"
+                    }}
+                >
+                    <div className="bg-white rounded-lg p-6 max-w-2xl w-full shadow-xl">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-xl font-bold">Editar Factura</h2>
+                            <button
+                                onClick={() => !isUploading && setShowEditModal(false)}
+                                className="text-gray-500 hover:text-red-600"
+                                disabled={isUploading}
+                            >
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                            {/* Campos editables */}
+                            <div>
+                                <label className="block text-gray-700 mb-1">Número de Factura</label>
+                                <input
+                                    type="text"
+                                    name="num_factura"
+                                    value={formFactura.num_factura}
+                                    onChange={handleEditFormChange}
+                                    className="border border-gray-300 rounded px-3 py-2 w-full"
+                                    required
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-gray-700 mb-1">Fecha de Emisión</label>
+                                <input
+                                    type="date"
+                                    name="fecha_emision"
+                                    value={formFactura.fecha_emision}
+                                    onChange={handleEditFormChange}
+                                    className="border border-gray-300 rounded px-3 py-2 w-full"
+                                    required
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-gray-700 mb-1">Estado</label>
+                                <div className="relative">
+                                    <select
+                                        name="estado"
+                                        value={formFactura.estado}
+                                        onChange={handleEditFormChange}
+                                        className="appearance-none border border-gray-300 rounded px-3 py-2 w-full pr-8"
+                                        required
+                                    >
+                                        <option value="">Seleccionar estado</option>
+                                        {estadoOptions.map((estado) => (
+                                            <option key={estado} value={estado}>
+                                                {estado}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                                        <ChevronDown className="w-4 h-4 text-gray-500" />
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {/* Campos no editables (informativos) */}
+                            <div>
+                                <label className="block text-gray-700 mb-1">Número de Orden</label>
+                                <input
+                                    type="text"
+                                    value={formFactura.num_orden}
+                                    className="border border-gray-300 rounded px-3 py-2 w-full bg-gray-100"
+                                    disabled
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-gray-700 mb-1">Proveedor</label>
+                                <input
+                                    type="text"
+                                    value={formFactura.proveedor}
+                                    className="border border-gray-300 rounded px-3 py-2 w-full bg-gray-100"
+                                    disabled
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-gray-700 mb-1">Departamento</label>
+                                <input
+                                    type="text"
+                                    value={formFactura.departamento}
+                                    className="border border-gray-300 rounded px-3 py-2 w-full bg-gray-100"
+                                    disabled
+                                />
+                            </div>
+                            
+                            {/* Sección para cambiar el PDF */}
+                            <div className="md:col-span-2 mt-4">
+                                <div className="border-t border-gray-200 pt-4">
+                                    <h3 className="font-medium mb-2">Archivo de Factura</h3>
+                                    
+                                    {formFactura.ruta_pdf ? (
+                                        <div className="flex items-center justify-between bg-gray-50 p-3 rounded-md">
+                                            <div className="flex items-center">
+                                                <div className="h-8 w-8 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                                                    <span className="text-red-600 text-xs">PDF</span>
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-medium">Factura actual</p>
+                                                    <p className="text-xs text-gray-500 truncate max-w-xs">{formFactura.ruta_pdf}</p>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="flex gap-2">
+                                                <Link 
+                                                    href={`/api/facturas/descargar?id=${formFactura.idFactura}`}
+                                                    className="text-xs text-blue-600 hover:underline"
+                                                    target="_blank"
+                                                >
+                                                    Ver
+                                                </Link>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-gray-500">No hay archivo PDF asociado a esta factura.</p>
+                                    )}
+                                    
+                                    <div className="mt-3">
+                                        <div className="flex items-center">
+                                            <input
+                                                type="file"
+                                                accept=".pdf"
+                                                onChange={handleEditFileChange}
+                                                className="hidden"
+                                                ref={editFileInputRef}
+                                                disabled={isUploading}
+                                            />
+                                            <button
+                                                onClick={() => editFileInputRef.current?.click()}
+                                                className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md flex items-center gap-2"
+                                                disabled={isUploading}
+                                            >
+                                                <Upload className="w-4 h-4" />
+                                                {formFactura.ruta_pdf ? "Cambiar PDF" : "Subir PDF"}
+                                            </button>
+                                            <span className="ml-3 text-sm text-gray-500">
+                                                {formFactura.hasNewFile && formFactura.newFile
+                                                    ? formFactura.newFile.name
+                                                    : "Ningún archivo nuevo seleccionado"}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    
+                                    {isUploading && formFactura.hasNewFile && (
+                                        <div className="mt-4">
+                                            <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                                <div 
+                                                    className="bg-green-600 h-2.5 rounded-full" 
+                                                    style={{ width: `${uploadProgress}%` }}
+                                                ></div>
+                                            </div>
+                                            <p className="text-sm text-gray-500 mt-1 text-center">
+                                                {uploadProgress < 100 ? 'Subiendo...' : 'Completado!'}
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => !isUploading && setShowEditModal(false)}
+                                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
+                                disabled={isUploading}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleSaveFacturaChanges}
+                                disabled={isUploading}
+                                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                            >
+                                {isUploading ? "Guardando..." : "Guardar Cambios"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
