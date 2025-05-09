@@ -327,7 +327,7 @@ export default function ProveedoresClient({
       </div>
 
       {/* Filtros y búsqueda */}
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="relative">
           <input
             type="text"
@@ -361,10 +361,6 @@ export default function ProveedoresClient({
           <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
             <ChevronDown className="w-4 h-4 text-gray-500" />
           </div>
-        </div>
-
-        <div className="flex justify-end">
-          <Button onClick={handleOpenAddModal}>Nuevo Proveedor</Button>
         </div>
       </div>
 
@@ -456,7 +452,8 @@ export default function ProveedoresClient({
       </div>
 
       {/* Botones de acción */}
-      <div className="flex justify-end mb-6">
+      <div className="flex justify-between mb-6">
+        <Button onClick={handleOpenAddModal}>Nuevo Proveedor</Button>
         <Button
           onClick={handleEliminarProveedores}
           disabled={selectedProveedores.length === 0 || isLoading}

@@ -496,8 +496,7 @@ export default function InventarioClient({
       </div>
 
       {/* Botones de acción */}
-      <div className="flex justify-between mb-6">
-        <Button onClick={handleOpenAddModal}>Nuevo Item</Button>
+      <div className="flex justify-end mb-6">
         <Button
           onClick={handleEliminarItems}
           disabled={selectedItems.length === 0 || isLoading}
