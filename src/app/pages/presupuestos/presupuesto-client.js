@@ -145,6 +145,7 @@ export default function PresupuestoClient({
                 </div>
               </div>
             </div>
+            
             {/* Presupuesto mensual */}
             <div className="bg-white border border-gray-200 rounded-lg p-6">
               <h3 className="text-gray-500 mb-2 text-xl">Presupuesto mensual disponible</h3>
@@ -159,11 +160,9 @@ export default function PresupuestoClient({
             <div className="bg-white border border-gray-200 rounded-lg p-6">
               <h3 className="text-gray-500 mb-2 text-xl">Gasto mensual</h3>
               <div className="text-right">
-                <div className="text-5xl font-bold text-red-500">0€</div>
+                <div className="text-5xl font-bold text-red-500">0 €</div>
               </div>
             </div>
-
-            
           </div>
         </div>
 

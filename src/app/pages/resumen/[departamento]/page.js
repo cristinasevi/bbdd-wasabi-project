@@ -1,5 +1,6 @@
 import { getDepartamentos } from "@/app/api/functions/departamentos"
 import { getResumenPresupuesto, getResumenInversion, getResumenOrden, getResumenGasto, getResumenInversionAcum } from "@/app/api/functions/resumen"
+import Link from "next/link";
 
 export default async function Resumen({ params }) {
     const departamento = decodeURIComponent(params.departamento);
@@ -89,9 +90,11 @@ export default async function Resumen({ params }) {
                     <div className="bg-white rounded-lg p-6 shadow-sm mb-6">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="font-bold">ÓRDENES</h3>
-                            <button className="bg-black text-white text-sm px-3 py-1 rounded-md">
-                                Ver detalles
-                            </button>
+                            <Link href={`/pages/ordenes-compra/`}>
+                                <button className="bg-black text-white text-sm px-3 py-1 rounded-md cursor-pointer">
+                                    Ver detalles
+                                </button>
+                            </Link>
                         </div>
 
                         <div className="overflow-hidden mb-8 max-h-[480px] overflow-y-auto">
