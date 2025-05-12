@@ -62,7 +62,7 @@ export default function Navbar() {
         
         // Items adicionales solo para Admin
         const adminItems = [
-            { name: "Gestión de Usuarios", href: "/pages/usuarios", icon: Users },
+            { name: "Gestión de Usuarios", href: "/pages/usuarios", icon: Users, bold: true },
         ]
         
         if (role === "Administrador") {
@@ -135,7 +135,7 @@ export default function Navbar() {
                                     prefetch={false}
                                 >
                                     <Icon className="w-5 h-5 mr-7" />
-                                    {item.name}
+                                    {item.bold ? <strong>{item.name}</strong> : item.name}
                                 </Link>
                             </li>
                         )

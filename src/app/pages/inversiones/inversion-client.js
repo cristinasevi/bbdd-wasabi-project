@@ -178,7 +178,7 @@ export default function InversionClient({
           {departamento && (
             <Link
               href={`/pages/resumen/${departamento}`}
-              className="bg-black text-white px-4 py-1 rounded-full hover:bg-gray-800"
+              className="bg-black text-white px-4 py-2 rounded-full hover:bg-gray-800"
             >
               Resumen
             </Link>
@@ -190,29 +190,9 @@ export default function InversionClient({
         {/* Columna izquierda: Tarjetas financieras */}
         <div className="col-span-1">
           <div className="grid gap-6">
-            {/* Inversión mensual */}
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <h3 className="text-gray-500 mb-2">Inversión mensual</h3>
-              <div className="text-right">
-                <div className="text-5xl font-bold">
-                  {formatCurrency(inversionMensual)}
-                </div>
-              </div>
-            </div>
-
-            {/* Gasto mensual */}
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <h3 className="text-gray-500 mb-2">Gasto mensual</h3>
-              <div className="text-right">
-                <div className="text-5xl font-bold">
-                  {formatCurrency(gastoMensual)}
-                </div>
-              </div>
-            </div>
-
             {/* Saldo actual */}
             <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <h3 className="text-gray-500 mb-2">Saldo actual</h3>
+              <h3 className="text-gray-500 mb-2 text-xl">Saldo actual</h3>
               <div className="flex justify-between items-center">
                 <div className="w-4 h-4 rounded-full bg-green-500"></div>
                 <div>
@@ -222,6 +202,28 @@ export default function InversionClient({
                 </div>
               </div>
             </div>
+
+            {/* Inversión mensual */}
+            <div className="bg-white border border-gray-200 rounded-lg p-6">
+              <h3 className="text-gray-500 mb-2 text-xl">Inversión mensual</h3>
+              <div className="text-right">
+                <div className="text-5xl font-bold">
+                  {formatCurrency(inversionMensual)}
+                </div>
+              </div>
+            </div>
+
+            {/* Gasto mensual */}
+            <div className="bg-white border border-gray-200 rounded-lg p-6">
+              <h3 className="text-gray-500 mb-2 text-xl">Gasto mensual</h3>
+              <div className="text-right">
+                <div className="text-5xl font-bold text-red-500">
+                  {formatCurrency(gastoMensual)}
+                </div>
+              </div>
+            </div>
+
+
           </div>
         </div>
 
