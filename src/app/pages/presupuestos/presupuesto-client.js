@@ -135,9 +135,19 @@ export default function PresupuestoClient({
         {/* Columna izquierda: Tarjetas financieras */}
         <div className="col-span-1">
           <div className="grid gap-6">
+            {/* Saldo actual */}
+            <div className="bg-white border border-gray-200 rounded-lg p-6">
+              <h3 className="text-gray-500 mb-2 text-xl">Saldo actual</h3>
+              <div className="flex justify-between items-center">
+                <div className="w-4 h-4 rounded-full bg-green-500"></div>
+                <div>
+                  <div className="text-5xl font-bold"></div>
+                </div>
+              </div>
+            </div>
             {/* Presupuesto mensual */}
             <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <h3 className="text-gray-500 mb-2">Presupuesto mensual</h3>
+              <h3 className="text-gray-500 mb-2 text-xl">Presupuesto mensual disponible</h3>
               <div className="text-right">
                 <div className="text-5xl font-bold">
                   {presupuestoMensual?.[0]?.presupuesto_mensual?.toLocaleString("es-ES") || 0} €
@@ -147,22 +157,13 @@ export default function PresupuestoClient({
 
             {/* Gasto mensual */}
             <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <h3 className="text-gray-500 mb-2">Gasto mensual</h3>
+              <h3 className="text-gray-500 mb-2 text-xl">Gasto mensual</h3>
               <div className="text-right">
-                <div className="text-5xl font-bold">0 €</div>
+                <div className="text-5xl font-bold text-red-500">0€</div>
               </div>
             </div>
 
-            {/* Saldo actual */}
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <h3 className="text-gray-500 mb-2">Saldo actual</h3>
-              <div className="flex justify-between items-center">
-                <div className="w-4 h-4 rounded-full bg-green-500"></div>
-                <div>
-                  <div className="text-5xl font-bold">0 €</div>
-                </div>
-              </div>
-            </div>
+            
           </div>
         </div>
 
