@@ -806,6 +806,13 @@ export default function OrdenesCompraClient({
                         </div>
                       )}
                     </td>
+                    <td className="py-3 px-4" style={{width: "80px"}}>{orden.Cantidad}</td>
+                    <td className="py-3 px-4" style={{width: "140px"}}>
+                      <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs">
+                        {orden.Departamento}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4" style={{width: "120px"}}>{orden.Proveedor}</td>
                     <td className="py-3 px-4" style={{width: "120px"}}>
                       <span 
                         className={`px-2 py-1 rounded-full text-xs font-medium
@@ -816,13 +823,6 @@ export default function OrdenesCompraClient({
                         {orden.Estado || "En proceso"}
                       </span>
                     </td>
-                    <td className="py-3 px-4" style={{width: "80px"}}>{orden.Cantidad}</td>
-                    <td className="py-3 px-4" style={{width: "140px"}}>
-                      <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs">
-                        {orden.Departamento}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4" style={{width: "120px"}}>{orden.Proveedor}</td>
                     <td className="py-3 px-4 text-center w-10">
                       <button
                         onClick={(e) => {
