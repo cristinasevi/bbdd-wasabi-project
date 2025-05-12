@@ -1,5 +1,8 @@
 import { pool } from '@/app/api/lib/db'
 
+// En src/app/api/getOrden/route.js
+// Busca el método POST y modifica la consulta para incluir id_EstadoOrdenFK
+
 export async function POST(req) {
   try {
     const data = await req.json()
@@ -14,6 +17,7 @@ export async function POST(req) {
       id_DepartamentoFK,
       id_ProveedorFK,
       id_UsuarioFK,
+      id_EstadoOrdenFK, // Asegúrate de que este parámetro se extraiga
       Num_inversion,    // extra del form
       id_InversionFK,    // extra del form o buscado
       id_PresupuestoFK   // extra del form o buscado
@@ -23,8 +27,8 @@ export async function POST(req) {
     const [ordenResult] = await pool.query(
       `INSERT INTO Orden (
         Num_orden, id_ProveedorFK, id_DepartamentoFK, id_UsuarioFK,
-        Importe, Fecha, Descripcion, Inventariable, Cantidad
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        Importe, Fecha, Descripcion, Inventariable, Cantidad, id_EstadoOrdenFK
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         Num_orden,
         id_ProveedorFK,
@@ -34,9 +38,12 @@ export async function POST(req) {
         Fecha,
         Descripcion,
         Inventariable,
-        Cantidad
+        Cantidad,
+        id_EstadoOrdenFK || 1 // Usar 1 (En proceso) como valor predeterminado si no se proporciona
       ]
     )
+
+    // El resto del código sigue igual...
 
     const idOrdenNuevo = ordenResult.insertId
 

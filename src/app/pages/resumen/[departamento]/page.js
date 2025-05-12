@@ -2,7 +2,9 @@ import { getDepartamentos } from "@/app/api/functions/departamentos"
 import { getResumenPresupuesto, getResumenInversion, getResumenOrden, getResumenGasto, getResumenInversionAcum } from "@/app/api/functions/resumen"
 
 export default async function Resumen({ params }) {
-    const departamento = decodeURIComponent(params.departamento);
+    // Verificamos si params y params.departamento existen antes de decodificar
+    const departamento = params?.departamento ? decodeURIComponent(params.departamento) : '';
+    
     const departamentos = await getDepartamentos();
     
     // Encontrar el departamento específico en la lista
@@ -114,7 +116,7 @@ export default async function Resumen({ params }) {
                                     ))
                                 ) : (
                                     <tr>
-                                    <td colSpan="2" className="py-4 text-center text-gray-400">
+                                    <td colSpan="3" className="py-4 text-center text-gray-400">
                                         No hay órdenes registradas
                                     </td>
                                     </tr>
@@ -126,7 +128,7 @@ export default async function Resumen({ params }) {
                 </div>
             </div>
 
-            {/* Gráfico de gastos anuales */}
+            {/* Gráfico de gastos anuales - Comentado en el código original */}
             {/* <div className="bg-white rounded-lg p-6 shadow-sm">
                 <h3 className="font-bold mb-4">Gastos anuales</h3>
                 <div className="h-[200px] relative">
