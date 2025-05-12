@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { ChevronDown, Pencil, X, Search, Filter, Info } from "lucide-react"
+import { ChevronDown, Pencil, X, Search, Filter, Check } from "lucide-react";
 import Button from "@/app/components/ui/button"
 import useNotifications from "@/app/hooks/useNotifications"
 import ConfirmationDialog from "@/app/components/ui/confirmation-dialog"
@@ -18,6 +18,13 @@ export default function OrdenesCompraClient({
 
   // Obtener el año actual
   const currentYear = new Date().getFullYear().toString().substring(2); // Solo tomamos los 2 últimos dígitos
+
+  // Añade esto después de otras declaraciones de estado
+  const [estadosOrden, setEstadosOrden] = useState([
+    { id_EstadoOrden: 1, tipo: 'En proceso' },
+    { id_EstadoOrden: 2, tipo: 'Anulada' },
+    { id_EstadoOrden: 3, tipo: 'Confirmada' }
+  ]);
 
   // Estados principales
   const [ordenes, setOrdenes] = useState(initialOrdenes)
@@ -42,25 +49,26 @@ export default function OrdenesCompraClient({
     message: "",
     onConfirm: () => {},
   })
-
+  
   // Hook de notificaciones
   const { addNotification, notificationComponents } = useNotifications()
 
   // Estado del formulario
+  // Añade la propiedad estadoOrden al objeto
   const [formularioOrden, setFormularioOrden] = useState({
     idOrden: null,
-    numero: "", // Se generará automáticamente
-    esInversion: false, // Nuevo campo para marcar si es inversión
+    numero: "",
+    esInversion: false,
     numInversion: "",
     importe: "",
     fecha: "",
     descripcion: "",
-    inventariable: false, // Cambiado a booleano
+    inventariable: false,
     cantidad: "",
     departamento: "",
     proveedor: "",
-    numeroOrdenDepartamento: 1, // Para control interno, no visible al usuario
-  })
+    estadoOrden: "En proceso", // Añade esta línea
+  });
   
   // Efecto para obtener el rol del usuario
   useEffect(() => {
@@ -276,7 +284,7 @@ export default function OrdenesCompraClient({
     setShowModal(true)
   }
 
-  // Abrir modal de editar orden
+    // Añade la propiedad estadoOrden al objeto
   const handleOpenEditModal = (orden) => {
     const esInventariable = orden.Inventariable === 1 || orden.Inventariable === true;
     const esInversion = orden.Num_inversion ? true : false;
@@ -293,10 +301,11 @@ export default function OrdenesCompraClient({
       cantidad: orden.Cantidad || "",
       departamento: orden.Departamento || "",
       proveedor: orden.Proveedor || "",
-    })
-    setModalMode("edit")
-    setShowModal(true)
-  }
+      estadoOrden: orden.Estado || "En proceso", // Añade esta línea
+    });
+    setModalMode("edit");
+    setShowModal(true);
+  };
 
   // Formatear fecha para input
   function formatDateForInput(dateString) {
@@ -319,6 +328,7 @@ export default function OrdenesCompraClient({
   }
 
   // Limpiar el formulario
+  // Añade la propiedad estadoOrden al objeto que se resetea
   const limpiarFormulario = () => {
     setFormularioOrden({
       idOrden: null,
@@ -332,10 +342,10 @@ export default function OrdenesCompraClient({
       cantidad: "",
       departamento: "",
       proveedor: "",
-    })
-    setFormError("")
-  }
-
+      estadoOrden: "En proceso", // Añade esta línea
+    });
+    setFormError("");
+  };
   // Manejar cambios en el formulario
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target
@@ -429,6 +439,7 @@ export default function OrdenesCompraClient({
         id_DepartamentoFK: departamentoSeleccionado.id_Departamento,
         id_ProveedorFK: proveedorSeleccionado.idProveedor,
         id_UsuarioFK: 1, // Aquí deberías obtener el usuario actual
+        id_EstadoOrdenFK: 1, // Añade esta línea - Valor por defecto: "En proceso" (id 1)
       };
       
       // Añadir datos de inversión si es necesario
@@ -466,11 +477,41 @@ export default function OrdenesCompraClient({
       }
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Error al guardar la orden");
+        let errorMessage = `Error del servidor: ${response.status}`;
+        
+        // Intentar obtener detalles del error si están disponibles
+        try {
+          const contentType = response.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+          } else {
+            // Si no es JSON, intentar obtener el texto del error
+            const errorText = await response.text();
+            if (errorText) {
+              errorMessage = errorText;
+            }
+          }
+        } catch (parseError) {
+          console.error("Error al analizar la respuesta:", parseError);
+          // Usamos el mensaje de error general que ya tenemos
+        }
+        
+        throw new Error(errorMessage);
       }
 
-      const data = await response.json();
+      // Intentar analizar la respuesta como JSON si existe
+      let responseData = {}; // Cambiado de 'data' a 'responseData'
+        try {
+          const contentType = response.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            responseData = await response.json();
+          }
+        } catch (parseError) {
+          console.warn("No se pudo analizar la respuesta como JSON:", parseError);
+          // No es crítico, continuamos con un objeto vacío
+        }
+
       
       // Actualizar lista de órdenes
       if (modalMode === "add") {
@@ -482,7 +523,7 @@ export default function OrdenesCompraClient({
         } else {
           // Crear una versión local de la nueva orden para actualizar la UI
           const nuevaOrden = {
-            idOrden: data.insertedId,
+            idOrden: responseData.insertedId, // CAMBIADO data → responseData
             Num_orden: ordenData.Num_orden,
             Importe: ordenData.Importe,
             Fecha: ordenData.Fecha,
@@ -723,10 +764,11 @@ export default function OrdenesCompraClient({
                 <th className="text-left py-3 px-4 font-medium text-gray-600" style={{width: "80px"}}>Importe</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-600" style={{width: "100px"}}>Fecha</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-600">Descripción</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600" style={{width: "100px"}}>Tipo</th>
+                <th className="text-center py-3 px-4 font-medium text-gray-600" style={{width: "100px"}}>Inventariable</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-600" style={{width: "80px"}}>Cantidad</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-600" style={{width: "140px"}}>Departamento</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-600" style={{width: "120px"}}>Proveedor</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600" style={{width: "120px"}}>Estado</th>
                 <th className="py-3 px-4 w-10"></th>
               </tr>
             </thead>
@@ -753,8 +795,26 @@ export default function OrdenesCompraClient({
                     <td className="py-3 px-4" style={{width: "80px"}}>{orden.Importe}€</td>
                     <td className="py-3 px-4" style={{width: "100px"}}>{formatDate(orden.Fecha)}</td>
                     <td className="py-3 px-4 truncate" title={orden.Descripcion}>{orden.Descripcion}</td>
-                    <td className="py-3 px-4" style={{width: "100px"}}>
-                      {orden.Inventariable === 1 ? "Inventariable" : "Fungible"}
+                    <td className="py-3 px-4 text-center" style={{width: "100px"}}>
+                      {orden.Inventariable === 1 || orden.Inventariable === true ? (
+                        <div className="flex justify-center">
+                          <Check className="w-5 h-5 text-green-500" />
+                        </div>
+                      ) : (
+                        <div className="flex justify-center">
+                          <X className="w-5 h-5 text-red-500" />
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-3 px-4" style={{width: "120px"}}>
+                      <span 
+                        className={`px-2 py-1 rounded-full text-xs font-medium
+                          ${orden.Estado === 'En proceso' ? 'bg-yellow-300 text-yellow-800' : 
+                            orden.Estado === 'Anulada' ? 'bg-red-100 text-red-800' : 
+                            'bg-green-100 text-green-800'}`}
+                      >
+                        {orden.Estado || "En proceso"}
+                      </span>
                     </td>
                     <td className="py-3 px-4" style={{width: "80px"}}>{orden.Cantidad}</td>
                     <td className="py-3 px-4" style={{width: "140px"}}>
@@ -778,7 +838,7 @@ export default function OrdenesCompraClient({
                 ))
               ) : (
                 <tr>
-                  <td colSpan="11" className="py-6 text-center text-gray-500">
+                  <td colSpan="12" className="py-6 text-center text-gray-500">
                     No se encontraron órdenes{" "}
                     {searchTerm || filterDepartamento || filterProveedor || filterInventariable
                       ? "con los criterios de búsqueda actuales"
