@@ -742,35 +742,37 @@ export default function OrdenesCompraClient({
         Mostrando {filteredOrdenes.length} de {ordenes.length} órdenes
       </div>
 
-      {/* TABLA REDISEÑADA PARA MEJOR VISUALIZACIÓN */}
+      {/* Tabla */}
       <div className="border border-gray-200 rounded-lg overflow-hidden mb-6">
-        <div className="max-h-[450px] overflow-y-auto">
-          <table className="w-full text-sm">
+        <div className="max-h-[500px] overflow-y-auto">
+          <table className="w-full">
             <thead className="bg-gray-50 sticky top-0 z-10">
               <tr className="border-b border-gray-200">
-                <th className="py-2 px-1 w-8">
+                <th className="py-3 px-3 w-12">
                   {filteredOrdenes.length > 0 && (
-                    <input
-                      type="checkbox"
-                      checked={
-                        selectedOrdenes.length === filteredOrdenes.length &&
-                        filteredOrdenes.length > 0
-                      }
-                      onChange={toggleSelectAll}
-                      className="h-4 w-4 text-red-600 border-gray-300 rounded"
-                    />
+                    <div className="flex justify-center"> 
+                      <input
+                        type="checkbox"
+                        checked={
+                          selectedOrdenes.length === filteredOrdenes.length &&
+                          filteredOrdenes.length > 0
+                        }
+                        onChange={toggleSelectAll}
+                        className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                      />
+                    </div>
                   )}
                 </th>
-                {/* Columnas reducidas y reorganizadas */}
-                <th className="text-left py-2 px-2 font-medium text-gray-600">Num.Orden</th>
-                <th className="text-left py-2 px-2 font-medium text-gray-600">Descripción</th>
-                <th className="text-center py-2 px-2 font-medium text-gray-600">Fecha</th>
-                <th className="text-center py-2 px-2 font-medium text-gray-600">Importe</th>
-                <th className="text-center py-2 px-1 font-medium text-gray-600">Inv.</th>
-                <th className="text-center py-2 px-1 font-medium text-gray-600">Cant.</th>
-                <th className="text-left py-2 px-2 font-medium text-gray-600">Dep./Prov.</th>
-                <th className="text-center py-2 px-2 font-medium text-gray-600">Estado</th>
-                <th className="py-2 px-1 w-8"></th>
+                {/* Columnas */}
+                <th className="text-left py-3 px-4 font-medium text-gray-600">Num.Orden</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600">Descripción</th>
+                <th className="text-center py-3 px-4 font-medium text-gray-600">Fecha</th>
+                <th className="text-center py-3 px-4 font-medium text-gray-600">Importe</th>
+                <th className="text-center py-3 px-3 font-medium text-gray-600">Inv.</th>
+                <th className="text-center py-3 px-3 font-medium text-gray-600">Cant.</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600">Dep./Prov.</th>
+                <th className="text-center py-3 px-4 font-medium text-gray-600">Estado</th>
+                <th className="py-3 px-3 w-12"></th> 
               </tr>
             </thead>
             <tbody>
@@ -783,26 +785,29 @@ export default function OrdenesCompraClient({
                     }`}
                     onClick={() => toggleSelectOrden(orden.idOrden)}
                   >
-                    <td className="py-2 px-1 text-center w-8" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={selectedOrdenes.includes(orden.idOrden)}
-                        onChange={() => toggleSelectOrden(orden.idOrden)}
-                        className="h-4 w-4 text-red-600 border-gray-300 rounded"
-                      />
+                    <td className="py-3 px-3 w-12" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex justify-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedOrdenes.includes(orden.idOrden)}
+                          onChange={() => toggleSelectOrden(orden.idOrden)}
+                          className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                        />
+                      </div>
                     </td>
+
                     {/* Número de Orden con tooltip para Inversión */}
-                    <td className="py-2 px-2 relative">
+                    <td className="py-3 px-4 relative">
                       <div className="flex items-center">
-                        <span className="truncate max-w-[100px]" title={orden.Num_orden}>{orden.Num_orden}</span>
+                        <span className="truncate max-w-[120px]" title={orden.Num_orden}>{orden.Num_orden}</span>
                         {orden.Num_inversion && (
-                          <div className="ml-1 relative" 
+                          <div className="ml-2 relative" 
                                onMouseEnter={() => setActiveTooltip(`inv-${orden.idOrden}`)}
                                onMouseLeave={() => setActiveTooltip(null)}>
-                            <Info className="h-3 w-3 text-blue-500" />
+                            <Info className="h-4 w-4 text-blue-500" />
                             
                             {activeTooltip === `inv-${orden.idOrden}` && (
-                              <div className="absolute z-50 top-6 left-0 bg-white border border-gray-200 rounded p-2 shadow-lg text-xs w-36">
+                              <div className="absolute z-50 top-6 left-0 bg-white border border-gray-200 rounded p-3 shadow-lg w-48">
                                 <p className="font-semibold">Núm. Inversión:</p>
                                 <p>{orden.Num_inversion}</p>
                               </div>
@@ -813,7 +818,7 @@ export default function OrdenesCompraClient({
                     </td>
                     
                     {/* Descripción */}
-                    <td className="py-2 px-2">
+                    <td className="py-3 px-4">
                       <div className="truncate max-w-[200px]" title={orden.Descripcion}>{orden.Descripcion}</div>
                     </td>
                     
@@ -823,36 +828,34 @@ export default function OrdenesCompraClient({
                     </td>
                     
                     {/* Importe */}
-                    <td className="py-2 px-2 text-right font-medium">
+                    <td className="py-3 px-4 text-right font-medium">
                       {orden.Importe}€
                     </td>
                     
                     {/* Inventariable */}
-                    <td className="py-2 px-1 text-center">
+                    <td className="py-3 px-3 text-center">
+                      <div className="flex justify-center">
                       {orden.Inventariable === 1 || orden.Inventariable === true ? (
-                        <div className="flex justify-center">
-                          <Check className="w-4 h-4 text-green-500" />
-                        </div>
+                          <Check className="w-5 h-5 text-green-500" />
                       ) : (
-                        <div className="flex justify-center">
-                          <X className="w-4 h-4 text-red-500" />
-                        </div>
+                          <X className="w-5 h-5 text-red-500" />
                       )}
+                      </div>
                     </td>
                     
                     {/* Cantidad */}
-                    <td className="py-2 px-1 text-center">
+                    <td className="py-3 px-3 text-center">
                       {orden.Cantidad}
                     </td>
                     
                     {/* Departamento y Proveedor (combinados) */}
-                    <td className="py-2 px-2 relative">
+                    <td className="py-3 px-4 relative">
                       <div className="flex flex-col">
                         <span className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-xs truncate max-w-[120px]" 
                               title={orden.Departamento}>
                           {orden.Departamento}
                         </span>
-                        <span className="text-xs truncate max-w-[120px]" title={orden.Proveedor}>
+                        <span className="text-xs mt-1 truncate max-w-[120px]" title={orden.Proveedor}>
                           {orden.Proveedor}
                         </span>
                       </div>
@@ -862,7 +865,7 @@ export default function OrdenesCompraClient({
                     <td className="py-2 px-2 text-center">
                       <span 
                         className={`px-2 py-1 rounded-full text-xs font-medium inline-block
-                          ${orden.Estado === 'En proceso' ? 'bg-yellow-300 text-yellow-800' : 
+                          ${orden.Estado === 'En proceso' ? 'bg-yellow-200 text-yellow-800' : 
                             orden.Estado === 'Anulada' ? 'bg-red-100 text-red-800' : 
                             'bg-green-100 text-green-800'}`}
                       >
@@ -871,22 +874,22 @@ export default function OrdenesCompraClient({
                     </td>
                     
                     {/* Editar */}
-                    <td className="py-2 px-1 text-center w-8">
+                    <td className="py-3 px-3 text-center w-12">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleOpenEditModal(orden);
                         }}
-                        className="text-gray-500 hover:text-red-600"
+                        className="text-gray-500 hover:text-red-600 p-1"
                       >
-                        <Pencil className="w-4 h-4" />
+                        <Pencil className="w-5 h-5" />
                       </button>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="10" className="py-6 text-center text-gray-500">
+                  <td colSpan="10" className="py-8 text-center text-gray-500">
                     No se encontraron órdenes{" "}
                     {searchTerm || filterDepartamento || filterProveedor || filterInventariable
                       ? "con los criterios de búsqueda actuales"

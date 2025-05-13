@@ -8,17 +8,17 @@ export async function middleware(request) {
     secret: process.env.NEXTAUTH_SECRET,
   })
 
-  const isLoginPage = request.nextUrl.pathname === "/pages/login"
+  const isLoginPage = request.nextUrl.pathname === "/"
   const isHomePage = request.nextUrl.pathname === "/pages/home"
 
   // Si el usuario no está autenticado y no está en la página de login, redirigir a login
   if (!token && !isLoginPage) {
-    return NextResponse.redirect(new URL("/pages/login", request.url))
+    return NextResponse.redirect(new URL("/", request.url))
   }
 
   // Si el usuario está autenticado y está en la página de login, redirigir a la página principal
   if (token && isLoginPage) {
-    return NextResponse.redirect(new URL("/", request.url))
+    return NextResponse.redirect(new URL("/pages/home", request.url))
   }
 
   // Si es la página de inicio, verificar el rol del usuario
