@@ -10,6 +10,7 @@ export async function GET() {
         f.Fecha_emision,
         f.Ruta_pdf,
         o.Num_orden,
+        o.Importe,  /* Añadido campo Importe de la orden */
         p.Nombre AS Proveedor,
         d.Nombre AS Departamento,
         e.Tipo AS Estado

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from "react"
-import { ChevronDown, ArrowUpDown, Search, Filter, Upload, X, Pencil } from "lucide-react"
+import { ChevronDown, ArrowUpDown, Search, Filter, Upload, X, Pencil, Calendar, Euro } from "lucide-react"
 import Link from "next/link"
 import useUserDepartamento from "@/app/hooks/useUserDepartamento"
 import useNotifications from "@/app/hooks/useNotifications"
@@ -18,7 +18,8 @@ export default function Facturas() {
     
     // Estados para búsqueda y filtrado
     const [searchTerm, setSearchTerm] = useState("")
-    const [filterDepartamento, setFilterDepartamento] = useState("")
+    const [filterFecha, setFilterFecha] = useState("")
+    const [filterImporte, setFilterImporte] = useState("")
     const [filterEstado, setFilterEstado] = useState("")
     const [filterProveedor, setFilterProveedor] = useState("")
     
@@ -44,6 +45,7 @@ export default function Facturas() {
         fecha_emision: "",
         estado: "",
         ruta_pdf: "",
+        importe: "",
         // Mantenemos los campos no editables para referencia
         idFactura: null,
         num_orden: "",
@@ -121,9 +123,6 @@ export default function Facturas() {
                 })
                 
                 setFilteredFacturas(filtered)
-                
-                // Si es jefe de departamento, preseleccionar su departamento en el filtro
-                setFilterDepartamento(departamento)
             } else {
                 // Admin o Contable ven todas las facturas
                 setFilteredFacturas(facturasData)
@@ -145,10 +144,45 @@ export default function Facturas() {
                   (factura.Num_factura && factura.Num_factura.toLowerCase().includes(searchTerm.toLowerCase())) ||
                   (factura.Num_orden && factura.Num_orden.toLowerCase().includes(searchTerm.toLowerCase()));
         
-                // Filtro por departamento
-                const matchesDepartamento = 
-                  filterDepartamento === "" || 
-                  factura.Departamento === filterDepartamento;
+                // Filtro por fecha
+                let matchesFecha = true;
+                if (filterFecha) {
+                    const filterDate = new Date(filterFecha);
+                    const facturaDate = factura.Fecha_emision ? new Date(factura.Fecha_emision) : null;
+                    
+                    if (facturaDate) {
+                        // Comparar solo año, mes y día
+                        matchesFecha = 
+                            filterDate.getFullYear() === facturaDate.getFullYear() &&
+                            filterDate.getMonth() === facturaDate.getMonth() &&
+                            filterDate.getDate() === facturaDate.getDate();
+                    } else {
+                        matchesFecha = false;
+                    }
+                }
+                
+                // Filtro por importe
+                let matchesImporte = true;
+                if (filterImporte && factura.Importe !== undefined) {
+                    const importe = parseFloat(factura.Importe);
+                    
+                    switch (filterImporte) {
+                        case "0-500":
+                            matchesImporte = importe < 500;
+                            break;
+                        case "500-1000":
+                            matchesImporte = importe >= 500 && importe < 1000;
+                            break;
+                        case "1000-5000":
+                            matchesImporte = importe >= 1000 && importe < 5000;
+                            break;
+                        case "5000+":
+                            matchesImporte = importe >= 5000;
+                            break;
+                        default:
+                            matchesImporte = true;
+                    }
+                }
                 
                 // Filtro por proveedor
                 const matchesProveedor = 
@@ -160,12 +194,12 @@ export default function Facturas() {
                   filterEstado === "" || 
                   factura.Estado === filterEstado;
         
-                return matchesSearch && matchesDepartamento && matchesProveedor && matchesEstado;
+                return matchesSearch && matchesFecha && matchesImporte && matchesProveedor && matchesEstado;
             });
         
             setFilteredFacturas(filtered);
         }
-    }, [facturas, searchTerm, filterDepartamento, filterProveedor, filterEstado]);
+    }, [facturas, searchTerm, filterFecha, filterImporte, filterProveedor, filterEstado]);
     
     // Función para formatear fechas para mostrar
     function formatDate(dateString) {
@@ -240,6 +274,7 @@ export default function Facturas() {
             fecha_emision: formatDateForInput(factura.Fecha_emision) || "",
             estado: factura.Estado || "",
             ruta_pdf: factura.Ruta_pdf || "",
+            importe: factura.Importe || "",
             // Campos no editables
             idFactura: factura.idFactura,
             num_orden: factura.Num_orden || "",
@@ -319,6 +354,7 @@ export default function Facturas() {
                         Num_factura: formFactura.num_factura,
                         Fecha_emision: new Date(formFactura.fecha_emision),
                         Estado: formFactura.estado,
+                        Importe: parseFloat(formFactura.importe),
                         Ruta_pdf: formFactura.hasNewFile ? formFactura.ruta_pdf : factura.Ruta_pdf
                     } 
                     : factura
@@ -543,41 +579,36 @@ export default function Facturas() {
                     </div>
                 </div>
                 
+                {/* Nuevo filtro de fecha */}
                 <div className="relative">
-                    <select
-                        value={filterDepartamento}
-                        onChange={(e) => setFilterDepartamento(e.target.value)}
-                        className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10"
-                        disabled={userRole === "Jefe de Departamento"} // Deshabilitar si es jefe de departamento
-                    >
-                        <option value="">Todos los departamentos</option>
-                        {departamentosList.map((dept) => (
-                            <option key={dept} value={dept}>
-                                {dept}
-                            </option>
-                        ))}
-                    </select>
+                    <input
+                        type="date"
+                        placeholder="Filtrar por fecha"
+                        value={filterFecha || ''}
+                        onChange={(e) => setFilterFecha(e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-md pl-10"
+                    />
                     <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-                        <Filter className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                        <ChevronDown className="w-4 h-4 text-gray-500" />
+                        <Calendar className="h-5 w-5 text-gray-400" />
                     </div>
                 </div>
                 
+                {/* Nuevo filtro de importe */}
                 <div className="relative">
                     <select
-                        value={filterProveedor}
-                        onChange={(e) => setFilterProveedor(e.target.value)}
-                        className="w-full p-2 border border-gray-300 rounded-md appearance-none"
+                        value={filterImporte}
+                        onChange={(e) => setFilterImporte(e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10"
                     >
-                        <option value="">Todos los proveedores</option>
-                        {proveedoresList.map((proveedor) => (
-                            <option key={proveedor} value={proveedor}>
-                                {proveedor}
-                            </option>
-                        ))}
+                        <option value="">Todos los importes</option>
+                        <option value="0-500">Menos de 500€</option>
+                        <option value="500-1000">500€ - 1,000€</option>
+                        <option value="1000-5000">1,000€ - 5,000€</option>
+                        <option value="5000+">Más de 5,000€</option>
                     </select>
+                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                        <Euro className="h-5 w-5 text-gray-400" />
+                    </div>
                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                         <ChevronDown className="w-4 h-4 text-gray-500" />
                     </div>
@@ -607,13 +638,14 @@ export default function Facturas() {
 
             {/* Tabla de facturas */}
             <div className="border border-gray-200 rounded-lg overflow-hidden mb-6 max-h-[650px] overflow-y-auto">
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto max-h-[600px]">
                     <table className="w-full">
                         <thead className="bg-gray-50 sticky top-0 z-10">
                             <tr className="border-b border-gray-200">
                                 <th className="py-3 px-4 text-left font-medium text-gray-600">Nº Factura</th>
                                 <th className="py-3 px-4 text-left font-medium text-gray-600">Proveedor</th>
                                 <th className="py-3 px-4 text-left font-medium text-gray-600">Fecha emisión</th>
+                                <th className="py-3 px-4 text-left font-medium text-gray-600">Importe</th>
                                 <th className="py-3 px-4 text-left font-medium text-gray-600">Num Orden</th>
                                 <th className="py-3 px-4 text-left font-medium text-gray-600">Estado</th>
                                 <th className="py-3 px-4 text-left font-medium text-gray-600">Departamento</th>
@@ -627,6 +659,7 @@ export default function Facturas() {
                                         <td className="py-3 px-4">{factura.Num_factura}</td>
                                         <td className="py-3 px-4">{factura.Proveedor}</td>
                                         <td className="py-3 px-4">{formatDate(factura.Fecha_emision)}</td>
+                                        <td className="py-3 px-4">{factura.Importe ? `${factura.Importe.toLocaleString()}€` : '-'}</td>
                                         <td className="py-3 px-4">{factura.Num_orden}</td>
                                         <td className="py-3 px-4">
                                             <div className="relative w-32 estado-dropdown">
@@ -677,325 +710,338 @@ export default function Facturas() {
                                             <div className="flex justify-center gap-2 items-center">
                                                 {/* Botón de editar */}
                                                 <button
-                                                    onClick={() => handleEditFactura(factura)}
-                                                    className="text-gray-500 hover:text-blue-600"
-                                                    title="Editar factura"
-                                                >
-                                                    <Pencil className="w-5 h-5" />
-                                                </button>
-                                                
-                                                {/* Botón de descargar/insertar */}
-                                                {factura.Ruta_pdf ? (
-                                                    <Link
-                                                        href={`/api/facturas/descargar?id=${factura.idFactura}`}
-                                                        className="bg-red-600 text-white text-sm px-3 py-1 rounded hover:bg-red-700"
-                                                    >
-                                                        Descargar
-                                                    </Link>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => handleInsertarFactura(factura.idFactura)}
-                                                        className="bg-green-600 text-white text-sm px-3 py-1 rounded hover:bg-green-700"
-                                                    >
-                                                        Insertar Factura
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            ) : (
-                                <tr>
-                                    <td colSpan="7" className="py-6 text-center text-gray-500">
-                                        {userRole === "Jefe de Departamento" 
-                                            ? `No se encontraron facturas para el departamento de ${departamento}` 
-                                            : searchTerm || filterDepartamento || filterProveedor || filterEstado
-                                                ? "No se encontraron facturas con los criterios de búsqueda actuales"
-                                                : "No se encontraron facturas."}
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            
-            {/* Modal para subir factura */}
-            {showUploadModal && (
-                <div
-                    className="fixed inset-0 flex items-center justify-center z-50"
-                    style={{
-                        backgroundColor: "rgba(0, 0, 0, 0.3)",
-                        backdropFilter: "blur(2px)"
-                    }}
-                >
-                    <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-xl font-bold">Subir Factura PDF</h2>
-                            <button
-                                onClick={() => !isUploading && setShowUploadModal(false)}
-                                className="text-gray-500 hover:text-red-600"
-                                disabled={isUploading}
-                            >
-                                <X className="w-6 h-6" />
-                            </button>
-                        </div>
-                        
-                        <div className="mb-6">
-                            <div className="mb-4">
-                                <label className="block text-gray-700 mb-2">Selecciona un archivo PDF:</label>
-                                <div className="flex items-center">
-                                    <input
-                                        type="file"
-                                        accept=".pdf"
-                                        onChange={handleFileChange}
-                                        className="hidden"
-                                        ref={fileInputRef}
-                                        disabled={isUploading}
-                                    />
-                                    <button
-                                        onClick={() => fileInputRef.current?.click()}
-                                        className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md flex items-center gap-2"
-                                        disabled={isUploading}
-                                    >
-                                        <Upload className="w-4 h-4" />
-                                        Seleccionar PDF
-                                    </button>
-                                    <span className="ml-3 text-sm text-gray-500">
-                                        {selectedFile ? selectedFile.name : "Ningún archivo seleccionado"}
-                                    </span>
-                                </div>
-                            </div>
-                            
-                            {isUploading && (
-                                <div className="mt-4">
-                                    <div className="w-full bg-gray-200 rounded-full h-2.5">
-                                        <div 
-                                            className="bg-green-600 h-2.5 rounded-full" 
-                                            style={{ width: `${uploadProgress}%` }}
-                                        ></div>
-                                    </div>
-                                    <p className="text-sm text-gray-500 mt-1 text-center">
-                                        {uploadProgress < 100 ? 'Subiendo...' : 'Completado!'}
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                        
-                        <div className="flex justify-end gap-3">
-                            <button
-                                onClick={() => !isUploading && setShowUploadModal(false)}
-                                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
-                                disabled={isUploading}
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={handleFileUpload}
-                                disabled={!selectedFile || isUploading}
-                                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                            >
-                                {isUploading ? "Subiendo..." : "Subir Factura"}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-            
-            {/* Modal para editar factura */}
-            {showEditModal && (
-                <div
-                    className="fixed inset-0 flex items-center justify-center z-50"
-                    style={{
-                        backgroundColor: "rgba(0, 0, 0, 0.3)",
-                        backdropFilter: "blur(2px)"
-                    }}
-                >
-                    <div className="bg-white rounded-lg p-6 max-w-2xl w-full shadow-xl">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-xl font-bold">Editar Factura</h2>
-                            <button
-                                onClick={() => !isUploading && setShowEditModal(false)}
-                                className="text-gray-500 hover:text-red-600"
-                                disabled={isUploading}
-                            >
-                                <X className="w-6 h-6" />
-                            </button>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                            {/* Campos editables */}
-                            <div>
-                                <label className="block text-gray-700 mb-1">Número de Factura</label>
-                                <input
-                                    type="text"
-                                    name="num_factura"
-                                    value={formFactura.num_factura}
-                                    onChange={handleEditFormChange}
-                                    className="border border-gray-300 rounded px-3 py-2 w-full"
-                                    required
-                                />
-                            </div>
-                            
-                            <div>
-                                <label className="block text-gray-700 mb-1">Fecha de Emisión</label>
-                                <input
-                                    type="date"
-                                    name="fecha_emision"
-                                    value={formFactura.fecha_emision}
-                                    onChange={handleEditFormChange}
-                                    className="border border-gray-300 rounded px-3 py-2 w-full"
-                                    required
-                                />
-                            </div>
-                            
-                            <div>
-                                <label className="block text-gray-700 mb-1">Estado</label>
-                                <div className="relative">
-                                    <select
-                                        name="estado"
-                                        value={formFactura.estado}
-                                        onChange={handleEditFormChange}
-                                        className="appearance-none border border-gray-300 rounded px-3 py-2 w-full pr-8"
-                                        required
-                                    >
-                                        <option value="">Seleccionar estado</option>
-                                        {estadoOptions.map((estado) => (
-                                            <option key={estado} value={estado}>
-                                                {estado}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                                        <ChevronDown className="w-4 h-4 text-gray-500" />
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            {/* Campos no editables (informativos) */}
-                            <div>
-                                <label className="block text-gray-700 mb-1">Número de Orden</label>
-                                <input
-                                    type="text"
-                                    value={formFactura.num_orden}
-                                    className="border border-gray-300 rounded px-3 py-2 w-full bg-gray-100"
-                                    disabled
-                                />
-                            </div>
-                            
-                            <div>
-                                <label className="block text-gray-700 mb-1">Proveedor</label>
-                                <input
-                                    type="text"
-                                    value={formFactura.proveedor}
-                                    className="border border-gray-300 rounded px-3 py-2 w-full bg-gray-100"
-                                    disabled
-                                />
-                            </div>
-                            
-                            <div>
-                                <label className="block text-gray-700 mb-1">Departamento</label>
-                                <input
-                                    type="text"
-                                    value={formFactura.departamento}
-                                    className="border border-gray-300 rounded px-3 py-2 w-full bg-gray-100"
-                                    disabled
-                                />
-                            </div>
-                            
-                            {/* Sección para cambiar el PDF */}
-                            <div className="md:col-span-2 mt-4">
-                                <div className="border-t border-gray-200 pt-4">
-                                    <h3 className="font-medium mb-2">Archivo de Factura</h3>
-                                    
-                                    {formFactura.ruta_pdf ? (
-                                        <div className="flex items-center justify-between bg-gray-50 p-3 rounded-md">
-                                            <div className="flex items-center">
-                                                <div className="h-8 w-8 bg-red-100 rounded-full flex items-center justify-center mr-3">
-                                                    <span className="text-red-600 text-xs">PDF</span>
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm font-medium">Factura actual</p>
-                                                    <p className="text-xs text-gray-500 truncate max-w-xs">{formFactura.ruta_pdf}</p>
-                                                </div>
-                                            </div>
-                                            
-                                            <div className="flex gap-2">
-                                                <Link 
-                                                    href={`/api/facturas/descargar?id=${formFactura.idFactura}`}
-                                                    className="text-xs text-blue-600 hover:underline"
-                                                    target="_blank"
-                                                >
-                                                    Ver
-                                                </Link>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <p className="text-sm text-gray-500">No hay archivo PDF asociado a esta factura.</p>
-                                    )}
-                                    
-                                    <div className="mt-3">
-                                        <div className="flex items-center">
-                                            <input
-                                                type="file"
-                                                accept=".pdf"
-                                                onChange={handleEditFileChange}
-                                                className="hidden"
-                                                ref={editFileInputRef}
-                                                disabled={isUploading}
-                                            />
-                                            <button
-                                                onClick={() => editFileInputRef.current?.click()}
-                                                className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md flex items-center gap-2"
-                                                disabled={isUploading}
-                                            >
-                                                <Upload className="w-4 h-4" />
-                                                {formFactura.ruta_pdf ? "Cambiar PDF" : "Subir PDF"}
-                                            </button>
-                                            <span className="ml-3 text-sm text-gray-500">
-                                                {formFactura.hasNewFile && formFactura.newFile
-                                                    ? formFactura.newFile.name
-                                                    : "Ningún archivo nuevo seleccionado"}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    
-                                    {isUploading && formFactura.hasNewFile && (
-                                        <div className="mt-4">
-                                            <div className="w-full bg-gray-200 rounded-full h-2.5">
-                                                <div 
-                                                    className="bg-green-600 h-2.5 rounded-full" 
-                                                    style={{ width: `${uploadProgress}%` }}
-                                                ></div>
-                                            </div>
-                                            <p className="text-sm text-gray-500 mt-1 text-center">
-                                                {uploadProgress < 100 ? 'Subiendo...' : 'Completado!'}
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div className="flex justify-end gap-3">
-                            <button
-                                onClick={() => !isUploading && setShowEditModal(false)}
-                                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
-                                disabled={isUploading}
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={handleSaveFacturaChanges}
-                                disabled={isUploading}
-                                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                            >
-                                {isUploading ? "Guardando..." : "Guardar Cambios"}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
-    )
+                                                   onClick={() => handleEditFactura(factura)}
+                                                   className="text-gray-500 hover:text-blue-600"
+                                                   title="Editar factura"
+                                               >
+                                                   <Pencil className="w-5 h-5" />
+                                               </button>
+                                               
+                                               {/* Botón de descargar/insertar */}
+                                               {factura.Ruta_pdf ? (
+                                                   <Link
+                                                       href={`/api/facturas/descargar?id=${factura.idFactura}`}
+                                                       className="bg-red-600 text-white text-sm px-3 py-1 rounded hover:bg-red-700"
+                                                   >
+                                                       Descargar
+                                                   </Link>
+                                               ) : (
+                                                   <button
+                                                       onClick={() => handleInsertarFactura(factura.idFactura)}
+                                                       className="bg-green-600 text-white text-sm px-3 py-1 rounded hover:bg-green-700"
+                                                   >
+                                                       Insertar Factura
+                                                   </button>
+                                               )}
+                                           </div>
+                                       </td>
+                                   </tr>
+                               ))
+                           ) : (
+                               <tr>
+                                   <td colSpan="8" className="py-6 text-center text-gray-500">
+                                       {userRole === "Jefe de Departamento" 
+                                           ? `No se encontraron facturas para el departamento de ${departamento}` 
+                                           : searchTerm || filterFecha || filterImporte || filterProveedor || filterEstado
+                                               ? "No se encontraron facturas con los criterios de búsqueda actuales"
+                                               : "No se encontraron facturas."}
+                                   </td>
+                               </tr>
+                           )}
+                       </tbody>
+                   </table>
+               </div>
+           </div>
+           
+           {/* Modal para subir factura */}
+           {showUploadModal && (
+               <div
+                   className="fixed inset-0 flex items-center justify-center z-50"
+                   style={{
+                       backgroundColor: "rgba(0, 0, 0, 0.3)",
+                       backdropFilter: "blur(2px)"
+                   }}
+               >
+                   <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
+                       <div className="flex justify-between items-center mb-4">
+                           <h2 className="text-xl font-bold">Subir Factura PDF</h2>
+                           <button
+                               onClick={() => !isUploading && setShowUploadModal(false)}
+                               className="text-gray-500 hover:text-red-600"
+                               disabled={isUploading}
+                           >
+                               <X className="w-6 h-6" />
+                           </button>
+                       </div>
+                       
+                       <div className="mb-6">
+                           <div className="mb-4">
+                               <label className="block text-gray-700 mb-2">Selecciona un archivo PDF:</label>
+                               <div className="flex items-center">
+                                   <input
+                                       type="file"
+                                       accept=".pdf"
+                                       onChange={handleFileChange}
+                                       className="hidden"
+                                       ref={fileInputRef}
+                                       disabled={isUploading}
+                                   />
+                                   <button
+                                       onClick={() => fileInputRef.current?.click()}
+                                       className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md flex items-center gap-2"
+                                       disabled={isUploading}
+                                   >
+                                       <Upload className="w-4 h-4" />
+                                       Seleccionar PDF
+                                   </button>
+                                   <span className="ml-3 text-sm text-gray-500">
+                                       {selectedFile ? selectedFile.name : "Ningún archivo seleccionado"}
+                                   </span>
+                               </div>
+                           </div>
+                           
+                           {isUploading && (
+                               <div className="mt-4">
+                                   <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                       <div 
+                                           className="bg-green-600 h-2.5 rounded-full" 
+                                           style={{ width: `${uploadProgress}%` }}
+                                       ></div>
+                                   </div>
+                                   <p className="text-sm text-gray-500 mt-1 text-center">
+                                       {uploadProgress < 100 ? 'Subiendo...' : 'Completado!'}
+                                   </p>
+                               </div>
+                           )}
+                       </div>
+                       
+                       <div className="flex justify-end gap-3">
+                           <button
+                               onClick={() => !isUploading && setShowUploadModal(false)}
+                               className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
+                               disabled={isUploading}
+                           >
+                               Cancelar
+                           </button>
+                           <button
+                               onClick={handleFileUpload}
+                               disabled={!selectedFile || isUploading}
+                               className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                           >
+                               {isUploading ? "Subiendo..." : "Subir Factura"}
+                           </button>
+                       </div>
+                   </div>
+               </div>
+           )}
+           
+           {/* Modal para editar factura */}
+           {showEditModal && (
+               <div
+                   className="fixed inset-0 flex items-center justify-center z-50"
+                   style={{
+                       backgroundColor: "rgba(0, 0, 0, 0.3)",
+                       backdropFilter: "blur(2px)"
+                   }}
+               >
+                   <div className="bg-white rounded-lg p-6 max-w-2xl w-full shadow-xl">
+                       <div className="flex justify-between items-center mb-4">
+                           <h2 className="text-xl font-bold">Editar Factura</h2>
+                           <button
+                               onClick={() => !isUploading && setShowEditModal(false)}
+                               className="text-gray-500 hover:text-red-600"
+                               disabled={isUploading}
+                           >
+                               <X className="w-6 h-6" />
+                           </button>
+                       </div>
+                       
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                           {/* Campos editables */}
+                           <div>
+                               <label className="block text-gray-700 mb-1">Número de Factura</label>
+                               <input
+                                   type="text"
+                                   name="num_factura"
+                                   value={formFactura.num_factura}
+                                   onChange={handleEditFormChange}
+                                   className="border border-gray-300 rounded px-3 py-2 w-full"
+                                   required
+                               />
+                           </div>
+                           
+                           <div>
+                               <label className="block text-gray-700 mb-1">Fecha de Emisión</label>
+                               <input
+                                   type="date"
+                                   name="fecha_emision"
+                                   value={formFactura.fecha_emision}
+                                   onChange={handleEditFormChange}
+                                   className="border border-gray-300 rounded px-3 py-2 w-full"
+                                   required
+                               />
+                           </div>
+                           
+                           <div>
+                               <label className="block text-gray-700 mb-1">Importe (€)</label>
+                               <input
+                                   type="number"
+                                   step="0.01"
+                                   name="importe"
+                                   value={formFactura.importe}
+                                   onChange={handleEditFormChange}
+                                   className="border border-gray-300 rounded px-3 py-2 w-full"
+                                   placeholder="0.00"
+                               />
+                           </div>
+                           
+                           <div>
+                               <label className="block text-gray-700 mb-1">Estado</label>
+                               <div className="relative">
+                                   <select
+                                       name="estado"
+                                       value={formFactura.estado}
+                                       onChange={handleEditFormChange}
+                                       className="appearance-none border border-gray-300 rounded px-3 py-2 w-full pr-8"
+                                       required
+                                   >
+                                       <option value="">Seleccionar estado</option>
+                                       {estadoOptions.map((estado) => (
+                                           <option key={estado} value={estado}>
+                                               {estado}
+                                           </option>
+                                       ))}
+                                   </select>
+                                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                                       <ChevronDown className="w-4 h-4 text-gray-500" />
+                                   </div>
+                               </div>
+                           </div>
+                           
+                           {/* Campos no editables (informativos) */}
+                           <div>
+                               <label className="block text-gray-700 mb-1">Número de Orden</label>
+                               <input
+                                   type="text"
+                                   value={formFactura.num_orden}
+                                   className="border border-gray-300 rounded px-3 py-2 w-full bg-gray-100"
+                                   disabled
+                               />
+                           </div>
+                           
+                           <div>
+                               <label className="block text-gray-700 mb-1">Proveedor</label>
+                               <input
+                                   type="text"
+                                   value={formFactura.proveedor}
+                                   className="border border-gray-300 rounded px-3 py-2 w-full bg-gray-100"
+                                   disabled
+                               />
+                           </div>
+                           
+                           <div>
+                               <label className="block text-gray-700 mb-1">Departamento</label>
+                               <input
+                                   type="text"
+                                   value={formFactura.departamento}
+                                   className="border border-gray-300 rounded px-3 py-2 w-full bg-gray-100"
+                                   disabled
+                               />
+                           </div>
+                           
+                           {/* Sección para cambiar el PDF */}
+                           <div className="md:col-span-2 mt-4">
+                               <div className="border-t border-gray-200 pt-4">
+                                   <h3 className="font-medium mb-2">Archivo de Factura</h3>
+                                   
+                                   {formFactura.ruta_pdf ? (
+                                       <div className="flex items-center justify-between bg-gray-50 p-3 rounded-md">
+                                           <div className="flex items-center">
+                                               <div className="h-8 w-8 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                                                   <span className="text-red-600 text-xs">PDF</span>
+                                               </div>
+                                               <div>
+                                                   <p className="text-sm font-medium">Factura actual</p>
+                                                   <p className="text-xs text-gray-500 truncate max-w-xs">{formFactura.ruta_pdf}</p>
+                                               </div>
+                                           </div>
+                                           
+                                           <div className="flex gap-2">
+                                               <Link 
+                                                   href={`/api/facturas/descargar?id=${formFactura.idFactura}`}
+                                                   className="text-xs text-blue-600 hover:underline"
+                                                   target="_blank"
+                                               >
+                                                   Ver
+                                               </Link>
+                                           </div>
+                                       </div>
+                                   ) : (
+                                       <p className="text-sm text-gray-500">No hay archivo PDF asociado a esta factura.</p>
+                                   )}
+                                   
+                                   <div className="mt-3">
+                                       <div className="flex items-center">
+                                           <input
+                                               type="file"
+                                               accept=".pdf"
+                                               onChange={handleEditFileChange}
+                                               className="hidden"
+                                               ref={editFileInputRef}
+                                               disabled={isUploading}
+                                           />
+                                           <button
+                                               onClick={() => editFileInputRef.current?.click()}
+                                               className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md flex items-center gap-2"
+                                               disabled={isUploading}
+                                           >
+                                               <Upload className="w-4 h-4" />
+                                               {formFactura.ruta_pdf ? "Cambiar PDF" : "Subir PDF"}
+                                           </button>
+                                           <span className="ml-3 text-sm text-gray-500">
+                                               {formFactura.hasNewFile && formFactura.newFile
+                                                   ? formFactura.newFile.name
+                                                   : "Ningún archivo nuevo seleccionado"}
+                                           </span>
+                                       </div>
+                                   </div>
+                                   
+                                   {isUploading && formFactura.hasNewFile && (
+                                       <div className="mt-4">
+                                           <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                               <div 
+                                                   className="bg-green-600 h-2.5 rounded-full" 
+                                                   style={{ width: `${uploadProgress}%` }}
+                                               ></div>
+                                           </div>
+                                           <p className="text-sm text-gray-500 mt-1 text-center">
+                                               {uploadProgress < 100 ? 'Subiendo...' : 'Completado!'}
+                                           </p>
+                                       </div>
+                                   )}
+                               </div>
+                           </div>
+                       </div>
+                       
+                       <div className="flex justify-end gap-3">
+                           <button
+                               onClick={() => !isUploading && setShowEditModal(false)}
+                               className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
+                               disabled={isUploading}
+                           >
+                               Cancelar
+                           </button>
+                           <button
+                               onClick={handleSaveFacturaChanges}
+                               disabled={isUploading}
+                               className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                           >
+                               {isUploading ? "Guardando..." : "Guardar Cambios"}
+                           </button>
+                       </div>
+                   </div>
+               </div>
+           )}
+       </div>
+   )
 }

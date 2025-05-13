@@ -828,7 +828,7 @@ export default function OrdenesCompraClient({
                     </td>
                     
                     {/* Importe */}
-                    <td className="py-3 px-4 text-right font-medium">
+                    <td className="py-3 px-4 text-center font-medium">
                       {orden.Importe}€
                     </td>
                     

@@ -9,6 +9,7 @@ export async function getFacturas() {
         f.Fecha_emision,
         f.Ruta_pdf,
         o.Num_orden,
+        o.Importe, 
         p.Nombre AS Proveedor,
         d.Nombre AS Departamento,
         e.Tipo AS Estado
