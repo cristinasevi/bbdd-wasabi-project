@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { ChevronDown } from "lucide-react"
+import { useState, useEffect, useMemo } from "react"
+import { ChevronDown, Calendar } from "lucide-react"
 import Link from "next/link"
 import useUserDepartamento from "@/app/hooks/useUserDepartamento"
 
@@ -22,6 +22,10 @@ export default function PresupuestoClient({
   const [gastoMensual, setGastoMensual] = useState(0)
   const [saldoActual, setSaldoActual] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
+  
+  // Estados para los filtros de fecha - inicializados con valores actuales
+  const [selectedMes, setSelectedMes] = useState(mesActual)
+  const [selectedAño, setSelectedAño] = useState(año)
   
   // Obtener información del usuario
   useEffect(() => {
@@ -69,34 +73,118 @@ export default function PresupuestoClient({
     }
   }, [departamento, initialDepartamentos])
   
-  // Cargar datos de presupuesto cuando cambia el departamento
+  // Filtrar las órdenes por departamento, mes y año
+  const filteredOrdenes = useMemo(() => {
+    if (!departamento || !initialOrden.length) return []
+    
+    return initialOrden.filter(o => {
+      // Filtrar por departamento y asegurarse que NO tenga Num_inversion (para presupuestos)
+      const matchesDepartamento = o.Departamento === departamento && !o.Num_inversion;
+      
+      // Filtrar por año
+      const ordenDate = new Date(o.Fecha);
+      const ordenAño = ordenDate.getFullYear().toString();
+      const matchesAño = !selectedAño || ordenAño === selectedAño;
+      
+      // Filtrar por mes
+      const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
+                    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+      const ordenMes = meses[ordenDate.getMonth()];
+      const matchesMes = !selectedMes || ordenMes === selectedMes;
+      
+      return matchesDepartamento && matchesAño && matchesMes;
+    });
+  }, [departamento, initialOrden, selectedMes, selectedAño]);
+  
+  // Obtener los meses y años disponibles basados en las órdenes filtradas por departamento
+  const { availableMeses, availableAños } = useMemo(() => {
+    const meses = [];
+    const años = [];
+    
+    if (departamento && initialOrden.length) {
+      const departamentoOrdenes = initialOrden.filter(o => 
+        o.Departamento === departamento && !o.Num_inversion
+      );
+      
+      departamentoOrdenes.forEach(orden => {
+        const ordenDate = new Date(orden.Fecha);
+        const ordenAño = ordenDate.getFullYear().toString();
+        const mesesNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
+                           "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+        const ordenMes = mesesNames[ordenDate.getMonth()];
+        
+        if (!meses.includes(ordenMes)) {
+          meses.push(ordenMes);
+        }
+        
+        if (!años.includes(ordenAño)) {
+          años.push(ordenAño);
+        }
+      });
+    }
+    
+    // Ordenar meses en orden cronológico
+    const mesesOrder = {
+      "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4, "Mayo": 5, "Junio": 6,
+      "Julio": 7, "Agosto": 8, "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
+    };
+    
+    meses.sort((a, b) => mesesOrder[a] - mesesOrder[b]);
+    años.sort((a, b) => a - b);
+    
+    return { availableMeses: meses, availableAños: años };
+  }, [departamento, initialOrden]);
+  
+  // Cargar datos de presupuesto cuando cambia el departamento, mes o año
   useEffect(() => {
     if (!departamentoId) return
     
-    // Filtrar órdenes por departamento
-    if (departamento && initialOrden.length > 0) {
-      const filteredOrden = initialOrden.filter(o => o.Departamento === departamento && !o.Num_inversion)
-      setOrden(filteredOrden)
+    try {
+      // Actualizar órdenes filtradas
+      setOrden(filteredOrdenes);
       
       // Cargar datos de presupuesto para el departamento seleccionado
-      const presupuestoData = presupuestosPorDepartamento[departamentoId] || []
-      const gastoData = gastosPorDepartamento[departamentoId] || []
+      const presupuestoData = presupuestosPorDepartamento[departamentoId] || [];
+      const gastoData = gastosPorDepartamento[departamentoId] || [];
       
       // Calcular presupuesto mensual
-      const presupMensual = presupuestoData[0]?.presupuesto_mensual || 0
-      setPresupuestoMensual(presupMensual)
+      const presupMensual = presupuestoData[0]?.presupuesto_mensual || 0;
+      setPresupuestoMensual(presupMensual);
       
-      // Calcular gasto mensual (dividimos el gasto total entre los meses transcurridos)
-      const mesActualNum = new Date().getMonth() + 1 // 1-12
-      const gastoTotal = gastoData[0]?.total_importe || 0
-      const gastoMensualCalc = mesActualNum > 0 ? gastoTotal / mesActualNum : 0
-      setGastoMensual(gastoMensualCalc)
+      // Si hay un mes específico seleccionado, calcular el gasto para ese mes
+      if (selectedMes && selectedAño) {
+        const mesesNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
+                           "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+        const monthIndex = mesesNames.indexOf(selectedMes);
+        
+        // Filtrar órdenes por mes y año seleccionados
+        const ordenesDelMes = initialOrden.filter(o => {
+          if (o.Departamento !== departamento || o.Num_inversion) return false;
+          
+          const ordenDate = new Date(o.Fecha);
+          return ordenDate.getMonth() === monthIndex && 
+                 ordenDate.getFullYear().toString() === selectedAño;
+        });
+        
+        // Calcular el gasto del mes seleccionado
+        const gastoDelMes = ordenesDelMes.reduce((sum, o) => sum + (o.Importe || 0), 0);
+        setGastoMensual(gastoDelMes);
+      } else {
+        // Si no hay un mes específico, usar el cálculo original promediado
+        const gastoTotal = gastoData[0]?.total_importe || 0;
+        const mesActualNum = new Date().getMonth() + 1; // 1-12
+        const gastoMensualCalc = mesActualNum > 0 ? gastoTotal / mesActualNum : 0;
+        setGastoMensual(gastoMensualCalc);
+      }
       
       // Calcular saldo disponible (presupuesto total anual - gasto total)
-      const presupuestoAnual = presupMensual * 12
-      setSaldoActual(presupuestoAnual - gastoTotal)
+      const presupuestoAnual = presupMensual * 12;
+      const gastoTotal = gastoData[0]?.total_importe || 0;
+      setSaldoActual(presupuestoAnual - gastoTotal);
+    } catch (error) {
+      console.error("Error cargando datos de presupuesto:", error);
     }
-  }, [departamentoId, departamento, initialOrden, presupuestosPorDepartamento, gastosPorDepartamento])
+  }, [departamentoId, departamento, filteredOrdenes, presupuestosPorDepartamento, gastosPorDepartamento, initialOrden, selectedMes, selectedAño]);
   
   // Función para cambiar el departamento (solo para admin/contable)
   const handleChangeDepartamento = (newDepartamento) => {
@@ -104,10 +192,29 @@ export default function PresupuestoClient({
     
     setDepartamento(newDepartamento)
     
+    // Si hay meses y años disponibles, establecer los primeros valores
+    if (availableMeses.length > 0) {
+      setSelectedMes(availableMeses[0])
+    }
+    
+    if (availableAños.length > 0) {
+      setSelectedAño(availableAños[0])
+    }
+    
     // Guardar selección en window
     if (typeof window !== 'undefined') {
       window.selectedDepartamento = newDepartamento
     }
+  }
+  
+  // Manejar cambio de mes
+  const handleMesChange = (e) => {
+    setSelectedMes(e.target.value)
+  }
+  
+  // Manejar cambio de año
+  const handleAñoChange = (e) => {
+    setSelectedAño(e.target.value)
   }
   
   // Formatear valores monetarios para mostrar
@@ -158,10 +265,44 @@ export default function PresupuestoClient({
         <div className="flex gap-4">
           {/* Selector de mes */}
           <div className="relative">
-            <button className="flex items-center gap-2 bg-gray-100 border border-gray-200 rounded-full px-4 py-2">
-              {`${mesActual} ${año}`}
-              <ChevronDown className="w-4 h-4" />
-            </button>
+            <select
+              value={selectedMes}
+              onChange={handleMesChange}
+              className="appearance-none bg-gray-100 border border-gray-200 rounded-md px-4 py-2 pr-8 flex items-center gap-2"
+              disabled={availableMeses.length === 0}
+            >
+              {availableMeses.length > 0 ? (
+                availableMeses.map(mes => (
+                  <option key={mes} value={mes}>{mes}</option>
+                ))
+              ) : (
+                <option value="">{mesActual}</option>
+              )}
+            </select>
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+              <Calendar className="w-4 h-4" />
+            </div>
+          </div>
+          
+          {/* Selector de año */}
+          <div className="relative">
+            <select
+              value={selectedAño}
+              onChange={handleAñoChange}
+              className="appearance-none bg-gray-100 border border-gray-200 rounded-md px-4 py-2 pr-8 flex items-center gap-2"
+              disabled={availableAños.length === 0}
+            >
+              {availableAños.length > 0 ? (
+                availableAños.map(año => (
+                  <option key={año} value={año}>{año}</option>
+                ))
+              ) : (
+                <option value="">{año}</option>
+              )}
+            </select>
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+              <Calendar className="w-4 h-4" />
+            </div>
           </div>
           
           {/* Botón resumen */}
@@ -203,7 +344,10 @@ export default function PresupuestoClient({
 
             {/* Gasto mensual */}
             <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <h3 className="text-gray-500 mb-2 text-xl">Gasto mensual</h3>
+              <h3 className="text-gray-500 mb-2 text-xl">
+                {selectedMes ? `Gasto en ${selectedMes}` : "Gasto mensual"}
+                {selectedAño ? ` ${selectedAño}` : ""}
+              </h3>
               <div className="text-right">
                 <div className="text-5xl font-bold text-red-500">{formatCurrency(gastoMensual)}</div>
               </div>
@@ -240,7 +384,9 @@ export default function PresupuestoClient({
                   ) : (
                     <tr>
                       <td colSpan="2" className="py-4 text-center text-gray-400">
-                        No hay órdenes registradas
+                        {selectedMes || selectedAño 
+                          ? `No hay órdenes para ${selectedMes || ''} ${selectedAño || ''}`
+                          : "No hay órdenes registradas"}
                       </td>
                     </tr>
                   )}
