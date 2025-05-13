@@ -1,10 +1,6 @@
 "use client"
 
-<<<<<<< Updated upstream
 import { useState, useEffect, useMemo } from "react"
-=======
-import { useState, useEffect } from "react"
->>>>>>> Stashed changes
 import { ChevronDown, Calendar } from "lucide-react"
 import Link from "next/link"
 import useUserDepartamento from "@/app/hooks/useUserDepartamento"
@@ -17,19 +13,11 @@ export default function InversionClient({
   mesActual = "",
   año = ""
 }) {
-  const { departamento: userDepartamento, isLoading: isLoadingUserDep } = useUserDepartamento()
-  
-  // Constantes - no cambian entre renderizados
-  const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
-                "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-  
-  const añoActual = new Date().getFullYear()
-  const añosLista = Array.from({length: añoActual - 2020 + 1}, (_, i) => (2020 + i).toString())
+  const { departamento: userDepartamento, isLoading: isDepartamentoLoading } = useUserDepartamento()
   
   // Estados básicos
   const [userRole, setUserRole] = useState(null)
   const [departamento, setDepartamento] = useState("")
-<<<<<<< Updated upstream
   const [departamentoId, setDepartamentoId] = useState(null)
   const [orden, setOrden] = useState([])
   const [inversionMensual, setInversionMensual] = useState(0)
@@ -37,52 +25,46 @@ export default function InversionClient({
   const [saldoActual, setSaldoActual] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   
-  // Estados para los filtros de fecha - inicializados con valores actuales
+  // Estados para los filtros de fecha
   const [selectedMes, setSelectedMes] = useState(mesActual)
   const [selectedAño, setSelectedAño] = useState(año)
   
   // Obtener información del usuario
-=======
-  const [loading, setLoading] = useState(true)
-  
-  // Estados UI para dropdowns
-  const [showMesDropdown, setShowMesDropdown] = useState(false)
-  const [showAñoDropdown, setShowAñoDropdown] = useState(false)
-  
-  // Estados de selección
-  const [selectedMes, setSelectedMes] = useState(mesActual || meses[new Date().getMonth()])
-  const [selectedAño, setSelectedAño] = useState(año || añoActual.toString())
-  
-  // Obtener información del usuario una sola vez
->>>>>>> Stashed changes
   useEffect(() => {
     async function fetchUserInfo() {
       try {
+        setIsLoading(true)
         const response = await fetch('/api/getSessionUser')
         if (response.ok) {
           const data = await response.json()
           setUserRole(data.usuario?.rol || '')
           
+          const userDep = data.usuario?.departamento || ''
+          
           // Establecer departamento inicial
           if (data.usuario?.rol === "Jefe de Departamento") {
-            setDepartamento(data.usuario?.departamento || '')
-          } else if (typeof window !== 'undefined' && window.selectedDepartamento) {
-            setDepartamento(window.selectedDepartamento)
-          } else if (initialDepartamentos.length > 0) {
-            setDepartamento(initialDepartamentos[0].Nombre)
+            // Para jefes, usar su departamento asignado
+            setDepartamento(userDep)
+          } else {
+            // Para admin/contable, revisar si hay selección previa
+            if (typeof window !== 'undefined' && window.selectedDepartamento) {
+              setDepartamento(window.selectedDepartamento)
+            } else if (initialDepartamentos.length > 0) {
+              // Si no hay selección previa, usar el primer departamento
+              setDepartamento(initialDepartamentos[0].Nombre)
+            }
           }
         }
       } catch (error) {
         console.error("Error obteniendo información del usuario:", error)
       } finally {
-        setLoading(false)
+        setIsLoading(false)
       }
     }
     
     fetchUserInfo()
   }, [initialDepartamentos])
   
-<<<<<<< Updated upstream
   // Actualizar ID del departamento cuando cambia el nombre del departamento
   useEffect(() => {
     if (departamento && initialDepartamentos.length > 0) {
@@ -208,15 +190,11 @@ export default function InversionClient({
   }, [departamentoId, departamento, filteredOrdenes, inversionesPorDepartamento, inversionesAcumPorDepartamento, initialOrden, selectedMes, selectedAño]);
   
   // Función para cambiar el departamento (solo admin/contable)
-=======
-  // Función para cambiar departamento
->>>>>>> Stashed changes
   const handleChangeDepartamento = (newDepartamento) => {
     if (userRole === "Jefe de Departamento") return
     
     setDepartamento(newDepartamento)
     
-<<<<<<< Updated upstream
     // Si hay meses y años disponibles, establecer los primeros valores
     if (availableMeses.length > 0) {
       setSelectedMes(availableMeses[0])
@@ -227,15 +205,11 @@ export default function InversionClient({
     }
     
     // Guardar selección en window
-=======
-    // Guardar selección
->>>>>>> Stashed changes
     if (typeof window !== 'undefined') {
       window.selectedDepartamento = newDepartamento
     }
   }
   
-<<<<<<< Updated upstream
   // Manejar cambio de mes
   const handleMesChange = (e) => {
     setSelectedMes(e.target.value)
@@ -249,69 +223,10 @@ export default function InversionClient({
   // Formatear valores para mostrar
   const formatCurrency = (value) => {
     if (value === null || value === undefined) return "0 €"
-=======
-  // Cerrar dropdowns al hacer clic fuera
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (showMesDropdown && !event.target.closest('.mes-dropdown')) {
-        setShowMesDropdown(false)
-      }
-      if (showAñoDropdown && !event.target.closest('.año-dropdown')) {
-        setShowAñoDropdown(false)
-      }
-    }
-    
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [showMesDropdown, showAñoDropdown])
-  
-  // CÁLCULOS DIRECTOS (sin useEffect)
-  
-  // 1. Filtrar órdenes por departamento y que tengan número de inversión
-  const ordenesFiltradas = departamento 
-    ? initialOrden.filter(o => o.Departamento === departamento && o.Num_inversion)
-    : []
-  
-  // 2. Calcular valores financieros
-  const totalInversion = ordenesFiltradas.reduce((sum, o) => sum + (o.Importe || 0), 0)
-  const inversionMensual = totalInversion / 12
-  const gastoMensual = totalInversion / 4
-  const saldoActual = totalInversion - gastoMensual
-  
-  // 3. Determinar meses y años disponibles
-  const mesesSet = new Set()
-  const añosSet = new Set()
-  
-  ordenesFiltradas.forEach(orden => {
-    if (orden.Fecha) {
-      const fecha = new Date(orden.Fecha)
-      mesesSet.add(fecha.getMonth())
-      añosSet.add(fecha.getFullYear().toString())
-    }
-  })
-  
-  // Si no hay datos, usar mes y año actuales
-  if (mesesSet.size === 0) {
-    mesesSet.add(new Date().getMonth())
-  }
-  
-  if (añosSet.size === 0) {
-    añosSet.add(new Date().getFullYear().toString())
-  }
-  
-  // Convertir a arrays y ordenar
-  const mesesDisponibles = Array.from(mesesSet).map(m => meses[m])
-  const añosDisponibles = Array.from(añosSet).sort((a, b) => b - a)
-  
-  // Utilidades
-  const formatCurrency = (value) => {
->>>>>>> Stashed changes
     return value.toLocaleString("es-ES") + " €"
   }
   
-  if (isLoadingUserDep || loading) {
+  if (isDepartamentoLoading || isLoading) {
     return <div className="p-6">Cargando...</div>
   }
   
@@ -352,7 +267,6 @@ export default function InversionClient({
         
         <div className="flex gap-4">
           {/* Selector de mes */}
-<<<<<<< Updated upstream
           <div className="relative">
             <select
               value={selectedMes}
@@ -392,74 +306,6 @@ export default function InversionClient({
             <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
               <Calendar className="w-4 h-4" />
             </div>
-=======
-          <div className="relative mes-dropdown">
-            <button 
-              type="button"
-              onClick={() => setShowMesDropdown(!showMesDropdown)}
-              className="flex items-center gap-2 bg-gray-100 border border-gray-200 rounded-full px-4 py-2"
-            >
-              <Calendar className="w-4 h-4" />
-              {selectedMes}
-              <ChevronDown className="w-4 h-4" />
-            </button>
-            
-            {showMesDropdown && (
-              <div className="absolute right-0 mt-2 w-40 bg-white rounded-md shadow-lg z-10 border border-gray-200">
-                <div className="py-1 max-h-60 overflow-y-auto">
-                  {mesesDisponibles.map((mes) => (
-                    <button
-                      key={mes}
-                      type="button"
-                      onClick={() => {
-                        setSelectedMes(mes)
-                        setShowMesDropdown(false)
-                      }}
-                      className={`block w-full text-left px-4 py-2 hover:bg-gray-100 ${
-                        selectedMes === mes ? "bg-gray-100 font-medium" : ""
-                      }`}
-                    >
-                      {mes}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-          
-          {/* Selector de año */}
-          <div className="relative año-dropdown">
-            <button 
-              type="button"
-              onClick={() => setShowAñoDropdown(!showAñoDropdown)}
-              className="flex items-center gap-2 bg-gray-100 border border-gray-200 rounded-full px-4 py-2"
-            >
-              {selectedAño}
-              <ChevronDown className="w-4 h-4" />
-            </button>
-            
-            {showAñoDropdown && (
-              <div className="absolute right-0 mt-2 w-32 bg-white rounded-md shadow-lg z-10 border border-gray-200">
-                <div className="py-1 max-h-60 overflow-y-auto">
-                  {añosDisponibles.map((año) => (
-                    <button
-                      key={año}
-                      type="button"
-                      onClick={() => {
-                        setSelectedAño(año)
-                        setShowAñoDropdown(false)
-                      }}
-                      className={`block w-full text-left px-4 py-2 hover:bg-gray-100 ${
-                        selectedAño === año ? "bg-gray-100 font-medium" : ""
-                      }`}
-                    >
-                      {año}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
->>>>>>> Stashed changes
           </div>
           
           {/* Botón resumen */}
@@ -536,8 +382,8 @@ export default function InversionClient({
                   </tr>
                 </thead>
                 <tbody>
-                  {ordenesFiltradas.length > 0 ? (
-                    ordenesFiltradas.map((item, index) => (
+                  {orden && orden.length > 0 ? (
+                    orden.map((item, index) => (
                       <tr key={`${item.idOrden}-${index}`} className="border-t border-gray-200">
                         <td className="py-2">{item.Num_orden}</td>
                         <td className="py-2">{item.Num_inversion || "-"}</td>
@@ -547,14 +393,9 @@ export default function InversionClient({
                   ) : (
                     <tr>
                       <td colSpan="3" className="py-4 text-center text-gray-400">
-<<<<<<< Updated upstream
                         {selectedMes || selectedAño 
                           ? `No hay órdenes de inversión para ${selectedMes || ''} ${selectedAño || ''}`
                           : "No hay órdenes de inversión registradas"}
-=======
-                        No hay órdenes de inversión registradas 
-                        {selectedMes && selectedAño ? ` para ${selectedMes} de ${selectedAño}` : ""}
->>>>>>> Stashed changes
                       </td>
                     </tr>
                   )}
