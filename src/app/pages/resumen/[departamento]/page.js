@@ -18,6 +18,15 @@ export default async function Resumen({ params }) {
     const resumengasto = await getResumenGasto(departamentoInfo.id_Departamento);
     const resumeninvacum = await getResumenInversionAcum(departamentoInfo.id_Departamento);
     
+    // Calcular presupuesto actual e inversión actual
+    const presupuestoTotal = resumenprep?.[0]?.total_presupuesto || 0;
+    const gastoPresupuesto = resumengasto?.[0]?.total_importe || 0;
+    const presupuestoActual = presupuestoTotal - gastoPresupuesto;
+    
+    const inversionTotal = resumeninv?.[0]?.total_inversion || 0;
+    const gastoInversion = resumeninvacum?.[0]?.Total_Importe || 0;
+    const inversionActual = inversionTotal - gastoInversion;
+    
     // Obtener el mes actual y año
     const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
                   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
@@ -33,15 +42,10 @@ export default async function Resumen({ params }) {
             </div>
 
             {/* Selector de fecha */}
-            <div className="flex justify-end my-6">
+            <div className="flex justify-end my-4">
                 <div className="relative">
-                    <select className="appearance-none bg-white border border-gray-200 rounded-md px-4 py-2 pr-8">
-                        <option>{`${mesActual} ${año}`}</option>
-                    </select>
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="m6 9 6 6 6-6" />
-                        </svg>
+                    <div className="appearance-none bg-gray-100 border border-gray-200 rounded-full px-4 py-2">
+                        <span>{`${mesActual} ${año}`}</span>
                     </div>
                 </div>
             </div>
@@ -52,9 +56,19 @@ export default async function Resumen({ params }) {
                     <div className="grid gap-6">
                         {/* Presupuesto total anual */}
                         <div className="bg-white rounded-lg p-6 shadow-sm">
-                            <h3 className="text-gray-500 mb-2">Presupuesto total anual</h3>
-                            <div className="text-4xl font-bold">
-                                {resumenprep?.[0]?.total_presupuesto?.toLocaleString("es-ES")} €
+                            <div className="flex justify-between items-start">
+                                <div className="w-1/2 pr-4">
+                                    <h3 className="text-gray-500 mb-2 text-xl">Presupuesto total anual</h3>
+                                    <div className="text-4xl font-bold text-gray-400">
+                                        {resumenprep?.[0]?.total_presupuesto?.toLocaleString("es-ES")} €
+                                    </div>
+                                </div>
+                                <div className="w-1/2 pl-4">
+                                    <h3 className="text-gray-500 mb-2 text-xl">Presupuesto actual</h3>
+                                    <div className="text-4xl font-bold">
+                                        {presupuestoActual.toLocaleString("es-ES")} €
+                                    </div>
+                                </div>
                             </div>
                             <div className="mt-4 flex justify-end">
                                 <div className="w-4 h-4 rounded-full bg-green-500"></div>
@@ -63,15 +77,25 @@ export default async function Resumen({ params }) {
 
                         {/* Inversión total anual */}
                         <div className="bg-white rounded-lg p-6 shadow-sm">
-                            <h3 className="text-gray-500 mb-2">Inversión total anual</h3>
-                            <div className="text-4xl font-bold">
-                                {resumeninv?.[0]?.total_inversion?.toLocaleString("es-ES")} €
+                            <div className="flex justify-between items-start">
+                                <div className="w-1/2 pr-4">
+                                    <h3 className="text-gray-500 mb-2 text-xl">Inversión total anual</h3>
+                                    <div className="text-4xl font-bold text-gray-400">
+                                        {resumeninv?.[0]?.total_inversion?.toLocaleString("es-ES")} €
+                                    </div>
+                                </div>
+                                <div className="w-1/2 pl-4">
+                                    <h3 className="text-gray-500 mb-2 text-xl">Inversión actual</h3>
+                                    <div className="text-4xl font-bold">
+                                        {inversionActual.toLocaleString("es-ES")} €
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
                         {/* Gasto acumulado anual */}
                         <div className="bg-white rounded-lg p-6 shadow-sm">
-                            <h3 className="text-gray-500 mb-2">Gasto en presupuesto acumulado</h3>
+                            <h3 className="text-gray-500 mb-2 text-xl">Gasto en presupuesto acumulado</h3>
                             <div className="text-4xl font-bold">
                                 {resumengasto?.[0]?.total_importe?.toLocaleString("es-ES")} €
                             </div>
@@ -79,7 +103,7 @@ export default async function Resumen({ params }) {
 
                         {/* Inversión acumulada anual */}
                         <div className="bg-white rounded-lg p-6 shadow-sm">
-                            <h3 className="text-gray-500 mb-2">Inversión acumulada anual</h3>
+                            <h3 className="text-gray-500 mb-2 text-xl">Inversión acumulada anual</h3>
                             <div className="text-4xl font-bold">
                                 {resumeninvacum?.[0]?.Total_Importe?.toLocaleString("es-ES")} €
                             </div>
