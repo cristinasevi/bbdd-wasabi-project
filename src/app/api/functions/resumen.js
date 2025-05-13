@@ -75,18 +75,22 @@ export async function getResumenOrden(idDepartamento) {
 
 export async function getResumenGasto(idDepartamento) {  
   try {    
+    // Mejorar la consulta para obtener datos correctos
     const [rows] = await pool.query(`
       SELECT 
+        o.id_DepartamentoFK,
         SUM(o.Importe) AS total_importe
       FROM Orden o
-      INNER JOIN Orden_Compra oc ON o.idOrden = oc.idOrden
+      LEFT JOIN Orden_Compra oc ON o.idOrden = oc.idOrden
       WHERE o.id_DepartamentoFK = ?
+      AND o.id_EstadoOrdenFK = 3 -- Solo órdenes confirmadas
+      GROUP BY o.id_DepartamentoFK
     `, [idDepartamento]);
         
     return rows;
   } catch (error) {
     console.error('Error executing query:', error);
-    throw error;
+    return [{ total_importe: 0 }]; // Valor por defecto en caso de error
   }
 }
 

@@ -8,6 +8,8 @@ import useUserDepartamento from "@/app/hooks/useUserDepartamento"
 export default function InversionClient({
   initialOrden = [],
   initialDepartamentos = [],
+  inversionesPorDepartamento = {},
+  inversionesAcumPorDepartamento = {},
   mesActual = "",
   año = ""
 }) {
@@ -16,10 +18,10 @@ export default function InversionClient({
   const [userRole, setUserRole] = useState(null)
   const [departamento, setDepartamento] = useState("")
   const [departamentoId, setDepartamentoId] = useState(null)
-  const [orden, setOrden] = useState(initialOrden)
-  const [inversionMensual, setInversionMensual] = useState(null)
-  const [gastoMensual, setGastoMensual] = useState(null)
-  const [saldoActual, setSaldoActual] = useState(null)
+  const [orden, setOrden] = useState([])
+  const [inversionMensual, setInversionMensual] = useState(0)
+  const [gastoMensual, setGastoMensual] = useState(0)
+  const [saldoActual, setSaldoActual] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
 
   // Obtener información del usuario
@@ -70,43 +72,36 @@ export default function InversionClient({
   
   // Cargar datos de inversión cuando cambia el departamento
   useEffect(() => {
-    async function loadInversionData() {
-      if (!departamentoId) return
-      
-      try {
-        setIsLoading(true)
+    if (!departamentoId) return
+    
+    try {
+      // Filtrar órdenes por departamento
+      if (departamento && initialOrden.length > 0) {
+        const filteredOrden = initialOrden.filter(o => o.Departamento === departamento && o.Num_inversion)
+        setOrden(filteredOrden)
         
         // Cargar datos de inversión para el departamento seleccionado
-        // Aquí podrías hacer una llamada a una API específica para inversión
-        // Por ahora, simulamos algunos datos para la demostración
+        const inversionData = inversionesPorDepartamento[departamentoId] || []
+        const inversionAcumData = inversionesAcumPorDepartamento[departamentoId] || []
         
-        // Filtrar órdenes por departamento
-        if (departamento && initialOrden.length > 0) {
-          const filteredOrden = initialOrden.filter(o => o.Departamento === departamento && o.Num_inversion)
-          setOrden(filteredOrden.length > 0 ? filteredOrden : [])
-          
-          // Calcular valores de inversión basados en las órdenes
-          if (filteredOrden.length > 0) {
-            // Ejemplo: calcular la suma de los importes de inversión
-            const totalInversion = filteredOrden.reduce((sum, o) => sum + (o.Importe || 0), 0)
-            setInversionMensual(totalInversion / 12) // Dividir por 12 para obtener mensual
-            setGastoMensual(totalInversion / 4) // Ejemplo: un tercio del total
-            setSaldoActual(totalInversion - (totalInversion / 4)) // Ejemplo: inversión - gasto
-          } else {
-            setInversionMensual(0)
-            setGastoMensual(0)
-            setSaldoActual(0)
-          }
-        }
-      } catch (error) {
-        console.error("Error cargando datos de inversión:", error)
-      } finally {
-        setIsLoading(false)
+        // Calcular inversión mensual
+        const invMensual = inversionData[0]?.total_inversion / 12 || 0
+        setInversionMensual(invMensual)
+        
+        // Calcular gasto mensual (usando datos acumulados)
+        const gastoAcumulado = inversionAcumData[0]?.Total_Importe || 0
+        const mesActualNum = new Date().getMonth() + 1 // 1-12
+        const gastoMensualCalc = mesActualNum > 0 ? gastoAcumulado / mesActualNum : 0
+        setGastoMensual(gastoMensualCalc)
+        
+        // Calcular saldo disponible (inversión total anual - gasto acumulado)
+        const inversionAnual = inversionData[0]?.total_inversion || 0
+        setSaldoActual(inversionAnual - gastoAcumulado)
       }
+    } catch (error) {
+      console.error("Error cargando datos de inversión:", error)
     }
-    
-    loadInversionData()
-  }, [departamentoId, departamento, initialOrden])
+  }, [departamentoId, departamento, initialOrden, inversionesPorDepartamento, inversionesAcumPorDepartamento])
   
   // Función para cambiar el departamento (solo admin/contable)
   const handleChangeDepartamento = (newDepartamento) => {
@@ -122,7 +117,7 @@ export default function InversionClient({
 
   // Formatear valores para mostrar
   const formatCurrency = (value) => {
-    if (value === null || value === undefined) return "-"
+    if (value === null || value === undefined) return "0 €"
     return value.toLocaleString("es-ES") + " €"
   }
   
@@ -222,8 +217,6 @@ export default function InversionClient({
                 </div>
               </div>
             </div>
-
-
           </div>
         </div>
 

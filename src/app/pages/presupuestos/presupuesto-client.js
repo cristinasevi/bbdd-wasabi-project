@@ -3,19 +3,24 @@
 import { useState, useEffect } from "react"
 import { ChevronDown } from "lucide-react"
 import Link from "next/link"
+import useUserDepartamento from "@/app/hooks/useUserDepartamento"
 
 export default function PresupuestoClient({ 
   initialOrden = [], 
   initialDepartamentos = [], 
-  initialPresupuestoMensual = [],
+  presupuestosPorDepartamento = {},
+  gastosPorDepartamento = {},
   mesActual = "",
   año = ""
 }) {
+  const { departamento: userDepartamento, isLoading: isDepartamentoLoading } = useUserDepartamento()
   const [userRole, setUserRole] = useState(null)
-  const [userDepartamento, setUserDepartamento] = useState("")
   const [departamento, setDepartamento] = useState("")
-  const [orden, setOrden] = useState(initialOrden)
-  const [presupuestoMensual, setPresupuestoMensual] = useState(initialPresupuestoMensual)
+  const [departamentoId, setDepartamentoId] = useState(null)
+  const [orden, setOrden] = useState([])
+  const [presupuestoMensual, setPresupuestoMensual] = useState(0)
+  const [gastoMensual, setGastoMensual] = useState(0)
+  const [saldoActual, setSaldoActual] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   
   // Obtener información del usuario
@@ -29,7 +34,6 @@ export default function PresupuestoClient({
           setUserRole(data.usuario?.rol || '')
           
           const userDep = data.usuario?.departamento || ''
-          setUserDepartamento(userDep)
           
           // Establecer departamento inicial
           if (data.usuario?.rol === "Jefe de Departamento") {
@@ -55,13 +59,44 @@ export default function PresupuestoClient({
     getUserInfo()
   }, [initialDepartamentos])
   
-  // Filtrar órdenes por departamento
+  // Actualizar ID del departamento cuando cambia el nombre del departamento
   useEffect(() => {
-    if (departamento && initialOrden.length > 0) {
-      const filteredOrden = initialOrden.filter(o => o.Departamento === departamento)
-      setOrden(filteredOrden.length > 0 ? filteredOrden : initialOrden)
+    if (departamento && initialDepartamentos.length > 0) {
+      const depInfo = initialDepartamentos.find(dep => dep.Nombre === departamento)
+      if (depInfo) {
+        setDepartamentoId(depInfo.id_Departamento)
+      }
     }
-  }, [departamento, initialOrden])
+  }, [departamento, initialDepartamentos])
+  
+  // Cargar datos de presupuesto cuando cambia el departamento
+  useEffect(() => {
+    if (!departamentoId) return
+    
+    // Filtrar órdenes por departamento
+    if (departamento && initialOrden.length > 0) {
+      const filteredOrden = initialOrden.filter(o => o.Departamento === departamento && !o.Num_inversion)
+      setOrden(filteredOrden)
+      
+      // Cargar datos de presupuesto para el departamento seleccionado
+      const presupuestoData = presupuestosPorDepartamento[departamentoId] || []
+      const gastoData = gastosPorDepartamento[departamentoId] || []
+      
+      // Calcular presupuesto mensual
+      const presupMensual = presupuestoData[0]?.presupuesto_mensual || 0
+      setPresupuestoMensual(presupMensual)
+      
+      // Calcular gasto mensual (dividimos el gasto total entre los meses transcurridos)
+      const mesActualNum = new Date().getMonth() + 1 // 1-12
+      const gastoTotal = gastoData[0]?.total_importe || 0
+      const gastoMensualCalc = mesActualNum > 0 ? gastoTotal / mesActualNum : 0
+      setGastoMensual(gastoMensualCalc)
+      
+      // Calcular saldo disponible (presupuesto total anual - gasto total)
+      const presupuestoAnual = presupMensual * 12
+      setSaldoActual(presupuestoAnual - gastoTotal)
+    }
+  }, [departamentoId, departamento, initialOrden, presupuestosPorDepartamento, gastosPorDepartamento])
   
   // Función para cambiar el departamento (solo para admin/contable)
   const handleChangeDepartamento = (newDepartamento) => {
@@ -73,6 +108,16 @@ export default function PresupuestoClient({
     if (typeof window !== 'undefined') {
       window.selectedDepartamento = newDepartamento
     }
+  }
+  
+  // Formatear valores monetarios para mostrar
+  const formatCurrency = (value) => {
+    if (value === null || value === undefined) return "0 €"
+    return value.toLocaleString("es-ES") + " €"
+  }
+
+  if (isDepartamentoLoading || isLoading) {
+    return <div className="p-6">Cargando...</div>
   }
 
   return (
@@ -141,7 +186,7 @@ export default function PresupuestoClient({
               <div className="flex justify-between items-center">
                 <div className="w-4 h-4 rounded-full bg-green-500"></div>
                 <div>
-                  <div className="text-5xl font-bold"></div>
+                  <div className="text-5xl font-bold">{formatCurrency(saldoActual)}</div>
                 </div>
               </div>
             </div>
@@ -151,7 +196,7 @@ export default function PresupuestoClient({
               <h3 className="text-gray-500 mb-2 text-xl">Presupuesto mensual disponible</h3>
               <div className="text-right">
                 <div className="text-5xl font-bold">
-                  {presupuestoMensual?.[0]?.presupuesto_mensual?.toLocaleString("es-ES") || 0} €
+                  {formatCurrency(presupuestoMensual)}
                 </div>
               </div>
             </div>
@@ -160,7 +205,7 @@ export default function PresupuestoClient({
             <div className="bg-white border border-gray-200 rounded-lg p-6">
               <h3 className="text-gray-500 mb-2 text-xl">Gasto mensual</h3>
               <div className="text-right">
-                <div className="text-5xl font-bold text-red-500">0 €</div>
+                <div className="text-5xl font-bold text-red-500">{formatCurrency(gastoMensual)}</div>
               </div>
             </div>
           </div>
