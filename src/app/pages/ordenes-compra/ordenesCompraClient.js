@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { ChevronDown, Pencil, X, Search, Filter, Check } from "lucide-react";
+import { ChevronDown, Pencil, X, Search, Filter, Check, Info } from "lucide-react";
 import Button from "@/app/components/ui/button"
 import useNotifications from "@/app/hooks/useNotifications"
 import ConfirmationDialog from "@/app/components/ui/confirmation-dialog"
@@ -13,13 +13,13 @@ export default function OrdenesCompraClient({
   initialProveedores,
 }) {
   // Obtener el departamento del usuario
-  const { departamento, isLoading: isDepartamentoLoading } = useUserDepartamento()
-  const [userRole, setUserRole] = useState(null)
+  const { departamento, isLoading: isDepartamentoLoading } = useUserDepartamento();
+  const [userRole, setUserRole] = useState(null);
 
   // Obtener el año actual
   const currentYear = new Date().getFullYear().toString().substring(2); // Solo tomamos los 2 últimos dígitos
 
-  // Añade esto después de otras declaraciones de estado
+  // Estados para los tipos de ordenes
   const [estadosOrden, setEstadosOrden] = useState([
     { id_EstadoOrden: 1, tipo: 'En proceso' },
     { id_EstadoOrden: 2, tipo: 'Anulada' },
@@ -27,20 +27,23 @@ export default function OrdenesCompraClient({
   ]);
 
   // Estados principales
-  const [ordenes, setOrdenes] = useState(initialOrdenes)
-  const [departamentos, setDepartamentos] = useState(Array.isArray(initialDepartamentos) ? initialDepartamentos : [])
-  const [proveedores] = useState(initialProveedores)
-  const [selectedOrdenes, setSelectedOrdenes] = useState([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [showModal, setShowModal] = useState(false)
-  const [modalMode, setModalMode] = useState("add") // 'add' o 'edit'
-  const [formError, setFormError] = useState("")
+  const [ordenes, setOrdenes] = useState(initialOrdenes);
+  const [departamentos, setDepartamentos] = useState(Array.isArray(initialDepartamentos) ? initialDepartamentos : []);
+  const [proveedores] = useState(initialProveedores);
+  const [selectedOrdenes, setSelectedOrdenes] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [modalMode, setModalMode] = useState("add"); // 'add' o 'edit'
+  const [formError, setFormError] = useState("");
+
+  // Estado para tooltips/popovers de información detallada
+  const [activeTooltip, setActiveTooltip] = useState(null);
 
   // Estados para búsqueda y filtrado
-  const [searchTerm, setSearchTerm] = useState("")
-  const [filterDepartamento, setFilterDepartamento] = useState("")
-  const [filterProveedor, setFilterProveedor] = useState("")
-  const [filterInventariable, setFilterInventariable] = useState("")
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterDepartamento, setFilterDepartamento] = useState("");
+  const [filterProveedor, setFilterProveedor] = useState("");
+  const [filterInventariable, setFilterInventariable] = useState("");
 
   // Estado para diálogo de confirmación
   const [confirmDialog, setConfirmDialog] = useState({
@@ -48,13 +51,12 @@ export default function OrdenesCompraClient({
     title: "",
     message: "",
     onConfirm: () => {},
-  })
+  });
   
   // Hook de notificaciones
-  const { addNotification, notificationComponents } = useNotifications()
+  const { addNotification, notificationComponents } = useNotifications();
 
   // Estado del formulario
-  // Añade la propiedad estadoOrden al objeto
   const [formularioOrden, setFormularioOrden] = useState({
     idOrden: null,
     numero: "",
@@ -67,30 +69,30 @@ export default function OrdenesCompraClient({
     cantidad: "",
     departamento: "",
     proveedor: "",
-    estadoOrden: "En proceso", // Añade esta línea
+    estadoOrden: "En proceso",
   });
   
   // Efecto para obtener el rol del usuario
   useEffect(() => {
     async function fetchUserRole() {
       try {
-        const response = await fetch('/api/getSessionUser')
+        const response = await fetch('/api/getSessionUser');
         if (response.ok) {
-          const data = await response.json()
-          setUserRole(data.usuario?.rol || '')
+          const data = await response.json();
+          setUserRole(data.usuario?.rol || '');
           
           // Si es Jefe de Departamento, establecer el filtro automáticamente
           if (data.usuario?.rol === "Jefe de Departamento" && departamento) {
-            setFilterDepartamento(departamento)
+            setFilterDepartamento(departamento);
           }
         }
       } catch (error) {
-        console.error("Error obteniendo rol del usuario:", error)
+        console.error("Error obteniendo rol del usuario:", error);
       }
     }
 
-    fetchUserRole()
-  }, [departamento])
+    fetchUserRole();
+  }, [departamento]);
 
   // Obtenemos el siguiente número de orden para un departamento
   const getNextNumeroOrden = (departamentoCodigo) => {
@@ -188,40 +190,40 @@ export default function OrdenesCompraClient({
 
   // Función para formatear fechas
   function formatDate(dateString) {
-    if (!dateString) return "-"
+    if (!dateString) return "-";
     if (dateString instanceof Date) {
-      return dateString.toLocaleDateString()
+      return dateString.toLocaleDateString();
     }
     try {
-      const date = new Date(dateString)
-      return date.toLocaleDateString()
+      const date = new Date(dateString);
+      return date.toLocaleDateString();
     } catch (error) {
-      return dateString
+      return dateString;
     }
   }
 
   // Función para formatear inventariable
   function formatInventariable(value) {
-    if (value === 1 || value === "1" || value === true) return "Sí"
-    if (value === 0 || value === "0" || value === false) return "No"
-    return value || "-" 
+    if (value === 1 || value === "1" || value === true) return "Sí";
+    if (value === 0 || value === "0" || value === false) return "No";
+    return value || "-";
   }
 
   // Obtener proveedores filtrados por departamento
   const proveedoresFiltrados = useMemo(() => {
-    if (!filterDepartamento) return proveedores
+    if (!filterDepartamento) return proveedores;
     
     return proveedores.filter(proveedor => {
       return initialOrdenes.some(orden => 
         orden.Proveedor === proveedor.Nombre && orden.Departamento === filterDepartamento
-      )
-    })
-  }, [filterDepartamento, proveedores, initialOrdenes])
+      );
+    });
+  }, [filterDepartamento, proveedores, initialOrdenes]);
 
   // Reset proveedor cuando cambia departamento
   useMemo(() => {
-    setFilterProveedor("")
-  }, [filterDepartamento])
+    setFilterProveedor("");
+  }, [filterDepartamento]);
 
   // Filtrar órdenes según los criterios de búsqueda y filtrado
   const filteredOrdenes = useMemo(() => {
@@ -231,60 +233,60 @@ export default function OrdenesCompraClient({
         searchTerm === "" ||
         orden.Num_orden?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         orden.Descripcion?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        orden.Num_inversion?.toLowerCase().includes(searchTerm.toLowerCase())
+        orden.Num_inversion?.toLowerCase().includes(searchTerm.toLowerCase());
 
       // Filtro por departamento
       const matchesDepartamento = filterDepartamento === "" || 
-        orden.Departamento === filterDepartamento
+        orden.Departamento === filterDepartamento;
 
       // Filtro por proveedor
       const matchesProveedor = filterProveedor === "" || 
-        orden.Proveedor === filterProveedor
+        orden.Proveedor === filterProveedor;
 
       // Filtro por inventariable
       const matchesInventariable = filterInventariable === "" || 
         (filterInventariable === "inventariable" && orden.Inventariable === 1) ||
-        (filterInventariable === "no-inventariable" && orden.Inventariable === 0)
+        (filterInventariable === "no-inventariable" && orden.Inventariable === 0);
 
-      return matchesSearch && matchesDepartamento && matchesProveedor && matchesInventariable
-    })
-  }, [ordenes, searchTerm, filterDepartamento, filterProveedor, filterInventariable])
+      return matchesSearch && matchesDepartamento && matchesProveedor && matchesInventariable;
+    });
+  }, [ordenes, searchTerm, filterDepartamento, filterProveedor, filterInventariable]);
 
   // Toggle selección de orden
   const toggleSelectOrden = (ordenId) => {
     if (selectedOrdenes.includes(ordenId)) {
-      setSelectedOrdenes(selectedOrdenes.filter((id) => id !== ordenId))
+      setSelectedOrdenes(selectedOrdenes.filter((id) => id !== ordenId));
     } else {
-      setSelectedOrdenes([...selectedOrdenes, ordenId])
+      setSelectedOrdenes([...selectedOrdenes, ordenId]);
     }
-  }
+  };
 
   // Función para seleccionar/deseleccionar todas las órdenes mostradas
   const toggleSelectAll = () => {
     if (selectedOrdenes.length === filteredOrdenes.length) {
-      setSelectedOrdenes([])
+      setSelectedOrdenes([]);
     } else {
-      setSelectedOrdenes(filteredOrdenes.map((o) => o.idOrden))
+      setSelectedOrdenes(filteredOrdenes.map((o) => o.idOrden));
     }
-  }
+  };
 
   // Abrir modal de añadir orden
   const handleOpenAddModal = () => {
-    limpiarFormulario()
+    limpiarFormulario();
     
     // Si es Jefe de Departamento, preseleccionamos su departamento
     if (userRole === "Jefe de Departamento" && departamento) {
       setFormularioOrden(prev => ({
         ...prev,
         departamento: departamento
-      }))
+      }));
     }
     
-    setModalMode("add")
-    setShowModal(true)
-  }
+    setModalMode("add");
+    setShowModal(true);
+  };
 
-    // Añade la propiedad estadoOrden al objeto
+  // Añade la propiedad estadoOrden al objeto
   const handleOpenEditModal = (orden) => {
     const esInventariable = orden.Inventariable === 1 || orden.Inventariable === true;
     const esInversion = orden.Num_inversion ? true : false;
@@ -309,23 +311,23 @@ export default function OrdenesCompraClient({
 
   // Formatear fecha para input
   function formatDateForInput(dateString) {
-    if (!dateString) return ""
+    if (!dateString) return "";
     if (dateString instanceof Date) {
-      return dateString.toISOString().split('T')[0]
+      return dateString.toISOString().split('T')[0];
     }
     try {
-      const date = new Date(dateString)
-      return date.toISOString().split('T')[0]
+      const date = new Date(dateString);
+      return date.toISOString().split('T')[0];
     } catch (error) {
-      return dateString
+      return dateString;
     }
   }
 
   // Cerrar modal
   const handleCloseModal = () => {
-    setShowModal(false)
-    setFormError("")
-  }
+    setShowModal(false);
+    setFormError("");
+  };
 
   // Limpiar el formulario
   // Añade la propiedad estadoOrden al objeto que se resetea
@@ -346,73 +348,74 @@ export default function OrdenesCompraClient({
     });
     setFormError("");
   };
+
   // Manejar cambios en el formulario
   const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target
+    const { name, value, type, checked } = e.target;
     
     // Para inputs de checkbox
     if (type === 'checkbox') {
       setFormularioOrden({
         ...formularioOrden,
         [name]: checked,
-      })
+      });
       return;
     }
     
     setFormularioOrden({
       ...formularioOrden,
       [name]: value,
-    })
-  }
+    });
+  };
 
   // Validar formulario
   const validarFormulario = () => {
     if (!formularioOrden.departamento) {
-      setFormError("Por favor, selecciona un departamento")
-      return false
+      setFormError("Por favor, selecciona un departamento");
+      return false;
     }
     if (!formularioOrden.proveedor) {
-      setFormError("Por favor, selecciona un proveedor")
-      return false
+      setFormError("Por favor, selecciona un proveedor");
+      return false;
     }
     if (!formularioOrden.importe) {
-      setFormError("Por favor, ingresa el importe")
-      return false
+      setFormError("Por favor, ingresa el importe");
+      return false;
     }
     if (!formularioOrden.fecha) {
-      setFormError("Por favor, ingresa la fecha")
-      return false
+      setFormError("Por favor, ingresa la fecha");
+      return false;
     }
     if (!formularioOrden.descripcion) {
-      setFormError("Por favor, ingresa la descripción")
-      return false
+      setFormError("Por favor, ingresa la descripción");
+      return false;
     }
     if (!formularioOrden.cantidad) {
-      setFormError("Por favor, ingresa la cantidad")
-      return false
+      setFormError("Por favor, ingresa la cantidad");
+      return false;
     }
     if (formularioOrden.esInversion && !formularioOrden.numInversion) {
-      setFormError("Por favor, ingresa el número de inversión")
-      return false
+      setFormError("Por favor, ingresa el número de inversión");
+      return false;
     }
 
-    setFormError("")
-    return true
-  }
+    setFormError("");
+    return true;
+  };
 
   // Guardar orden
   const handleGuardarOrden = async () => {
-    if (!validarFormulario()) return
+    if (!validarFormulario()) return;
 
     // Asegurar que el número de orden se genera
     if (!formularioOrden.numero) {
       setFormularioOrden({
         ...formularioOrden,
         numero: generarNumeroOrden()
-      })
+      });
     }
 
-    setIsLoading(true)
+    setIsLoading(true);
 
     try {
       // Encontrar los IDs necesarios
@@ -575,8 +578,8 @@ export default function OrdenesCompraClient({
   // Eliminar órdenes seleccionadas
   const handleEliminarOrdenes = () => {
     if (selectedOrdenes.length === 0) {
-      addNotification("Por favor, selecciona al menos una orden para eliminar", "warning")
-      return
+      addNotification("Por favor, selecciona al menos una orden para eliminar", "warning");
+      return;
     }
 
     setConfirmDialog({
@@ -584,8 +587,8 @@ export default function OrdenesCompraClient({
       title: "Confirmar eliminación",
       message: `¿Estás seguro de que deseas eliminar ${selectedOrdenes.length} orden(es)? Esta acción no se puede deshacer.`,
       onConfirm: confirmDeleteOrdenes,
-    })
-  }
+    });
+  };
 
   // Confirmar eliminación de órdenes
   const confirmDeleteOrdenes = async () => {
@@ -633,11 +636,11 @@ export default function OrdenesCompraClient({
     } finally {
       setIsLoading(false);
     }
-  }
+  };
 
-  // Mostrar indicador de carga mientras esperamos el departamento
+  // Mostramos un indicador de carga si estamos esperando el departamento
   if (isDepartamentoLoading) {
-    return <div className="p-6">Cargando...</div>
+    return <div className="p-6">Cargando...</div>;
   }
 
   return (
@@ -675,13 +678,12 @@ export default function OrdenesCompraClient({
           </div>
         </div>
 
-        {/* Filtro de departamento */}
         <div className="relative">
           <select
             value={filterDepartamento}
             onChange={(e) => setFilterDepartamento(e.target.value)}
             className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10"
-            disabled={userRole === "Jefe de Departamento"}
+            disabled={userRole === "Jefe de Departamento"} // Deshabilitar si es jefe de departamento
           >
             <option value="">Todos los departamentos</option>
             {Array.isArray(departamentos) && departamentos.map(dep => (
@@ -740,13 +742,13 @@ export default function OrdenesCompraClient({
         Mostrando {filteredOrdenes.length} de {ordenes.length} órdenes
       </div>
 
-      {/* Tabla de órdenes */}
+      {/* TABLA REDISEÑADA PARA MEJOR VISUALIZACIÓN */}
       <div className="border border-gray-200 rounded-lg overflow-hidden mb-6">
         <div className="max-h-[450px] overflow-y-auto">
-          <table className="w-full">
+          <table className="w-full text-sm">
             <thead className="bg-gray-50 sticky top-0 z-10">
               <tr className="border-b border-gray-200">
-                <th className="py-3 px-4 w-10">
+                <th className="py-2 px-1 w-8">
                   {filteredOrdenes.length > 0 && (
                     <input
                       type="checkbox"
@@ -759,17 +761,16 @@ export default function OrdenesCompraClient({
                     />
                   )}
                 </th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600" style={{width: "120px"}}>Num Orden</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600" style={{width: "120px"}}>Num Inversión</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600" style={{width: "80px"}}>Importe</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600" style={{width: "100px"}}>Fecha</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600">Descripción</th>
-                <th className="text-center py-3 px-4 font-medium text-gray-600" style={{width: "100px"}}>Inventariable</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600" style={{width: "80px"}}>Cantidad</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600" style={{width: "140px"}}>Departamento</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600" style={{width: "120px"}}>Proveedor</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600" style={{width: "120px"}}>Estado</th>
-                <th className="py-3 px-4 w-10"></th>
+                {/* Columnas reducidas y reorganizadas */}
+                <th className="text-left py-2 px-2 font-medium text-gray-600">Num.Orden</th>
+                <th className="text-left py-2 px-2 font-medium text-gray-600">Descripción</th>
+                <th className="text-center py-2 px-2 font-medium text-gray-600">Fecha</th>
+                <th className="text-center py-2 px-2 font-medium text-gray-600">Importe</th>
+                <th className="text-center py-2 px-1 font-medium text-gray-600">Inv.</th>
+                <th className="text-center py-2 px-1 font-medium text-gray-600">Cant.</th>
+                <th className="text-left py-2 px-2 font-medium text-gray-600">Dep./Prov.</th>
+                <th className="text-center py-2 px-2 font-medium text-gray-600">Estado</th>
+                <th className="py-2 px-1 w-8"></th>
               </tr>
             </thead>
             <tbody>
@@ -777,12 +778,12 @@ export default function OrdenesCompraClient({
                 filteredOrdenes.map((orden) => (
                   <tr
                     key={orden.idOrden}
-                    className={`border-t border-gray-200 cursor-pointer ${
-                      selectedOrdenes.includes(orden.idOrden) ? "bg-red-50" : ""
+                    className={`border-t border-gray-200 cursor-pointer hover:bg-gray-50 ${
+                      selectedOrdenes.includes(orden.idOrden) ? "bg-red-50 hover:bg-red-100" : ""
                     }`}
                     onClick={() => toggleSelectOrden(orden.idOrden)}
                   >
-                    <td className="py-3 px-4 text-center w-10" onClick={(e) => e.stopPropagation()}>
+                    <td className="py-2 px-1 text-center w-8" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selectedOrdenes.includes(orden.idOrden)}
@@ -790,32 +791,77 @@ export default function OrdenesCompraClient({
                         className="h-4 w-4 text-red-600 border-gray-300 rounded"
                       />
                     </td>
-                    <td className="py-3 px-4" style={{width: "120px"}}>{orden.Num_orden}</td>
-                    <td className="py-3 px-4" style={{width: "120px"}}>{orden.Num_inversion || "-"}</td>
-                    <td className="py-3 px-4" style={{width: "80px"}}>{orden.Importe}€</td>
-                    <td className="py-3 px-4" style={{width: "100px"}}>{formatDate(orden.Fecha)}</td>
-                    <td className="py-3 px-4 truncate" title={orden.Descripcion}>{orden.Descripcion}</td>
-                    <td className="py-3 px-4 text-center" style={{width: "100px"}}>
+                    {/* Número de Orden con tooltip para Inversión */}
+                    <td className="py-2 px-2 relative">
+                      <div className="flex items-center">
+                        <span className="truncate max-w-[100px]" title={orden.Num_orden}>{orden.Num_orden}</span>
+                        {orden.Num_inversion && (
+                          <div className="ml-1 relative" 
+                               onMouseEnter={() => setActiveTooltip(`inv-${orden.idOrden}`)}
+                               onMouseLeave={() => setActiveTooltip(null)}>
+                            <Info className="h-3 w-3 text-blue-500" />
+                            
+                            {activeTooltip === `inv-${orden.idOrden}` && (
+                              <div className="absolute z-50 top-6 left-0 bg-white border border-gray-200 rounded p-2 shadow-lg text-xs w-36">
+                                <p className="font-semibold">Núm. Inversión:</p>
+                                <p>{orden.Num_inversion}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    
+                    {/* Descripción */}
+                    <td className="py-2 px-2">
+                      <div className="truncate max-w-[200px]" title={orden.Descripcion}>{orden.Descripcion}</div>
+                    </td>
+                    
+                    {/* Fecha */}
+                    <td className="py-2 px-2 text-center">
+                      {formatDate(orden.Fecha)}
+                    </td>
+                    
+                    {/* Importe */}
+                    <td className="py-2 px-2 text-right font-medium">
+                      {orden.Importe}€
+                    </td>
+                    
+                    {/* Inventariable */}
+                    <td className="py-2 px-1 text-center">
                       {orden.Inventariable === 1 || orden.Inventariable === true ? (
                         <div className="flex justify-center">
-                          <Check className="w-5 h-5 text-green-500" />
+                          <Check className="w-4 h-4 text-green-500" />
                         </div>
                       ) : (
                         <div className="flex justify-center">
-                          <X className="w-5 h-5 text-red-500" />
+                          <X className="w-4 h-4 text-red-500" />
                         </div>
                       )}
                     </td>
-                    <td className="py-3 px-4" style={{width: "80px"}}>{orden.Cantidad}</td>
-                    <td className="py-3 px-4" style={{width: "140px"}}>
-                      <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs">
-                        {orden.Departamento}
-                      </span>
+                    
+                    {/* Cantidad */}
+                    <td className="py-2 px-1 text-center">
+                      {orden.Cantidad}
                     </td>
-                    <td className="py-3 px-4" style={{width: "120px"}}>{orden.Proveedor}</td>
-                    <td className="py-3 px-4" style={{width: "120px"}}>
+                    
+                    {/* Departamento y Proveedor (combinados) */}
+                    <td className="py-2 px-2 relative">
+                      <div className="flex flex-col">
+                        <span className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-xs truncate max-w-[120px]" 
+                              title={orden.Departamento}>
+                          {orden.Departamento}
+                        </span>
+                        <span className="text-xs truncate max-w-[120px]" title={orden.Proveedor}>
+                          {orden.Proveedor}
+                        </span>
+                      </div>
+                    </td>
+                    
+                    {/* Estado */}
+                    <td className="py-2 px-2 text-center">
                       <span 
-                        className={`px-2 py-1 rounded-full text-xs font-medium
+                        className={`px-2 py-1 rounded-full text-xs font-medium inline-block
                           ${orden.Estado === 'En proceso' ? 'bg-yellow-300 text-yellow-800' : 
                             orden.Estado === 'Anulada' ? 'bg-red-100 text-red-800' : 
                             'bg-green-100 text-green-800'}`}
@@ -823,22 +869,24 @@ export default function OrdenesCompraClient({
                         {orden.Estado || "En proceso"}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-center w-10">
+                    
+                    {/* Editar */}
+                    <td className="py-2 px-1 text-center w-8">
                       <button
                         onClick={(e) => {
-                          e.stopPropagation()
-                          handleOpenEditModal(orden)
+                          e.stopPropagation();
+                          handleOpenEditModal(orden);
                         }}
                         className="text-gray-500 hover:text-red-600"
                       >
-                        <Pencil className="w-5 h-5" />
+                        <Pencil className="w-4 h-4" />
                       </button>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="12" className="py-6 text-center text-gray-500">
+                  <td colSpan="10" className="py-6 text-center text-gray-500">
                     No se encontraron órdenes{" "}
                     {searchTerm || filterDepartamento || filterProveedor || filterInventariable
                       ? "con los criterios de búsqueda actuales"
@@ -850,8 +898,6 @@ export default function OrdenesCompraClient({
           </table>
         </div>
       </div>
-
-      {/* Botones de acción */}
       <div className="flex justify-between mb-6">
         <Button onClick={handleOpenAddModal}>Nueva Orden</Button>
         <Button
@@ -1077,6 +1123,28 @@ export default function OrdenesCompraClient({
                   />
                 </div>
               )}
+              
+              {/* Estado de la orden */}
+              <div>
+                <label className="block text-gray-700 mb-1">Estado</label>
+                <div className="relative">
+                  <select
+                    name="estadoOrden"
+                    value={formularioOrden.estadoOrden}
+                    onChange={handleInputChange}
+                    className="appearance-none border border-gray-300 rounded px-3 py-2 w-full pr-8 text-gray-500"
+                  >
+                    {estadosOrden.map(estado => (
+                      <option key={estado.id_EstadoOrden} value={estado.tipo}>
+                        {estado.tipo}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                    <ChevronDown className="w-4 h-4 text-gray-500" />
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Botones del formulario */}
@@ -1100,5 +1168,5 @@ export default function OrdenesCompraClient({
         </div>
       )}
     </div>
-  )
+  );
 }
