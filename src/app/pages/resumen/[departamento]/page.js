@@ -1,10 +1,11 @@
 import { getDepartamentos } from "@/app/api/functions/departamentos"
 import { getResumenPresupuesto, getResumenInversion, getResumenOrden, getResumenGasto, getResumenInversionAcum } from "@/app/api/functions/resumen"
-import Link from "next/link";
+import ResumenClient from './resumen-client'
 
 export default async function Resumen({ params }) {
-    // Verificamos si params y params.departamento existen antes de decodificar
-    const departamento = params?.departamento ? decodeURIComponent(params.departamento) : '';
+    // Await params antes de usar sus propiedades
+    const awaitedParams = await params;
+    const departamento = awaitedParams?.departamento ? decodeURIComponent(awaitedParams.departamento) : '';
     
     const departamentos = await getDepartamentos();
     
@@ -17,163 +18,15 @@ export default async function Resumen({ params }) {
     const resumenord = await getResumenOrden(departamentoInfo.id_Departamento);
     const resumengasto = await getResumenGasto(departamentoInfo.id_Departamento);
     const resumeninvacum = await getResumenInversionAcum(departamentoInfo.id_Departamento);
-    
-    // Calcular presupuesto actual e inversión actual
-    const presupuestoTotal = resumenprep?.[0]?.total_presupuesto || 0;
-    const gastoPresupuesto = resumengasto?.[0]?.total_importe || 0;
-    const presupuestoActual = presupuestoTotal - gastoPresupuesto;
-    
-    const inversionTotal = resumeninv?.[0]?.total_inversion || 0;
-    const gastoInversion = resumeninvacum?.[0]?.Total_Importe || 0;
-    const inversionActual = inversionTotal - gastoInversion;
-    
-    // Obtener el mes actual y año
-    const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
-                  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-    const mesActual = meses[new Date().getMonth()];
-    const año = new Date().getFullYear();
 
     return (
-        <div className="p-6">
-            {/* Encabezado */}
-            <div className="mb-6">
-                <h1 className="text-3xl font-bold">Resumen</h1>
-                <h2 className="text-xl text-gray-400">Departamento {departamento}</h2>
-            </div>
-
-            {/* Selector de fecha */}
-            <div className="flex justify-end my-4">
-                <div className="relative">
-                    <div className="appearance-none bg-gray-100 border border-gray-200 rounded-full px-4 py-2">
-                        <span>{`${mesActual} ${año}`}</span>
-                    </div>
-                </div>
-            </div>
-
-            {/* Columna izquierda: Tarjetas financieras */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <div className="col-span-1">
-                    <div className="grid gap-6">
-                        {/* Presupuesto total anual */}
-                        <div className="bg-white rounded-lg p-6 shadow-sm">
-                            <div className="flex justify-between items-start">
-                                <div className="w-1/2 pr-4">
-                                    <h3 className="text-gray-500 mb-2 text-xl">Presupuesto total anual</h3>
-                                    <div className="text-4xl font-bold text-gray-400">
-                                        {resumenprep?.[0]?.total_presupuesto?.toLocaleString("es-ES")} €
-                                    </div>
-                                </div>
-                                <div className="w-1/2 pl-4">
-                                    <h3 className="text-gray-500 mb-2 text-xl">Presupuesto actual</h3>
-                                    <div className="text-4xl font-bold">
-                                        {presupuestoActual.toLocaleString("es-ES")} €
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="mt-4 flex justify-end">
-                                <div className="w-4 h-4 rounded-full bg-green-500"></div>
-                            </div>
-                        </div>
-
-                        {/* Inversión total anual */}
-                        <div className="bg-white rounded-lg p-6 shadow-sm">
-                            <div className="flex justify-between items-start">
-                                <div className="w-1/2 pr-4">
-                                    <h3 className="text-gray-500 mb-2 text-xl">Inversión total anual</h3>
-                                    <div className="text-4xl font-bold text-gray-400">
-                                        {resumeninv?.[0]?.total_inversion?.toLocaleString("es-ES")} €
-                                    </div>
-                                </div>
-                                <div className="w-1/2 pl-4">
-                                    <h3 className="text-gray-500 mb-2 text-xl">Inversión actual</h3>
-                                    <div className="text-4xl font-bold">
-                                        {inversionActual.toLocaleString("es-ES")} €
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Gasto acumulado anual */}
-                        <div className="bg-white rounded-lg p-6 shadow-sm">
-                            <h3 className="text-gray-500 mb-2 text-xl">Gasto en presupuesto acumulado</h3>
-                            <div className="text-4xl font-bold">
-                                {resumengasto?.[0]?.total_importe?.toLocaleString("es-ES")} €
-                            </div>
-                        </div>
-
-                        {/* Inversión acumulada anual */}
-                        <div className="bg-white rounded-lg p-6 shadow-sm">
-                            <h3 className="text-gray-500 mb-2 text-xl">Inversión acumulada anual</h3>
-                            <div className="text-4xl font-bold">
-                                {resumeninvacum?.[0]?.Total_Importe?.toLocaleString("es-ES")} €
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Columna derecha: Órdenes de compra */}
-                <div className="col-span-1">
-                    <div className="bg-white rounded-lg p-6 shadow-sm mb-6">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-bold">ÓRDENES</h3>
-                            <Link href={`/pages/ordenes-compra/`}>
-                                <button className="bg-black text-white text-sm px-3 py-1 rounded-md cursor-pointer">
-                                    Ver detalles
-                                </button>
-                            </Link>
-                        </div>
-
-                        <div className="overflow-hidden mb-8 max-h-[480px] overflow-y-auto">
-                            <table className="w-full">
-                                <thead className="bg-white sticky top-0 z-10">
-                                    <tr className="text-left">
-                                        <th className="pb-2 font-normal text-gray-500">Número</th>
-                                        <th className="pb-2 font-normal text-gray-500">Num Inversión</th>
-                                        <th className="pb-2 font-normal text-gray-500 text-right">Total</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                {resumenord?.length > 0 ? (
-                                    resumenord.map((item) => (
-                                    <tr key={`${item.idOrden}`} className="border-t border-gray-200">
-                                        <td className="py-3 px-4">{item.Num_orden}</td>
-                                        <td className="py-3 px-4">{item.Num_inversion}</td>
-                                        <td className="py-3 px-4 text-right">{item.Importe}€</td>
-                                    </tr>
-                                    ))
-                                ) : (
-                                    <tr>
-                                    <td colSpan="3" className="py-4 text-center text-gray-400">
-                                        No hay órdenes registradas
-                                    </td>
-                                    </tr>
-                                )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Gráfico de gastos anuales - Comentado en el código original */}
-            {/* <div className="bg-white rounded-lg p-6 shadow-sm">
-                <h3 className="font-bold mb-4">Gastos anuales</h3>
-                <div className="h-[200px] relative">
-                    <div className="absolute inset-0 flex flex-col justify-between">
-                        {[5000, 4000, 3000, 2000, 1000, 0].map((value) => (
-                            <div key={value} className="border-t border-gray-100 relative h-0">
-                                <span className="absolute -top-2 left-0 text-xs text-gray-400">{value}€</span>
-                            </div>
-                        ))}
-                    </div>
-                    
-                    <div className="absolute bottom-0 left-0 right-0 flex justify-between px-2">
-                        {["E", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"].map((mes, index) => (
-                            <span key={index} className="text-xs text-gray-500">{mes}</span>
-                        ))}
-                    </div>
-                </div>
-            </div> */}
-        </div>
+        <ResumenClient
+            departamento={departamento}
+            resumenprep={resumenprep}
+            resumeninv={resumeninv}
+            resumenord={resumenord}
+            resumengasto={resumengasto}
+            resumeninvacum={resumeninvacum}
+        />
     );
 }

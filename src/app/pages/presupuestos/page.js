@@ -2,7 +2,7 @@ import { getOrden } from "@/app/api/functions/orden"
 import { getDepartamentos } from "@/app/api/functions/departamentos"
 import { getPresupuestoMensual } from "@/app/api/functions/presupuestos"
 import { getResumenGasto } from "@/app/api/functions/resumen"
-import PresupuestoClient from './presupuesto-client'
+import PresupuestoClient from './presupuestos-client'
 
 export default async function PresupuestosPage() {
   // Obtener datos iniciales básicos

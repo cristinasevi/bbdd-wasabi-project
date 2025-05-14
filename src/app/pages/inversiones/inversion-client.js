@@ -221,9 +221,13 @@ export default function InversionClient({
   }
 
   // Formatear valores para mostrar
-  const formatCurrency = (value) => {
-    if (value === null || value === undefined) return "0 €"
-    return value.toLocaleString("es-ES") + " €"
+
+    const formatCurrency = (value) => {
+    if (value === null || value === undefined || isNaN(value)) return "0,00 €"
+    return value.toLocaleString("es-ES", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }) + " €"
   }
   
   if (isDepartamentoLoading || isLoading) {

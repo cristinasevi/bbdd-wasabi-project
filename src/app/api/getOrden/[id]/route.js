@@ -4,7 +4,8 @@ import { pool } from '@/app/api/lib/db';
 
 export async function PUT(request, { params }) {
   try {
-    const ordenId = params.id;
+    const awaitedParams = await params;
+    const ordenId = awaitedParams.id;
     const data = await request.json();
 
     const {

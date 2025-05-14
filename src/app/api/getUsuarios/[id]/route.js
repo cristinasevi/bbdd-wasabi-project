@@ -1,11 +1,12 @@
-// File: src/app/api/usuarios/[id]/route.js
+// File: src/app/api/getUsuarios/[id]/route.js
 import { NextResponse } from "next/server";
 import { pool } from "@/app/api/lib/db";
 
 // GET - Obtener un usuario específico
 export async function GET(request, { params }) {
   try {
-    const userId = params.id;
+    const awaitedParams = await params;
+    const userId = awaitedParams.id;
     
     const [rows] = await pool.query(`
       SELECT 
@@ -45,7 +46,8 @@ export async function GET(request, { params }) {
 // PUT - Actualizar un usuario específico
 export async function PUT(request, { params }) {
   try {
-    const userId = params.id;
+    const awaitedParams = await params;
+    const userId = awaitedParams.id;
     const userData = await request.json();
     
     // Comenzar una transacción
@@ -146,7 +148,8 @@ export async function PUT(request, { params }) {
 // DELETE - Eliminar un usuario específico
 export async function DELETE(request, { params }) {
   try {
-    const userId = params.id;
+    const awaitedParams = await params;
+    const userId = awaitedParams.id;
     
     // Comenzar una transacción
     const connection = await pool.getConnection();

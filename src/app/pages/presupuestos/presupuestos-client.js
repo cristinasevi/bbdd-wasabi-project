@@ -17,15 +17,22 @@ export default function PresupuestoClient({
   const [userRole, setUserRole] = useState(null)
   const [departamento, setDepartamento] = useState("")
   const [departamentoId, setDepartamentoId] = useState(null)
-  const [orden, setOrden] = useState([])
   const [presupuestoMensual, setPresupuestoMensual] = useState(0)
-  const [gastoMensual, setGastoMensual] = useState(0)
   const [saldoActual, setSaldoActual] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   
   // Estados para los filtros de fecha - inicializados con valores actuales
   const [selectedMes, setSelectedMes] = useState(mesActual)
-  const [selectedAño, setSelectedAño] = useState(año)
+  const [selectedAño, setSelectedAño] = useState(año.toString())
+  
+  console.log('Debug Info:', {
+    selectedMes,
+    selectedAño,
+    departamento,
+    initialOrden: initialOrden.length,
+    presupuestosPorDepartamento,
+    gastosPorDepartamento
+  });
   
   // Obtener información del usuario
   useEffect(() => {
@@ -41,14 +48,11 @@ export default function PresupuestoClient({
           
           // Establecer departamento inicial
           if (data.usuario?.rol === "Jefe de Departamento") {
-            // Para jefes, usar su departamento asignado
             setDepartamento(userDep)
           } else {
-            // Para admin/contable, revisar si hay selección previa
             if (typeof window !== 'undefined' && window.selectedDepartamento) {
               setDepartamento(window.selectedDepartamento)
             } else if (initialDepartamentos.length > 0) {
-              // Si no hay selección previa, usar el primer departamento
               setDepartamento(initialDepartamentos[0].Nombre)
             }
           }
@@ -73,35 +77,44 @@ export default function PresupuestoClient({
     }
   }, [departamento, initialDepartamentos])
   
-  // Filtrar las órdenes por departamento, mes y año
+  // Filtrar las órdenes por departamento, mes y año (solo presupuesto, no inversión)
   const filteredOrdenes = useMemo(() => {
     if (!departamento || !initialOrden.length) return []
     
-    return initialOrden.filter(o => {
-      // Filtrar por departamento y asegurarse que NO tenga Num_inversion (para presupuestos)
-      const matchesDepartamento = o.Departamento === departamento && !o.Num_inversion;
+    console.log('Filtering orders...', { departamento, selectedMes, selectedAño });
+    
+    const filtered = initialOrden.filter(o => {
+      // Solo órdenes del departamento y que NO tengan número de inversión
+      if (o.Departamento !== departamento || o.Num_inversion) {
+        return false;
+      }
       
-      // Filtrar por año
-      const ordenDate = new Date(o.Fecha);
-      const ordenAño = ordenDate.getFullYear().toString();
-      const matchesAño = !selectedAño || ordenAño === selectedAño;
+      // Filtrar por año y mes si están seleccionados
+      if (selectedAño || selectedMes) {
+        const ordenDate = new Date(o.Fecha);
+        const ordenAño = ordenDate.getFullYear().toString();
+        const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
+                      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+        const ordenMes = meses[ordenDate.getMonth()];
+        
+        if (selectedAño && ordenAño !== selectedAño) return false;
+        if (selectedMes && ordenMes !== selectedMes) return false;
+      }
       
-      // Filtrar por mes
-      const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
-                    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-      const ordenMes = meses[ordenDate.getMonth()];
-      const matchesMes = !selectedMes || ordenMes === selectedMes;
-      
-      return matchesDepartamento && matchesAño && matchesMes;
+      return true;
     });
+    
+    console.log('Filtered orders:', filtered.length, filtered);
+    return filtered;
   }, [departamento, initialOrden, selectedMes, selectedAño]);
   
-  // Obtener los meses y años disponibles basados en las órdenes filtradas por departamento
+  // Obtener los meses y años disponibles
   const { availableMeses, availableAños } = useMemo(() => {
-    const meses = [];
-    const años = [];
+    const mesesSet = new Set();
+    const añosSet = new Set();
     
     if (departamento && initialOrden.length) {
+      // Filtrar solo órdenes del departamento seleccionado sin inversión
       const departamentoOrdenes = initialOrden.filter(o => 
         o.Departamento === departamento && !o.Num_inversion
       );
@@ -113,37 +126,38 @@ export default function PresupuestoClient({
                            "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
         const ordenMes = mesesNames[ordenDate.getMonth()];
         
-        if (!meses.includes(ordenMes)) {
-          meses.push(ordenMes);
-        }
-        
-        if (!años.includes(ordenAño)) {
-          años.push(ordenAño);
-        }
+        mesesSet.add(ordenMes);
+        añosSet.add(ordenAño);
       });
     }
     
-    // Ordenar meses en orden cronológico
+    // Siempre incluir el mes y año actual
+    mesesSet.add(mesActual);
+    añosSet.add(año.toString());
+    
+    // Ordenar meses
     const mesesOrder = {
       "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4, "Mayo": 5, "Junio": 6,
       "Julio": 7, "Agosto": 8, "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
     };
     
-    meses.sort((a, b) => mesesOrder[a] - mesesOrder[b]);
-    años.sort((a, b) => a - b);
+    const sortedMeses = Array.from(mesesSet).sort((a, b) => mesesOrder[a] - mesesOrder[b]);
+    const sortedAños = Array.from(añosSet).sort((a, b) => parseInt(a) - parseInt(b));
     
-    return { availableMeses: meses, availableAños: años };
-  }, [departamento, initialOrden]);
+    return { availableMeses: sortedMeses, availableAños: sortedAños };
+  }, [departamento, initialOrden, mesActual, año]);
   
-  // Cargar datos de presupuesto cuando cambia el departamento, mes o año
+  // Calcular gasto del mes seleccionado
+  const gastoDelMes = useMemo(() => {
+    return filteredOrdenes.reduce((sum, orden) => sum + (parseFloat(orden.Importe) || 0), 0);
+  }, [filteredOrdenes]);
+  
+  // Cargar datos cuando cambie el departamento
   useEffect(() => {
     if (!departamentoId) return
     
     try {
-      // Actualizar órdenes filtradas
-      setOrden(filteredOrdenes);
-      
-      // Cargar datos de presupuesto para el departamento seleccionado
+      // Obtener datos de presupuesto
       const presupuestoData = presupuestosPorDepartamento[departamentoId] || [];
       const gastoData = gastosPorDepartamento[departamentoId] || [];
       
@@ -151,55 +165,30 @@ export default function PresupuestoClient({
       const presupMensual = presupuestoData[0]?.presupuesto_mensual || 0;
       setPresupuestoMensual(presupMensual);
       
-      // Si hay un mes específico seleccionado, calcular el gasto para ese mes
-      if (selectedMes && selectedAño) {
-        const mesesNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
-                           "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-        const monthIndex = mesesNames.indexOf(selectedMes);
-        
-        // Filtrar órdenes por mes y año seleccionados
-        const ordenesDelMes = initialOrden.filter(o => {
-          if (o.Departamento !== departamento || o.Num_inversion) return false;
-          
-          const ordenDate = new Date(o.Fecha);
-          return ordenDate.getMonth() === monthIndex && 
-                 ordenDate.getFullYear().toString() === selectedAño;
-        });
-        
-        // Calcular el gasto del mes seleccionado
-        const gastoDelMes = ordenesDelMes.reduce((sum, o) => sum + (o.Importe || 0), 0);
-        setGastoMensual(gastoDelMes);
-      } else {
-        // Si no hay un mes específico, usar el cálculo original promediado
-        const gastoTotal = gastoData[0]?.total_importe || 0;
-        const mesActualNum = new Date().getMonth() + 1; // 1-12
-        const gastoMensualCalc = mesActualNum > 0 ? gastoTotal / mesActualNum : 0;
-        setGastoMensual(gastoMensualCalc);
-      }
-      
-      // Calcular saldo disponible (presupuesto total anual - gasto total)
+      // Calcular saldo actual (presupuesto anual - gasto total acumulado)
       const presupuestoAnual = presupMensual * 12;
       const gastoTotal = gastoData[0]?.total_importe || 0;
       setSaldoActual(presupuestoAnual - gastoTotal);
+      
+      console.log('Financial data loaded:', {
+        presupMensual,
+        presupuestoAnual,
+        gastoTotal,
+        saldoActual: presupuestoAnual - gastoTotal
+      });
     } catch (error) {
       console.error("Error cargando datos de presupuesto:", error);
     }
-  }, [departamentoId, departamento, filteredOrdenes, presupuestosPorDepartamento, gastosPorDepartamento, initialOrden, selectedMes, selectedAño]);
+  }, [departamentoId, presupuestosPorDepartamento, gastosPorDepartamento]);
+  
+  // Calcular presupuesto mensual disponible
+  const presupuestoMensualDisponible = presupuestoMensual - gastoDelMes;
   
   // Función para cambiar el departamento (solo para admin/contable)
   const handleChangeDepartamento = (newDepartamento) => {
     if (userRole === "Jefe de Departamento") return
     
     setDepartamento(newDepartamento)
-    
-    // Si hay meses y años disponibles, establecer los primeros valores
-    if (availableMeses.length > 0) {
-      setSelectedMes(availableMeses[0])
-    }
-    
-    if (availableAños.length > 0) {
-      setSelectedAño(availableAños[0])
-    }
     
     // Guardar selección en window
     if (typeof window !== 'undefined') {
@@ -217,10 +206,13 @@ export default function PresupuestoClient({
     setSelectedAño(e.target.value)
   }
   
-  // Formatear valores monetarios para mostrar
+  // Formatear valores monetarios
   const formatCurrency = (value) => {
-    if (value === null || value === undefined) return "0 €"
-    return value.toLocaleString("es-ES") + " €"
+    if (value === null || value === undefined || isNaN(value)) return "0,00 €"
+    return value.toLocaleString("es-ES", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }) + " €"
   }
 
   if (isDepartamentoLoading || isLoading) {
@@ -268,16 +260,11 @@ export default function PresupuestoClient({
             <select
               value={selectedMes}
               onChange={handleMesChange}
-              className="appearance-none bg-gray-100 border border-gray-200 rounded-md px-4 py-2 pr-8 flex items-center gap-2"
-              disabled={availableMeses.length === 0}
+              className="appearance-none bg-gray-100 border border-gray-200 rounded-md px-4 py-2 pr-8"
             >
-              {availableMeses.length > 0 ? (
-                availableMeses.map(mes => (
-                  <option key={mes} value={mes}>{mes}</option>
-                ))
-              ) : (
-                <option value="">{mesActual}</option>
-              )}
+              {availableMeses.map(mes => (
+                <option key={mes} value={mes}>{mes}</option>
+              ))}
             </select>
             <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
               <Calendar className="w-4 h-4" />
@@ -289,16 +276,11 @@ export default function PresupuestoClient({
             <select
               value={selectedAño}
               onChange={handleAñoChange}
-              className="appearance-none bg-gray-100 border border-gray-200 rounded-md px-4 py-2 pr-8 flex items-center gap-2"
-              disabled={availableAños.length === 0}
+              className="appearance-none bg-gray-100 border border-gray-200 rounded-md px-4 py-2 pr-8"
             >
-              {availableAños.length > 0 ? (
-                availableAños.map(año => (
-                  <option key={año} value={año}>{año}</option>
-                ))
-              ) : (
-                <option value="">{año}</option>
-              )}
+              {availableAños.map(año => (
+                <option key={año} value={año}>{año}</option>
+              ))}
             </select>
             <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
               <Calendar className="w-4 h-4" />
@@ -332,24 +314,26 @@ export default function PresupuestoClient({
               </div>
             </div>
             
-            {/* Presupuesto mensual */}
+            {/* Presupuesto mensual disponible del mes seleccionado */}
             <div className="bg-white border border-gray-200 rounded-lg p-6">
               <h3 className="text-gray-500 mb-2 text-xl">Presupuesto mensual disponible</h3>
               <div className="text-right">
                 <div className="text-5xl font-bold">
-                  {formatCurrency(presupuestoMensual)}
+                  {formatCurrency(presupuestoMensualDisponible)}
                 </div>
+              </div>
+              <div className="text-sm text-gray-400 mt-2">
+                {selectedMes} {selectedAño}
               </div>
             </div>
 
-            {/* Gasto mensual */}
+            {/* Gasto del mes seleccionado */}
             <div className="bg-white border border-gray-200 rounded-lg p-6">
               <h3 className="text-gray-500 mb-2 text-xl">
-                {selectedMes ? `Gasto en ${selectedMes}` : "Gasto mensual"}
-                {selectedAño ? ` ${selectedAño}` : ""}
+                Gasto en {selectedMes} {selectedAño}
               </h3>
               <div className="text-right">
-                <div className="text-5xl font-bold text-red-500">{formatCurrency(gastoMensual)}</div>
+                <div className="text-5xl font-bold text-red-500">{formatCurrency(gastoDelMes)}</div>
               </div>
             </div>
           </div>
@@ -374,8 +358,8 @@ export default function PresupuestoClient({
                   </tr>
                 </thead>
                 <tbody>
-                  {orden && orden.length > 0 ? (
-                    orden.map((item, index) => (
+                  {filteredOrdenes && filteredOrdenes.length > 0 ? (
+                    filteredOrdenes.map((item, index) => (
                       <tr key={`${item.idOrden}-${index}`} className="border-t border-gray-200">
                         <td className="py-2">{item.Num_orden}</td>
                         <td className="py-2 text-right">{item.Importe}€</td>
@@ -384,8 +368,8 @@ export default function PresupuestoClient({
                   ) : (
                     <tr>
                       <td colSpan="2" className="py-4 text-center text-gray-400">
-                        {selectedMes || selectedAño 
-                          ? `No hay órdenes para ${selectedMes || ''} ${selectedAño || ''}`
+                        {selectedMes && selectedAño 
+                          ? `No hay órdenes para ${selectedMes} ${selectedAño}`
                           : "No hay órdenes registradas"}
                       </td>
                     </tr>
