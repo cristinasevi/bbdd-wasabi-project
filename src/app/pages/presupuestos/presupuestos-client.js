@@ -18,21 +18,11 @@ export default function PresupuestoClient({
   const [departamento, setDepartamento] = useState("")
   const [departamentoId, setDepartamentoId] = useState(null)
   const [presupuestoMensual, setPresupuestoMensual] = useState(0)
-  const [saldoActual, setSaldoActual] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   
   // Estados para los filtros de fecha - inicializados con valores actuales
   const [selectedMes, setSelectedMes] = useState(mesActual)
   const [selectedAño, setSelectedAño] = useState(año.toString())
-  
-  console.log('Debug Info:', {
-    selectedMes,
-    selectedAño,
-    departamento,
-    initialOrden: initialOrden.length,
-    presupuestosPorDepartamento,
-    gastosPorDepartamento
-  });
   
   // Obtener información del usuario
   useEffect(() => {
@@ -77,11 +67,19 @@ export default function PresupuestoClient({
     }
   }, [departamento, initialDepartamentos])
   
+  // Filtrar todas las órdenes por departamento (para el cálculo de gastos totales)
+  const allDepartmentOrders = useMemo(() => {
+    if (!departamento || !initialOrden.length) return [];
+    
+    return initialOrden.filter(o => {
+      // Solo órdenes del departamento y que NO tengan número de inversión
+      return o.Departamento === departamento && !o.Num_inversion;
+    });
+  }, [departamento, initialOrden]);
+  
   // Filtrar las órdenes por departamento, mes y año (solo presupuesto, no inversión)
   const filteredOrdenes = useMemo(() => {
     if (!departamento || !initialOrden.length) return []
-    
-    console.log('Filtering orders...', { departamento, selectedMes, selectedAño });
     
     const filtered = initialOrden.filter(o => {
       // Solo órdenes del departamento y que NO tengan número de inversión
@@ -104,7 +102,6 @@ export default function PresupuestoClient({
       return true;
     });
     
-    console.log('Filtered orders:', filtered.length, filtered);
     return filtered;
   }, [departamento, initialOrden, selectedMes, selectedAño]);
   
@@ -152,6 +149,11 @@ export default function PresupuestoClient({
     return filteredOrdenes.reduce((sum, orden) => sum + (parseFloat(orden.Importe) || 0), 0);
   }, [filteredOrdenes]);
   
+  // Calcular gasto total acumulado (total de todas las órdenes de presupuesto)
+  const gastoTotalAcumulado = useMemo(() => {
+    return allDepartmentOrders.reduce((sum, orden) => sum + (parseFloat(orden.Importe) || 0), 0);
+  }, [allDepartmentOrders]);
+  
   // Cargar datos cuando cambie el departamento
   useEffect(() => {
     if (!departamentoId) return
@@ -159,30 +161,29 @@ export default function PresupuestoClient({
     try {
       // Obtener datos de presupuesto
       const presupuestoData = presupuestosPorDepartamento[departamentoId] || [];
-      const gastoData = gastosPorDepartamento[departamentoId] || [];
       
       // Calcular presupuesto mensual
       const presupMensual = presupuestoData[0]?.presupuesto_mensual || 0;
       setPresupuestoMensual(presupMensual);
-      
-      // Calcular saldo actual (presupuesto anual - gasto total acumulado)
-      const presupuestoAnual = presupMensual * 12;
-      const gastoTotal = gastoData[0]?.total_importe || 0;
-      setSaldoActual(presupuestoAnual - gastoTotal);
-      
-      console.log('Financial data loaded:', {
-        presupMensual,
-        presupuestoAnual,
-        gastoTotal,
-        saldoActual: presupuestoAnual - gastoTotal
-      });
     } catch (error) {
       console.error("Error cargando datos de presupuesto:", error);
     }
-  }, [departamentoId, presupuestosPorDepartamento, gastosPorDepartamento]);
+  }, [departamentoId, presupuestosPorDepartamento]);
+  
+  // Calcular presupuesto anual (12 veces el presupuesto mensual)
+  const presupuestoAnual = useMemo(() => {
+    return presupuestoMensual * 12;
+  }, [presupuestoMensual]);
+  
+  // Calcular saldo actual en tiempo real (presupuesto anual - gasto acumulado)
+  const saldoActual = useMemo(() => {
+    return presupuestoAnual - gastoTotalAcumulado;
+  }, [presupuestoAnual, gastoTotalAcumulado]);
   
   // Calcular presupuesto mensual disponible
-  const presupuestoMensualDisponible = presupuestoMensual - gastoDelMes;
+  const presupuestoMensualDisponible = useMemo(() => {
+    return presupuestoMensual - gastoDelMes;
+  }, [presupuestoMensual, gastoDelMes]);
   
   // Función para cambiar el departamento (solo para admin/contable)
   const handleChangeDepartamento = (newDepartamento) => {
@@ -214,6 +215,22 @@ export default function PresupuestoClient({
       maximumFractionDigits: 2
     }) + " €"
   }
+  
+  // Determinar el color del indicador según el saldo restante
+  const getIndicatorColor = (actual, total) => {
+    if (!total) return "bg-gray-400"; // Si no hay total, gris
+    
+    const porcentaje = (actual / total) * 100;
+    
+    if (porcentaje < 25) return "bg-red-500";      // Menos del 25% - Rojo
+    if (porcentaje < 50) return "bg-yellow-500";   // Entre 25% y 50% - Amarillo
+    return "bg-green-500";                         // Más del 50% - Verde
+  };
+  
+  // Determinar el color del texto para valores negativos
+  const getTextColorClass = (valor) => {
+    return valor < 0 ? "text-red-600" : "";
+  };
 
   if (isDepartamentoLoading || isLoading) {
     return <div className="p-6">Cargando...</div>
@@ -307,9 +324,9 @@ export default function PresupuestoClient({
             <div className="bg-white border border-gray-200 rounded-lg p-6">
               <h3 className="text-gray-500 mb-2 text-xl">Saldo actual</h3>
               <div className="flex justify-between items-center">
-                <div className="w-4 h-4 rounded-full bg-green-500"></div>
+                <div className={`w-4 h-4 rounded-full ${getIndicatorColor(saldoActual, presupuestoAnual)}`}></div>
                 <div>
-                  <div className="text-5xl font-bold">{formatCurrency(saldoActual)}</div>
+                  <div className={`text-5xl font-bold ${getTextColorClass(saldoActual)}`}>{formatCurrency(saldoActual)}</div>
                 </div>
               </div>
             </div>
@@ -318,7 +335,7 @@ export default function PresupuestoClient({
             <div className="bg-white border border-gray-200 rounded-lg p-6">
               <h3 className="text-gray-500 mb-2 text-xl">Presupuesto mensual disponible</h3>
               <div className="text-right">
-                <div className="text-5xl font-bold">
+                <div className={`text-5xl font-bold ${getTextColorClass(presupuestoMensualDisponible)}`}>
                   {formatCurrency(presupuestoMensualDisponible)}
                 </div>
               </div>
