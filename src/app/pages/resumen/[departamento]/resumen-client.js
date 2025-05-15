@@ -41,6 +41,22 @@ export default function ResumenClient({
     const inversionTotal = resumeninv?.[0]?.total_inversion || 0;
     const gastoInversion = resumeninvacum?.[0]?.Total_Importe || 0;
     const inversionActual = inversionTotal - gastoInversion;
+    
+    // Determinar el color del indicador según el saldo restante
+    const getIndicatorColor = (actual, total) => {
+        if (!total) return "bg-gray-400"; // Si no hay total, gris
+        
+        const porcentaje = (actual / total) * 100;
+        
+        if (porcentaje < 25) return "bg-red-500";      // Menos del 25% - Rojo
+        if (porcentaje < 50) return "bg-yellow-500";   // Entre 25% y 50% - Amarillo
+        return "bg-green-500";                         // Más del 50% - Verde
+    };
+    
+    // Determinar el color del texto para valores negativos
+    const getTextColorClass = (valor) => {
+        return valor < 0 ? "text-red-600" : "";
+    };
 
     // Filtrar órdenes solo para el mes actual (sin estados para filtros)
     const filteredOrdenes = useMemo(() => {
@@ -77,13 +93,13 @@ export default function ResumenClient({
     return (
         <div className="p-6">
             {/* Encabezado */}
-            <div className="mb-6">
+            <div>
                 <h1 className="text-3xl font-bold">Resumen</h1>
                 <h2 className="text-xl text-gray-400">Departamento {departamento}</h2>
             </div>
 
-            {/* Selector de fecha - SOLO VISUAL, NO FUNCIONAL */}
-            <div className="flex justify-end my-4">
+            {/* Fecha */}
+            <div className="flex justify-end my-2">
                 <div className="relative">
                     <div className="appearance-none bg-gray-100 border border-gray-200 rounded-full px-4 py-2 flex items-center gap-2">
                         <Calendar className="w-4 h-4" />
@@ -95,7 +111,7 @@ export default function ResumenClient({
             {/* Columna izquierda: Tarjetas financieras */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div className="col-span-1">
-                    <div className="grid gap-6">
+                    <div className="grid gap-5">
                         {/* Presupuesto total anual */}
                         <div className="bg-white rounded-lg p-6 shadow-sm">
                             <div className="flex justify-between items-start">
@@ -110,7 +126,7 @@ export default function ResumenClient({
                                 </div>
                                 <div className="w-1/2 pl-4">
                                     <h3 className="text-gray-500 mb-2 text-xl">Presupuesto actual</h3>
-                                    <div className="text-4xl font-bold">
+                                    <div className={`text-4xl font-bold ${getTextColorClass(presupuestoActual)}`}>
                                         {presupuestoActual.toLocaleString("es-ES", {
                                             minimumFractionDigits: 2,
                                             maximumFractionDigits: 2
@@ -118,8 +134,8 @@ export default function ResumenClient({
                                     </div>
                                 </div>
                             </div>
-                            <div className="mt-4 flex justify-end">
-                                <div className="w-4 h-4 rounded-full bg-green-500"></div>
+                            <div className="flex justify-end">
+                                <div className={`w-4 h-4 rounded-full ${getIndicatorColor(presupuestoActual, presupuestoTotal)}`}></div>
                             </div>
                         </div>
 
@@ -137,7 +153,7 @@ export default function ResumenClient({
                                 </div>
                                 <div className="w-1/2 pl-4">
                                     <h3 className="text-gray-500 mb-2 text-xl">Inversión actual</h3>
-                                    <div className="text-4xl font-bold">
+                                    <div className={`text-4xl font-bold ${getTextColorClass(inversionActual)}`}>
                                         {inversionActual.toLocaleString("es-ES", {
                                             minimumFractionDigits: 2,
                                             maximumFractionDigits: 2
@@ -145,9 +161,12 @@ export default function ResumenClient({
                                     </div>
                                 </div>
                             </div>
+                            <div className="flex justify-end">
+                                <div className={`w-4 h-4 rounded-full ${getIndicatorColor(inversionActual, inversionTotal)}`}></div>
+                            </div>
                         </div>
 
-                        {/* Gasto acumulado anual - ACTUALIZADO */}
+                        {/* Gasto acumulado anual */}
                         <div className="bg-white rounded-lg p-6 shadow-sm">
                             <h3 className="text-gray-500 mb-2 text-xl">Gasto en presupuesto acumulado</h3>
                             <div className="text-4xl font-bold">
