@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react"; // Añadimos useEffect
+import { useState, useMemo, useEffect } from "react";
 import { ChevronDown, Pencil, X, Search, Filter } from "lucide-react";
 import Button from "@/app/components/ui/button";
 import useNotifications from "@/app/hooks/useNotifications";
@@ -307,7 +307,9 @@ export default function ProveedoresClient({
   }
 
   return (
-    <div className="p-6">
+    // La clase h-[calc(100vh-8rem)] asegura que el contenedor principal tenga una altura que se ajuste a la pantalla
+    // restando aproximadamente el espacio del header y footer
+    <div className="p-6 h-[calc(100vh-8rem)] flex flex-col">
       {/* Notificaciones */}
       {notificationComponents}
 
@@ -320,14 +322,14 @@ export default function ProveedoresClient({
         onClose={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
       />
 
-      {/* Encabezado */}
-      <div className="mb-6">
+      {/* Encabezado - Reducimos el margen inferior */}
+      <div className="mb-4">
         <h1 className="text-3xl font-bold">Proveedores</h1>
         <h2 className="text-xl text-gray-400">Departamento {departamento}</h2>
       </div>
 
-      {/* Filtros y búsqueda */}
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Filtros y búsqueda - Reducimos el margen inferior */}
+      <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="relative">
           <input
             type="text"
@@ -364,95 +366,97 @@ export default function ProveedoresClient({
         </div>
       </div>
 
-      {/* Indicador de resultados */}
-      <div className="mb-4 text-sm text-gray-500">
+      {/* Indicador de resultados - Reducimos el margen inferior */}
+      <div className="mb-2 text-sm text-gray-500">
         Mostrando {filteredProveedores.length} de {proveedores.length} proveedores
       </div>
 
-      {/* Tabla de proveedores */}
-      <div className="border border-gray-200 rounded-lg overflow-hidden mb-6 max-h-[500px] overflow-y-auto">
-        <table className="w-full">
-          <thead className="bg-gray-50 sticky top-0 z-10">
-            <tr>
-              <th className="py-3 px-4 w-10">
-                {filteredProveedores.length > 0 && (
-                  <input
-                    type="checkbox"
-                    checked={
-                      selectedProveedores.length === filteredProveedores.length &&
-                      filteredProveedores.length > 0
-                    }
-                    onChange={toggleSelectAll}
-                    className="h-4 w-4 text-red-600 border-gray-300 rounded"
-                  />
-                )}
-              </th>
-              <th className="text-left py-3 px-4 font-medium text-gray-600">Nombre</th>
-              <th className="text-left py-3 px-4 font-medium text-gray-600">NIF</th>
-              <th className="text-left py-3 px-4 font-medium text-gray-600">Dirección</th>
-              <th className="text-left py-3 px-4 font-medium text-gray-600">Teléfono</th>
-              <th className="text-left py-3 px-4 font-medium text-gray-600">Email</th>
-              <th className="text-left py-3 px-4 font-medium text-gray-600">Departamento</th>
-              <th className="py-3 px-4 w-10"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredProveedores.length > 0 ? (
-              filteredProveedores.map((proveedor) => (
-                <tr
-                  key={proveedor.idProveedor}
-                  className={`border-t border-gray-200 cursor-pointer ${
-                    selectedProveedores.includes(proveedor.idProveedor) ? "bg-red-50" : ""
-                  }`}
-                  onClick={() => toggleSelectProveedor(proveedor.idProveedor)}
-                >
-                  <td className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+      {/* Tabla de proveedores - Usamos flex-grow para que ocupe el espacio disponible */}
+      <div className="border border-gray-200 rounded-lg overflow-hidden flex-grow">
+        <div className="h-full overflow-y-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 sticky top-0 z-10">
+              <tr>
+                <th className="py-3 px-4 w-10">
+                  {filteredProveedores.length > 0 && (
                     <input
                       type="checkbox"
-                      checked={selectedProveedores.includes(proveedor.idProveedor)}
-                      onChange={() => toggleSelectProveedor(proveedor.idProveedor)}
+                      checked={
+                        selectedProveedores.length === filteredProveedores.length &&
+                        filteredProveedores.length > 0
+                      }
+                      onChange={toggleSelectAll}
                       className="h-4 w-4 text-red-600 border-gray-300 rounded"
                     />
-                  </td>
-                  <td className="py-3 px-4">{proveedor.Nombre}</td>
-                  <td className="py-3 px-4">{proveedor.NIF}</td>
-                  <td className="py-3 px-4">{proveedor.Direccion}</td>
-                  <td className="py-3 px-4">{proveedor.Telefono}</td>
-                  <td className="py-3 px-4">{proveedor.Email}</td>
-                  <td className="py-3 px-4">
-                    <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full">
-                      {proveedor.Departamento}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenEditModal(proveedor);
-                      }}
-                      className="text-gray-500 hover:text-red-600"
-                    >
-                      <Pencil className="w-5 h-5" />
-                    </button>
+                  )}
+                </th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600">Nombre</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600">NIF</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600">Dirección</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600">Teléfono</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600">Email</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600">Departamento</th>
+                <th className="py-3 px-4 w-10"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredProveedores.length > 0 ? (
+                filteredProveedores.map((proveedor) => (
+                  <tr
+                    key={proveedor.idProveedor}
+                    className={`border-t border-gray-200 cursor-pointer hover:bg-gray-50 ${
+                      selectedProveedores.includes(proveedor.idProveedor) ? "bg-red-50 hover:bg-red-100" : ""
+                    }`}
+                    onClick={() => toggleSelectProveedor(proveedor.idProveedor)}
+                  >
+                    <td className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedProveedores.includes(proveedor.idProveedor)}
+                        onChange={() => toggleSelectProveedor(proveedor.idProveedor)}
+                        className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                      />
+                    </td>
+                    <td className="py-3 px-4">{proveedor.Nombre}</td>
+                    <td className="py-3 px-4">{proveedor.NIF}</td>
+                    <td className="py-3 px-4">{proveedor.Direccion}</td>
+                    <td className="py-3 px-4">{proveedor.Telefono}</td>
+                    <td className="py-3 px-4">{proveedor.Email}</td>
+                    <td className="py-3 px-4">
+                      <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full">
+                        {proveedor.Departamento}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenEditModal(proveedor);
+                        }}
+                        className="text-gray-500 hover:text-red-600"
+                      >
+                        <Pencil className="w-5 h-5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="8" className="py-6 text-center text-gray-500">
+                    No se encontraron proveedores
+                    {searchTerm || filterDepartamento
+                      ? " con los criterios de búsqueda actuales"
+                      : ""}
                   </td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="8" className="py-6 text-center text-gray-500">
-                  No se encontraron proveedores
-                  {searchTerm || filterDepartamento
-                    ? " con los criterios de búsqueda actuales"
-                    : ""}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Botones de acción */}
-      <div className="flex justify-between mb-6">
+      {/* Botones de acción - Ajustamos los márgenes y usamos flex justify-between */}
+      <div className="flex justify-between mt-4">
         <Button onClick={handleOpenAddModal}>Nuevo Proveedor</Button>
         <Button
           onClick={handleEliminarProveedores}

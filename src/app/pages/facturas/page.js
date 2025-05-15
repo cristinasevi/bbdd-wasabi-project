@@ -719,120 +719,120 @@ export default function Facturas() {
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredFacturas.length > 0 ? (
-                                filteredFacturas.map((factura) => (
-                                    <tr 
-                                        key={factura.idFactura} 
-                                        className={`border-t border-gray-200 cursor-pointer hover:bg-gray-50 ${
-                                            selectedFacturas.includes(factura.idFactura) ? "bg-red-50" : ""
-                                        }`}
-                                        onClick={() => toggleSelectFactura(factura.idFactura)}
+                        {filteredFacturas.length > 0 ? (
+                            filteredFacturas.map((factura) => (
+                            <tr 
+                                key={factura.idFactura} 
+                                className={`border-t border-gray-200 cursor-pointer hover:bg-gray-50 ${
+                                selectedFacturas.includes(factura.idFactura) ? "bg-red-50 hover:bg-red-100" : ""
+                                }`}
+                                onClick={() => toggleSelectFactura(factura.idFactura)}
+                            >
+                                <td className="py-3 px-3 w-12" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex justify-center">
+                                    <input
+                                    type="checkbox"
+                                    checked={selectedFacturas.includes(factura.idFactura)}
+                                    onChange={() => toggleSelectFactura(factura.idFactura)}
+                                    className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                                    />
+                                </div>
+                                </td>
+                                <td className="py-3 px-4">{factura.Num_factura}</td>
+                                <td className="py-3 px-4">{factura.Proveedor}</td>
+                                <td className="py-3 px-4">{formatDate(factura.Fecha_emision)}</td>
+                                <td className="py-3 px-4">{factura.Importe ? `${factura.Importe.toLocaleString()}€` : '-'}</td>
+                                <td className="py-3 px-4">{factura.Num_orden}</td>
+                                <td className="py-3 px-4">
+                                <div className="relative w-32 estado-dropdown">
+                                    <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOpenDropdown(openDropdown === factura.idFactura ? null : factura.idFactura);
+                                    }}
+                                    className={`border rounded px-3 py-1 w-full text-sm ${
+                                        factura.Estado === "Pagada"
+                                        ? "bg-green-50 text-green-800"
+                                        : factura.Estado === "Pendiente"
+                                        ? "bg-yellow-50 text-yellow-800"
+                                        : "bg-red-50 text-red-800"
+                                    }`}
+                                    disabled={updatingFactura === factura.idFactura}
                                     >
-                                        <td className="py-3 px-3 w-12" onClick={(e) => e.stopPropagation()}>
-                                            <div className="flex justify-center">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedFacturas.includes(factura.idFactura)}
-                                                    onChange={() => toggleSelectFactura(factura.idFactura)}
-                                                    className="h-4 w-4 text-red-600 border-gray-300 rounded"
-                                                />
-                                            </div>
-                                        </td>
-                                        <td className="py-3 px-4">{factura.Num_factura}</td>
-                                        <td className="py-3 px-4">{factura.Proveedor}</td>
-                                        <td className="py-3 px-4">{formatDate(factura.Fecha_emision)}</td>
-                                        <td className="py-3 px-4">{factura.Importe ? `${factura.Importe.toLocaleString()}€` : '-'}</td>
-                                        <td className="py-3 px-4">{factura.Num_orden}</td>
-                                        <td className="py-3 px-4">
-                                            <div className="relative w-32 estado-dropdown">
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setOpenDropdown(openDropdown === factura.idFactura ? null : factura.idFactura);
-                                                    }}
-                                                    className={`border rounded px-3 py-1 w-full text-sm ${
-                                                        factura.Estado === "Pagada"
-                                                            ? "bg-green-50 text-green-800"
-                                                            : factura.Estado === "Pendiente"
-                                                            ? "bg-yellow-50 text-yellow-800"
-                                                            : "bg-red-50 text-red-800"
-                                                    }`}
-                                                    disabled={updatingFactura === factura.idFactura}
-                                                >
-                                                    <div className="flex justify-between items-center">
-                                                        <span>{updatingFactura === factura.idFactura ? "Actualizando..." : factura.Estado}</span>
-                                                        <ChevronDown className="w-4 h-4 text-gray-500" />
-                                                    </div>
-                                                </button>
-                                                
-                                                {/* Dropdown para cambiar estado */}
-                                                {openDropdown === factura.idFactura && (
-                                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-20">
-                                                        {estadoOptions.map((estado) => (
-                                                            <button
-                                                                key={estado}
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleUpdateEstado(factura.idFactura, estado);
-                                                                }}
-                                                                className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${
-                                                                    estado === factura.Estado ? "font-semibold bg-gray-50" : ""
-                                                                }`}
-                                                            >
-                                                                {estado}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="py-3 px-4">
-                                            <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full">
-                                                {factura.Departamento}
-                                            </span>
-                                        </td>
-                                        <td className="py-3 px-4 text-center">
-                                            <div className="flex justify-center gap-2 items-center">
-                                                {/* Botón de editar */}
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleEditFactura(factura);
-                                                    }}
-                                                    className="text-gray-500 hover:text-red-600"
-                                                    title="Editar factura"
-                                                >
-                                                    <Pencil className="w-5 h-5" />
-                                                </button>
-                                                
-                                                {/* Botón de insertar factura cuando no hay PDF */}
-                                                {!factura.Ruta_pdf && (
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleInsertarFactura(factura.idFactura);
-                                                        }}
-                                                        className="bg-green-600 text-white text-sm px-3 py-1 rounded hover:bg-green-700"
-                                                    >
-                                                        Insertar Factura
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            ) : (
-                               <tr>
-                                   <td colSpan="9" className="py-6 text-center text-gray-500">
-                                       {userRole === "Jefe de Departamento" 
-                                           ? `No se encontraron facturas para el departamento de ${departamento}` 
-                                           : searchTerm || filterFecha || filterImporte || filterProveedor || filterEstado
-                                               ? "No se encontraron facturas con los criterios de búsqueda actuales"
-                                               : "No se encontraron facturas."}
-                                   </td>
-                               </tr>
-                           )}
-                       </tbody>
+                                    <div className="flex justify-between items-center">
+                                        <span>{updatingFactura === factura.idFactura ? "Actualizando..." : factura.Estado}</span>
+                                        <ChevronDown className="w-4 h-4 text-gray-500" />
+                                    </div>
+                                    </button>
+                                    
+                                    {/* Dropdown para cambiar estado */}
+                                    {openDropdown === factura.idFactura && (
+                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-20">
+                                        {estadoOptions.map((estado) => (
+                                        <button
+                                            key={estado}
+                                            onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleUpdateEstado(factura.idFactura, estado);
+                                            }}
+                                            className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${
+                                            estado === factura.Estado ? "font-semibold bg-gray-50" : ""
+                                            }`}
+                                        >
+                                            {estado}
+                                        </button>
+                                        ))}
+                                    </div>
+                                    )}
+                                </div>
+                                </td>
+                                <td className="py-3 px-4">
+                                <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full">
+                                    {factura.Departamento}
+                                </span>
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                <div className="flex justify-center gap-2 items-center">
+                                    {/* Botón de editar */}
+                                    <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleEditFactura(factura);
+                                    }}
+                                    className="text-gray-500 hover:text-red-600"
+                                    title="Editar factura"
+                                    >
+                                    <Pencil className="w-5 h-5" />
+                                    </button>
+                                    
+                                    {/* Botón de insertar factura cuando no hay PDF */}
+                                    {!factura.Ruta_pdf && (
+                                    <button
+                                        onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleInsertarFactura(factura.idFactura);
+                                        }}
+                                        className="bg-green-600 text-white text-sm px-3 py-1 rounded hover:bg-green-700"
+                                    >
+                                        Insertar Factura
+                                    </button>
+                                    )}
+                                </div>
+                                </td>
+                            </tr>
+                            ))
+                        ) : (
+                            <tr>
+                            <td colSpan="9" className="py-6 text-center text-gray-500">
+                                {userRole === "Jefe de Departamento" 
+                                ? `No se encontraron facturas para el departamento de ${departamento}` 
+                                : searchTerm || filterFecha || filterImporte || filterProveedor || filterEstado
+                                    ? "No se encontraron facturas con los criterios de búsqueda actuales"
+                                    : "No se encontraron facturas."}
+                            </td>
+                            </tr>
+                        )}
+                        </tbody>
                    </table>
                </div>
            </div>

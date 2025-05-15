@@ -1,4 +1,3 @@
-// File: src/app/pages/usuarios/usuariosClient.js
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -413,7 +412,8 @@ export default function UsuariosClient({
   };
 
   return (
-    <div className="p-6">
+    // Usar layout flexible con altura calculada
+    <div className="p-6 h-[calc(100vh-8rem)] flex flex-col">
       {/* Mostrar componentes de notificación */}
       {notificationComponents}
 
@@ -426,13 +426,13 @@ export default function UsuariosClient({
         onClose={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
       />
 
-      {/* Encabezado */}
-      <div className="mb-6">
+      {/* Encabezado - Reducimos el margen inferior */}
+      <div className="mb-4">
         <h1 className="text-3xl font-bold">Gestión de Usuarios</h1>
       </div>
 
-      {/* Filtros y búsqueda */}
-      <div className="mb-6 flex flex-col md:flex-row gap-4">
+      {/* Filtros y búsqueda - Reducimos el margen inferior */}
+      <div className="mb-4 flex flex-col md:flex-row gap-4">
         <div className="flex-1">
           <div className="relative">
             <input
@@ -472,115 +472,117 @@ export default function UsuariosClient({
         </div>
       </div>
 
-      {/* Indicador de resultados */}
-      <div className="mb-4 text-sm text-gray-500">
+      {/* Indicador de resultados - Reducimos el margen inferior */}
+      <div className="mb-2 text-sm text-gray-500">
         Mostrando {filteredUsuarios.length} de {usuarios.length} usuarios
       </div>
 
-      {/* Tabla de usuarios */}
-      <div className="border border-gray-200 rounded-lg overflow-hidden mb-6 max-h-[650px] overflow-y-auto">
-        <table className="w-full">
-          <thead className="bg-gray-50 sticky top-0 z-10">
-            <tr>
-              <th className="py-3 px-4 w-10">
-                {filteredUsuarios.length > 0 && (
-                  <input
-                    type="checkbox"
-                    checked={
-                      selectedUsers.length === filteredUsuarios.length &&
-                      filteredUsuarios.length > 0
-                    }
-                    onChange={toggleSelectAll}
-                    className="h-4 w-4 text-red-600 border-gray-300 rounded"
-                  />
-                )}
-              </th>
-              <th className="text-left py-3 px-4 font-medium text-gray-600">
-                Nombre
-              </th>
-              <th className="text-left py-3 px-4 font-medium text-gray-600">
-                DNI
-              </th>
-              <th className="text-left py-3 px-4 font-medium text-gray-600">
-                Rol
-              </th>
-              <th className="text-left py-3 px-4 font-medium text-gray-600">
-                Correo
-              </th>
-              <th className="text-left py-3 px-4 font-medium text-gray-600">
-                Departamento
-              </th>
-              <th className="text-left py-3 px-4 font-medium text-gray-600">
-                Permisos
-              </th>
-              <th className="py-3 px-4 w-10"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredUsuarios.length > 0 ? (
-              filteredUsuarios.map((usuario) => {
-                // Determinar permisos basados en el rol
-                const permisosBasadosEnRol = getPermisosPorRol(usuario.Rol);
-
-                return (
-                  <tr
-                    key={usuario.idUsuario}
-                    className={`border-t border-gray-200 cursor-pointer ${selectedUsers.includes(usuario.idUsuario) ? "bg-red-50" : ""}`}
-                    onClick={() => toggleSelectUser(usuario.idUsuario)}
-                  >
-                    <td className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={selectedUsers.includes(usuario.idUsuario)}
-                        onChange={() => toggleSelectUser(usuario.idUsuario)}
-                        className="h-4 w-4 text-red-600 border-gray-300 rounded"
-                      />
-                    </td>
-                    <td className="py-3 px-4">
-                      {usuario.Nombre} {usuario.Apellidos}
-                    </td>
-                    <td className="py-3 px-4">{usuario.DNI || "-"}</td>
-                    <td className="py-3 px-4">{usuario.Rol}</td>
-                    <td className="py-3 px-4">{usuario.Email}</td>
-                    <td className="py-3 px-4">
-                      <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full">
-                        {usuario.Departamento || "No asignado"}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="w-40">
-                        <div className="bg-gray-100 border border-gray-200 rounded px-3 py-1">
-                          {permisosBasadosEnRol}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation(); // Evitar que se seleccione al editar
-                          handleOpenEditModal(usuario);
-                        }}
-                        className="text-gray-500 hover:text-red-600"
-                      >
-                        <Pencil className="w-5 h-5" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })
-            ) : (
+      {/* Tabla de usuarios - Usando flex-grow para ocupar el espacio disponible */}
+      <div className="border border-gray-200 rounded-lg overflow-hidden flex-grow">
+        <div className="h-full overflow-y-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
-                <td colSpan="8" className="py-6 text-center text-gray-500">
-                    No se encontraron usuarios{searchTerm || filterRole ? " con los criterios de búsqueda actuales" : ""}
-                </td>
+                <th className="py-3 px-4 w-10">
+                  {filteredUsuarios.length > 0 && (
+                    <input
+                      type="checkbox"
+                      checked={
+                        selectedUsers.length === filteredUsuarios.length &&
+                        filteredUsuarios.length > 0
+                      }
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                    />
+                  )}
+                </th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600">
+                  Nombre
+                </th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600">
+                  DNI
+                </th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600">
+                  Rol
+                </th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600">
+                  Correo
+                </th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600">
+                  Departamento
+                </th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600">
+                  Permisos
+                </th>
+                <th className="py-3 px-4 w-10"></th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filteredUsuarios.length > 0 ? (
+                filteredUsuarios.map((usuario) => {
+                  // Determinar permisos basados en el rol
+                  const permisosBasadosEnRol = getPermisosPorRol(usuario.Rol);
+
+                  return (
+                    <tr
+                      key={usuario.idUsuario}
+                      className={`border-t border-gray-200 cursor-pointer hover:bg-gray-50 ${selectedUsers.includes(usuario.idUsuario) ? "bg-red-50 hover:bg-red-100" : ""}`}
+                      onClick={() => toggleSelectUser(usuario.idUsuario)}
+                    >
+                      <td className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedUsers.includes(usuario.idUsuario)}
+                          onChange={() => toggleSelectUser(usuario.idUsuario)}
+                          className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                        />
+                      </td>
+                      <td className="py-3 px-4">
+                        {usuario.Nombre} {usuario.Apellidos}
+                      </td>
+                      <td className="py-3 px-4">{usuario.DNI || "-"}</td>
+                      <td className="py-3 px-4">{usuario.Rol}</td>
+                      <td className="py-3 px-4">{usuario.Email}</td>
+                      <td className="py-3 px-4">
+                        <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full">
+                          {usuario.Departamento || "No asignado"}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="w-40">
+                          <div className="bg-gray-100 border border-gray-200 rounded px-3 py-1">
+                            {permisosBasadosEnRol}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation(); // Evitar que se seleccione al editar
+                            handleOpenEditModal(usuario);
+                          }}
+                          className="text-gray-500 hover:text-red-600"
+                        >
+                          <Pencil className="w-5 h-5" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan="8" className="py-6 text-center text-gray-500">
+                      No se encontraron usuarios{searchTerm || filterRole ? " con los criterios de búsqueda actuales" : ""}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Botones de acción superiores */}
-      <div className="flex justify-between mb-6">
+      {/* Botones de acción - Ajustar márgenes */}
+      <div className="flex justify-between mt-4">
         <Button onClick={handleOpenAddModal}>Nuevo Usuario</Button>
         <Button
           onClick={handleEliminarUsuarios}
