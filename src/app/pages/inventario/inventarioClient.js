@@ -385,8 +385,8 @@ export default function InventarioClient({
             <option value="">
               {filterDepartamento ? "Todos los proveedores" : "Selecciona departamento"}
             </option>
-            {proveedoresFiltrados.map((proveedor) => (
-              <option key={proveedor.idProveedor} value={proveedor.Nombre}>
+            {proveedoresFiltrados.map((proveedor, index) => (
+              <option key={`${proveedor.idProveedor}-${index}`} value={proveedor.Nombre}>
                 {proveedor.Nombre}
               </option>
             ))}

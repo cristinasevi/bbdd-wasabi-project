@@ -307,8 +307,6 @@ export default function ProveedoresClient({
   }
 
   return (
-    // La clase h-[calc(100vh-8rem)] asegura que el contenedor principal tenga una altura que se ajuste a la pantalla
-    // restando aproximadamente el espacio del header y footer
     <div className="p-6 h-[calc(100vh-8rem)] flex flex-col">
       {/* Notificaciones */}
       {notificationComponents}
@@ -401,9 +399,9 @@ export default function ProveedoresClient({
             </thead>
             <tbody>
               {filteredProveedores.length > 0 ? (
-                filteredProveedores.map((proveedor) => (
+                filteredProveedores.map((proveedor, index) => (
                   <tr
-                    key={proveedor.idProveedor}
+                    key={`${proveedor.idProveedor}-${index}`}
                     className={`border-t border-gray-200 cursor-pointer hover:bg-gray-50 ${
                       selectedProveedores.includes(proveedor.idProveedor) ? "bg-red-50 hover:bg-red-100" : ""
                     }`}

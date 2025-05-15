@@ -601,12 +601,12 @@ export default function Facturas() {
     }
 
     return (
-        <div className="p-6">
+        <div className="p-6 h-[calc(100vh-8rem)] flex flex-col">
             {/* Mostrar notificaciones */}
             {notificationComponents}
             
             {/* Encabezado */}
-            <div className="mb-6">
+            <div className="mb-4">
                 <h1 className="text-3xl font-bold">Facturas</h1>
                 <h2 className="text-xl text-gray-400">Departamento {departamento}</h2>
             </div>
@@ -619,7 +619,7 @@ export default function Facturas() {
             )}
             
             {/* Filtros y búsqueda */}
-            <div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="mb-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="relative">
                     <input
                         type="text"
@@ -686,13 +686,13 @@ export default function Facturas() {
             </div>
             
             {/* Indicador de resultados */}
-            <div className="mb-4 text-sm text-gray-500">
+            <div className="mb-2 text-sm text-gray-500">
                 Mostrando {filteredFacturas.length} de {facturas.length} facturas
             </div>
 
             {/* Tabla de facturas */}
-            <div className="border border-gray-200 rounded-lg overflow-hidden mb-6 max-h-[650px] overflow-y-auto">
-                <div className="overflow-x-auto max-h-[520px]">
+            <div className="border border-gray-200 rounded-lg overflow-hidden flex-grow">
+                <div className="h-full overflow-y-auto">
                     <table className="w-full">
                         <thead className="bg-gray-50 sticky top-0 z-10">
                             <tr className="border-b border-gray-200">
@@ -838,7 +838,7 @@ export default function Facturas() {
            </div>
            
            {/* Botones de acción */}
-           <div className="flex justify-between mb-6">
+           <div className="flex justify-between mt-4 mb-4">
                {/* Botón para descargar facturas seleccionadas */}
                <button
                     onClick={handleDescargarSeleccionadas}

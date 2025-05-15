@@ -644,7 +644,7 @@ export default function OrdenesCompraClient({
   }
 
   return (
-    <div className="p-6">
+    <div className="p-6 h-[calc(100vh-8rem)] flex flex-col">
       {/* Notificaciones */}
       {notificationComponents}
 
@@ -658,13 +658,13 @@ export default function OrdenesCompraClient({
       />
 
       {/* Encabezado */}
-      <div className="mb-6">
+      <div className="mb-4">
         <h1 className="text-3xl font-bold">Orden de Compra</h1>
         <h2 className="text-xl text-gray-400">Departamento {departamento}</h2>
       </div>
 
       {/* Filtros y búsqueda */}
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="mb-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="relative">
           <input
             type="text"
@@ -710,11 +710,11 @@ export default function OrdenesCompraClient({
             <option value="">
               {filterDepartamento ? "Todos los proveedores" : "Selecciona departamento"}
             </option>
-            {proveedoresFiltrados.map((proveedor) => (
-              <option key={proveedor.idProveedor} value={proveedor.Nombre}>
-                {proveedor.Nombre}
-              </option>
-            ))}
+            {proveedoresFiltrados.map((proveedor, index) => (
+            <option key={`${proveedor.idProveedor}-${index}`} value={proveedor.Nombre}>
+              {proveedor.Nombre}
+            </option>
+          ))}
           </select>
           <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
             <ChevronDown className="w-4 h-4 text-gray-500" />
@@ -738,13 +738,13 @@ export default function OrdenesCompraClient({
       </div>
 
       {/* Indicador de resultados */}
-      <div className="mb-4 text-sm text-gray-500">
+      <div className="mb-2 text-sm text-gray-500">
         Mostrando {filteredOrdenes.length} de {ordenes.length} órdenes
       </div>
 
       {/* Tabla */}
-      <div className="border border-gray-200 rounded-lg overflow-hidden mb-6">
-        <div className="max-h-[500px] overflow-y-auto">
+      <div className="border border-gray-200 rounded-lg overflow-hidden flex-grow">
+        <div className="h-full overflow-y-auto">
           <table className="w-full">
             <thead className="bg-gray-50 sticky top-0 z-10">
               <tr className="border-b border-gray-200">
@@ -901,7 +901,7 @@ export default function OrdenesCompraClient({
           </table>
         </div>
       </div>
-      <div className="flex justify-between mb-6">
+      <div className="flex justify-between mt-4">
         <Button onClick={handleOpenAddModal}>Nueva Orden</Button>
         <Button
           onClick={handleEliminarOrdenes}
