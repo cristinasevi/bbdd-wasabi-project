@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react" // Añadimos useEffect
+import { useState, useMemo, useEffect } from "react"
 import { ChevronDown, Pencil, X, Search, Filter } from "lucide-react"
 import Button from "@/app/components/ui/button"
 import useNotifications from "@/app/hooks/useNotifications"
 import ConfirmationDialog from "@/app/components/ui/confirmation-dialog"
-import useUserDepartamento from "@/app/hooks/useUserDepartamento" // Importamos el hook
+import useUserDepartamento from "@/app/hooks/useUserDepartamento"
 
 export default function InventarioClient({
   initialInventarios,
@@ -14,7 +14,7 @@ export default function InventarioClient({
 }) {
   // Obtenemos el departamento del usuario
   const { departamento, isLoading: isDepartamentoLoading } = useUserDepartamento()
-  const [userRole, setUserRole] = useState(null) // Estado para el rol del usuario
+  const [userRole, setUserRole] = useState(null)
   
   // Estados principales
   const [inventarios, setInventarios] = useState(initialInventarios);
@@ -23,7 +23,7 @@ export default function InventarioClient({
   const [selectedItems, setSelectedItems] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [modalMode, setModalMode] = useState("add"); // 'add' o 'edit'
+  const [modalMode, setModalMode] = useState("add");
   const [formError, setFormError] = useState("");
 
   // Estados para búsqueda y filtrado
@@ -317,7 +317,9 @@ export default function InventarioClient({
   }
 
   return (
-    <div className="p-6">
+    // La clase h-[calc(100vh-8rem)] asegura que el contenedor principal tenga una altura que se ajuste a la pantalla
+    // restando aproximadamente el espacio del header y footer
+    <div className="p-6 h-[calc(100vh-8rem)] flex flex-col">
       {/* Notificaciones */}
       {notificationComponents}
 
@@ -330,14 +332,14 @@ export default function InventarioClient({
         onClose={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
       />
 
-      {/* Encabezado */}
-      <div className="mb-6">
+      {/* Encabezado - Reducimos el margen inferior */}
+      <div className="mb-4">
         <h1 className="text-3xl font-bold">Inventario</h1>
         <h2 className="text-xl text-gray-400">Departamento {departamento}</h2>
       </div>
 
-      {/* Filtros y búsqueda */}
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Filtros y búsqueda - Reducimos el margen inferior */}
+      <div className="mb-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="relative">
           <input
             type="text"
@@ -410,93 +412,95 @@ export default function InventarioClient({
         </div>
       </div>
 
-      {/* Indicador de resultados */}
-      <div className="mb-4 text-sm text-gray-500">
+      {/* Indicador de resultados - Reducimos el margen inferior */}
+      <div className="mb-2 text-sm text-gray-500">
         Mostrando {filteredInventarios.length} de {inventarios.length} items
       </div>
 
-      {/* Tabla de inventario */}
-      <div className="border border-gray-200 rounded-lg overflow-hidden mb-6 max-h-[500px] overflow-y-auto">
-        <table className="w-full">
-          <thead className="bg-gray-50 sticky top-0 z-10">
-            <tr>
-              <th className="py-3 px-4 w-10">
-                {filteredInventarios.length > 0 && (
-                  <input
-                    type="checkbox"
-                    checked={
-                      selectedItems.length === filteredInventarios.length &&
-                      filteredInventarios.length > 0
-                    }
-                    onChange={toggleSelectAll}
-                    className="h-4 w-4 text-red-600 border-gray-300 rounded"
-                  />
-                )}
-              </th>
-              <th className="text-left py-3 px-4 font-medium text-gray-600">Descripción</th>
-              <th className="text-left py-3 px-4 font-medium text-gray-600">Proveedor</th>
-              <th className="text-left py-3 px-4 font-medium text-gray-600">Departamento</th>
-              <th className="text-left py-3 px-4 font-medium text-gray-600">Cantidad</th>
-              <th className="text-left py-3 px-4 font-medium text-gray-600">Inventariable</th>
-              <th className="py-3 px-4 w-10"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredInventarios.length > 0 ? (
-              filteredInventarios.map((item) => (
-                <tr
-                  key={item.idOrden}
-                  className={`border-t border-gray-200 cursor-pointer ${
-                    selectedItems.includes(item.idOrden) ? "bg-red-50" : ""
-                  }`}
-                  onClick={() => toggleSelectItem(item.idOrden)}
-                >
-                  <td className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+      {/* Tabla de inventario - Usamos flex-grow para que ocupe el espacio disponible */}
+      <div className="border border-gray-200 rounded-lg overflow-hidden flex-grow">
+        <div className="h-full overflow-y-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 sticky top-0 z-10">
+              <tr>
+                <th className="py-3 px-4 w-10">
+                  {filteredInventarios.length > 0 && (
                     <input
                       type="checkbox"
-                      checked={selectedItems.includes(item.idOrden)}
-                      onChange={() => toggleSelectItem(item.idOrden)}
+                      checked={
+                        selectedItems.length === filteredInventarios.length &&
+                        filteredInventarios.length > 0
+                      }
+                      onChange={toggleSelectAll}
                       className="h-4 w-4 text-red-600 border-gray-300 rounded"
                     />
-                  </td>
-                  <td className="py-3 px-4">{item.Descripcion}</td>
-                  <td className="py-3 px-4">{item.Proveedor}</td>
-                  <td className="py-3 px-4">
-                    <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full">
-                      {item.Departamento}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4">{item.Cantidad}</td>
-                  <td className="py-3 px-4">{formatInventariable(item.Inventariable)}</td>
-                  <td className="py-3 px-4 text-center">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenEditModal(item);
-                      }}
-                      className="text-gray-500 hover:text-red-600"
-                    >
-                      <Pencil className="w-5 h-5" />
-                    </button>
+                  )}
+                </th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600">Descripción</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600">Proveedor</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600">Departamento</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600">Cantidad</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600">Inventariable</th>
+                <th className="py-3 px-4 w-10"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredInventarios.length > 0 ? (
+                filteredInventarios.map((item) => (
+                  <tr
+                    key={item.idOrden}
+                    className={`border-t border-gray-200 cursor-pointer hover:bg-gray-50 ${
+                      selectedItems.includes(item.idOrden) ? "bg-red-50 hover:bg-red-100" : ""
+                    }`}
+                    onClick={() => toggleSelectItem(item.idOrden)}
+                  >
+                    <td className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedItems.includes(item.idOrden)}
+                        onChange={() => toggleSelectItem(item.idOrden)}
+                        className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                      />
+                    </td>
+                    <td className="py-3 px-4">{item.Descripcion}</td>
+                    <td className="py-3 px-4">{item.Proveedor}</td>
+                    <td className="py-3 px-4">
+                      <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full">
+                        {item.Departamento}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">{item.Cantidad}</td>
+                    <td className="py-3 px-4">{formatInventariable(item.Inventariable)}</td>
+                    <td className="py-3 px-4 text-center">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenEditModal(item);
+                        }}
+                        className="text-gray-500 hover:text-red-600"
+                      >
+                        <Pencil className="w-5 h-5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="7" className="py-6 text-center text-gray-500">
+                    No se encontraron items{" "}
+                    {searchTerm || filterDepartamento || filterProveedor || filterInventariable
+                      ? "con los criterios de búsqueda actuales"
+                      : ""}
                   </td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="7" className="py-6 text-center text-gray-500">
-                  No se encontraron items{" "}
-                  {searchTerm || filterDepartamento || filterProveedor || filterInventariable
-                    ? "con los criterios de búsqueda actuales"
-                    : ""}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Botones de acción */}
-      <div className="flex justify-end mb-6">
+      {/* Botones de acción - Reducimos el margen inferior y superior */}
+      <div className="flex justify-end mt-4">
         <Button
           onClick={handleEliminarItems}
           disabled={selectedItems.length === 0 || isLoading}
