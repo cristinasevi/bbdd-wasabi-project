@@ -18,7 +18,6 @@ export default function InversionClient({
   const [departamento, setDepartamento] = useState("")
   const [departamentoId, setDepartamentoId] = useState(null)
   const [inversionMensual, setInversionMensual] = useState(0)
-  const [saldoActual, setSaldoActual] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   
   // Estados para los filtros de fecha - inicializados con valores actuales
@@ -68,11 +67,19 @@ export default function InversionClient({
     }
   }, [departamento, initialDepartamentos])
   
+  // Filtrar todas las órdenes de inversión por departamento (para cálculo de gastos totales)
+  const allInvestmentOrders = useMemo(() => {
+    if (!departamento || !initialOrden.length) return [];
+    
+    return initialOrden.filter(o => {
+      // Solo órdenes del departamento y que sí tengan número de inversión
+      return o.Departamento === departamento && o.Num_inversion;
+    });
+  }, [departamento, initialOrden]);
+  
   // Filtrar las órdenes por departamento, mes y año (solo inversión, CON Num_inversion)
   const filteredOrdenes = useMemo(() => {
     if (!departamento || !initialOrden.length) return []
-    
-    console.log('Filtering orders...', { departamento, selectedMes, selectedAño });
     
     const filtered = initialOrden.filter(o => {
       // Solo órdenes del departamento y que TENGAN número de inversión
@@ -95,7 +102,6 @@ export default function InversionClient({
       return true;
     });
     
-    console.log('Filtered orders:', filtered.length, filtered);
     return filtered;
   }, [departamento, initialOrden, selectedMes, selectedAño]);
   
@@ -143,6 +149,11 @@ export default function InversionClient({
     return filteredOrdenes.reduce((sum, orden) => sum + (parseFloat(orden.Importe) || 0), 0);
   }, [filteredOrdenes]);
   
+  // Calcular gasto total acumulado en inversiones (todas las órdenes de inversión)
+  const gastoTotalInversion = useMemo(() => {
+    return allInvestmentOrders.reduce((sum, orden) => sum + (parseFloat(orden.Importe) || 0), 0);
+  }, [allInvestmentOrders]);
+  
   // Cargar datos cuando cambie el departamento
   useEffect(() => {
     if (!departamentoId) return
@@ -150,30 +161,30 @@ export default function InversionClient({
     try {
       // Obtener datos de inversión
       const inversionData = inversionesPorDepartamento[departamentoId] || [];
-      const inversionAcumData = inversionesAcumPorDepartamento[departamentoId] || [];
       
       // Calcular inversión mensual
       const invMensual = (inversionData[0]?.total_inversion || 0) / 12;
       setInversionMensual(invMensual);
-      
-      // Calcular saldo actual (inversión anual - gasto total acumulado)
-      const inversionAnual = inversionData[0]?.total_inversion || 0;
-      const gastoTotal = inversionAcumData[0]?.Total_Importe || 0;
-      setSaldoActual(inversionAnual - gastoTotal);
-      
-      console.log('Financial data loaded:', {
-        invMensual,
-        inversionAnual,
-        gastoTotal,
-        saldoActual: inversionAnual - gastoTotal
-      });
     } catch (error) {
       console.error("Error cargando datos de inversión:", error);
     }
-  }, [departamentoId, inversionesPorDepartamento, inversionesAcumPorDepartamento]);
+  }, [departamentoId, inversionesPorDepartamento]);
+  
+  // Calcular inversión total anual
+  const inversionTotalAnual = useMemo(() => {
+    const inversionData = inversionesPorDepartamento[departamentoId] || [];
+    return inversionData[0]?.total_inversion || 0;
+  }, [inversionesPorDepartamento, departamentoId]);
+  
+  // Calcular saldo actual en tiempo real (inversión total - gasto acumulado)
+  const saldoActual = useMemo(() => {
+    return inversionTotalAnual - gastoTotalInversion;
+  }, [inversionTotalAnual, gastoTotalInversion]);
   
   // Calcular inversión mensual disponible
-  const inversionMensualDisponible = inversionMensual - gastoDelMes;
+  const inversionMensualDisponible = useMemo(() => {
+    return inversionMensual - gastoDelMes;
+  }, [inversionMensual, gastoDelMes]);
   
   // Función para cambiar el departamento (solo para admin/contable)
   const handleChangeDepartamento = (newDepartamento) => {
@@ -205,6 +216,22 @@ export default function InversionClient({
       maximumFractionDigits: 2
     }) + " €"
   }
+  
+  // Determinar el color del indicador según el saldo restante
+  const getIndicatorColor = (actual, total) => {
+    if (!total) return "bg-gray-400"; // Si no hay total, gris
+    
+    const porcentaje = (actual / total) * 100;
+    
+    if (porcentaje < 25) return "bg-red-500";      // Menos del 25% - Rojo
+    if (porcentaje < 50) return "bg-yellow-500";   // Entre 25% y 50% - Amarillo
+    return "bg-green-500";                         // Más del 50% - Verde
+  };
+  
+  // Determinar el color del texto para valores negativos
+  const getTextColorClass = (valor) => {
+    return valor < 0 ? "text-red-600" : "";
+  };
 
   if (isDepartamentoLoading || isLoading) {
     return <div className="p-6">Cargando...</div>
@@ -298,9 +325,9 @@ export default function InversionClient({
             <div className="bg-white border border-gray-200 rounded-lg p-6">
               <h3 className="text-gray-500 mb-2 text-xl">Saldo actual</h3>
               <div className="flex justify-between items-center">
-                <div className="w-4 h-4 rounded-full bg-green-500"></div>
+                <div className={`w-4 h-4 rounded-full ${getIndicatorColor(saldoActual, inversionTotalAnual)}`}></div>
                 <div>
-                  <div className="text-5xl font-bold">{formatCurrency(saldoActual)}</div>
+                  <div className={`text-5xl font-bold ${getTextColorClass(saldoActual)}`}>{formatCurrency(saldoActual)}</div>
                 </div>
               </div>
             </div>
@@ -309,7 +336,7 @@ export default function InversionClient({
             <div className="bg-white border border-gray-200 rounded-lg p-6">
               <h3 className="text-gray-500 mb-2 text-xl">Inversión mensual disponible</h3>
               <div className="text-right">
-                <div className="text-5xl font-bold">
+                <div className={`text-5xl font-bold ${getTextColorClass(inversionMensualDisponible)}`}>
                   {formatCurrency(inversionMensualDisponible)}
                 </div>
               </div>
