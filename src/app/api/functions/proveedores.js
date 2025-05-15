@@ -3,7 +3,7 @@ import { pool } from '@/app/api/lib/db';
 export async function getProveedores() {
   try {
     const [rows] = await pool.query(`
-      SELECT 
+      SELECT DISTINCT
         p.idProveedor,
         p.Nombre,
         p.NIF,
@@ -12,7 +12,7 @@ export async function getProveedores() {
         p.Email,
         d.Nombre AS Departamento
       FROM Proveedor p
-      JOIN Proveedor_Departamento pd ON p.idProveedor = pd.idProvDep
+      JOIN Proveedor_Departamento pd ON p.idProveedor = pd.idProveedorFK
       JOIN Departamento d ON pd.idDepartamentoFK = d.id_Departamento
 
     `);
