@@ -19,10 +19,24 @@ export default function ResumenClient({
     const mesActual = meses[new Date().getMonth()];
     const añoActual = new Date().getFullYear();
     
-    // Calcular presupuesto actual e inversión actual
+    // Calcular presupuesto actual e inversión actual - CORREGIDO
     const presupuestoTotal = resumenprep?.[0]?.total_presupuesto || 0;
-    const gastoPresupuesto = resumengasto?.[0]?.total_importe || 0;
-    const presupuestoActual = presupuestoTotal - gastoPresupuesto;
+    
+    // NUEVO: Calcular gasto en presupuesto sumando todas las órdenes SIN Num_inversion
+    const gastoPresupuestoCalculado = useMemo(() => {
+        if (!resumenord || resumenord.length === 0) return 0;
+        
+        // Filtrar órdenes que NO tengan Num_inversion (son de presupuesto, no inversión)
+        const ordenesPresupuesto = resumenord.filter(orden => !orden.Num_inversion);
+        
+        // Sumar todos los importes
+        return ordenesPresupuesto.reduce((total, orden) => {
+            return total + (parseFloat(orden.Importe) || 0);
+        }, 0);
+    }, [resumenord]);
+    
+    // El presupuesto actual es presupuesto total menos gasto acumulado
+    const presupuestoActual = presupuestoTotal - gastoPresupuestoCalculado;
     
     const inversionTotal = resumeninv?.[0]?.total_inversion || 0;
     const gastoInversion = resumeninvacum?.[0]?.Total_Importe || 0;
@@ -88,13 +102,19 @@ export default function ResumenClient({
                                 <div className="w-1/2 pr-4">
                                     <h3 className="text-gray-500 mb-2 text-xl">Presupuesto total anual</h3>
                                     <div className="text-4xl font-bold text-gray-400">
-                                        {presupuestoTotal?.toLocaleString("es-ES")} €
+                                        {presupuestoTotal?.toLocaleString("es-ES", {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2
+                                        })} €
                                     </div>
                                 </div>
                                 <div className="w-1/2 pl-4">
                                     <h3 className="text-gray-500 mb-2 text-xl">Presupuesto actual</h3>
                                     <div className="text-4xl font-bold">
-                                        {presupuestoActual.toLocaleString("es-ES")} €
+                                        {presupuestoActual.toLocaleString("es-ES", {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2
+                                        })} €
                                     </div>
                                 </div>
                             </div>
@@ -109,23 +129,32 @@ export default function ResumenClient({
                                 <div className="w-1/2 pr-4">
                                     <h3 className="text-gray-500 mb-2 text-xl">Inversión total anual</h3>
                                     <div className="text-4xl font-bold text-gray-400">
-                                        {inversionTotal?.toLocaleString("es-ES")} €
+                                        {inversionTotal?.toLocaleString("es-ES", {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2
+                                        })} €
                                     </div>
                                 </div>
                                 <div className="w-1/2 pl-4">
                                     <h3 className="text-gray-500 mb-2 text-xl">Inversión actual</h3>
                                     <div className="text-4xl font-bold">
-                                        {inversionActual.toLocaleString("es-ES")} €
+                                        {inversionActual.toLocaleString("es-ES", {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2
+                                        })} €
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Gasto acumulado anual */}
+                        {/* Gasto acumulado anual - ACTUALIZADO */}
                         <div className="bg-white rounded-lg p-6 shadow-sm">
                             <h3 className="text-gray-500 mb-2 text-xl">Gasto en presupuesto acumulado</h3>
                             <div className="text-4xl font-bold">
-                                {gastoPresupuesto?.toLocaleString("es-ES")} €
+                                {gastoPresupuestoCalculado?.toLocaleString("es-ES", {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2
+                                })} €
                             </div>
                         </div>
 
@@ -133,7 +162,10 @@ export default function ResumenClient({
                         <div className="bg-white rounded-lg p-6 shadow-sm">
                             <h3 className="text-gray-500 mb-2 text-xl">Inversión acumulada anual</h3>
                             <div className="text-4xl font-bold">
-                                {gastoInversion?.toLocaleString("es-ES")} €
+                                {gastoInversion?.toLocaleString("es-ES", {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2
+                                })} €
                             </div>
                         </div>
                     </div>
@@ -168,7 +200,12 @@ export default function ResumenClient({
                                         <td className="py-3 px-4">{item.Num_orden}</td>
                                         <td className="py-3 px-4">{item.Num_inversion || "-"}</td>
                                         <td className="py-3 px-4">{formatDate(item.Fecha)}</td>
-                                        <td className="py-3 px-4 text-right">{item.Importe}€</td>
+                                        <td className="py-3 px-4 text-right">
+                                            {parseFloat(item.Importe).toLocaleString("es-ES", {
+                                                minimumFractionDigits: 2,
+                                                maximumFractionDigits: 2
+                                            })}€
+                                        </td>
                                     </tr>
                                     ))
                                 ) : (
