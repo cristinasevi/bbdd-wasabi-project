@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from "react"
-import { ChevronDown, ArrowUpDown, Search, Filter, Upload, X, Pencil, Calendar, Euro } from "lucide-react"
+import { ChevronDown, ArrowUpDown, Search, Filter, Upload, X, Pencil, Calendar, Euro, Download } from "lucide-react"
 import Link from "next/link"
 import useUserDepartamento from "@/app/hooks/useUserDepartamento"
 import useNotifications from "@/app/hooks/useNotifications"
@@ -29,6 +29,9 @@ export default function Facturas() {
     
     // Estado de dropdown abierto
     const [openDropdown, setOpenDropdown] = useState(null)
+
+    // Estado para selección de facturas
+    const [selectedFacturas, setSelectedFacturas] = useState([])
 
     // Estado para modal de subir factura
     const [showUploadModal, setShowUploadModal] = useState(false)
@@ -225,6 +228,49 @@ export default function Facturas() {
             return date.toISOString().split('T')[0]
         } catch (error) {
             return ""
+        }
+    }
+    
+    // Seleccionar o deseleccionar una factura
+    const toggleSelectFactura = (facturaId) => {
+        if (selectedFacturas.includes(facturaId)) {
+            setSelectedFacturas(selectedFacturas.filter(id => id !== facturaId))
+        } else {
+            setSelectedFacturas([...selectedFacturas, facturaId])
+        }
+    }
+    
+    // Seleccionar/deseleccionar todas las facturas
+    const toggleSelectAll = () => {
+        if (selectedFacturas.length === filteredFacturas.length) {
+            setSelectedFacturas([])
+        } else {
+            setSelectedFacturas(filteredFacturas.map(f => f.idFactura))
+        }
+    }
+    
+    // Función para descargar facturas seleccionadas
+    const handleDescargarSeleccionadas = () => {
+        if (selectedFacturas.length === 0) {
+            addNotification("Por favor, selecciona al menos una factura", "warning")
+            return
+        }
+        
+        // En una implementación real, esto podría manejar descargas múltiples o crear un zip
+        if (selectedFacturas.length === 1) {
+            // Descargar la única factura seleccionada
+            const facturaId = selectedFacturas[0]
+            window.open(`/api/facturas/descargar?id=${facturaId}`, '_blank')
+        } else {
+            // Para múltiples facturas en producción deberías crear un endpoint que agrupe los PDFs
+            addNotification("Descargando " + selectedFacturas.length + " facturas...", "info")
+            
+            // Descargar cada factura individualmente (solución temporal)
+            selectedFacturas.forEach(facturaId => {
+                setTimeout(() => {
+                    window.open(`/api/facturas/descargar?id=${facturaId}`, '_blank')
+                }, 500) // Pequeño retraso para evitar bloqueo de popups
+            })
         }
     }
     
@@ -542,6 +588,14 @@ export default function Facturas() {
         }
     };
 
+    // Verificar si hay facturas con PDF para descargar
+    const hayFacturasDescargables = useMemo(() => {
+        return selectedFacturas.some(id => {
+            const factura = facturas.find(f => f.idFactura === id);
+            return factura && factura.Ruta_pdf;
+        });
+    }, [selectedFacturas, facturas]);
+
     if (loading || isDepartamentoLoading) {
         return <div className="p-6">Cargando...</div>
     }
@@ -638,10 +692,22 @@ export default function Facturas() {
 
             {/* Tabla de facturas */}
             <div className="border border-gray-200 rounded-lg overflow-hidden mb-6 max-h-[650px] overflow-y-auto">
-                <div className="overflow-x-auto max-h-[600px]">
+                <div className="overflow-x-auto max-h-[520px]">
                     <table className="w-full">
                         <thead className="bg-gray-50 sticky top-0 z-10">
                             <tr className="border-b border-gray-200">
+                                <th className="py-3 px-3 w-12">
+                                    {filteredFacturas.length > 0 && (
+                                        <div className="flex justify-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedFacturas.length === filteredFacturas.length && filteredFacturas.length > 0}
+                                                onChange={toggleSelectAll}
+                                                className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                                            />
+                                        </div>
+                                    )}
+                                </th>
                                 <th className="py-3 px-4 text-left font-medium text-gray-600">Nº Factura</th>
                                 <th className="py-3 px-4 text-left font-medium text-gray-600">Proveedor</th>
                                 <th className="py-3 px-4 text-left font-medium text-gray-600">Fecha emisión</th>
@@ -649,13 +715,29 @@ export default function Facturas() {
                                 <th className="py-3 px-4 text-left font-medium text-gray-600">Num Orden</th>
                                 <th className="py-3 px-4 text-left font-medium text-gray-600">Estado</th>
                                 <th className="py-3 px-4 text-left font-medium text-gray-600">Departamento</th>
-                                <th className="py-3 px-4 text-center font-medium text-gray-600">Acciones</th>
+                                <th className="py-3 px-4 text-center font-medium text-gray-600"></th>
                             </tr>
                         </thead>
                         <tbody>
                             {filteredFacturas.length > 0 ? (
                                 filteredFacturas.map((factura) => (
-                                    <tr key={factura.idFactura} className="border-t border-gray-200">
+                                    <tr 
+                                        key={factura.idFactura} 
+                                        className={`border-t border-gray-200 cursor-pointer hover:bg-gray-50 ${
+                                            selectedFacturas.includes(factura.idFactura) ? "bg-red-50" : ""
+                                        }`}
+                                        onClick={() => toggleSelectFactura(factura.idFactura)}
+                                    >
+                                        <td className="py-3 px-3 w-12" onClick={(e) => e.stopPropagation()}>
+                                            <div className="flex justify-center">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedFacturas.includes(factura.idFactura)}
+                                                    onChange={() => toggleSelectFactura(factura.idFactura)}
+                                                    className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                                                />
+                                            </div>
+                                        </td>
                                         <td className="py-3 px-4">{factura.Num_factura}</td>
                                         <td className="py-3 px-4">{factura.Proveedor}</td>
                                         <td className="py-3 px-4">{formatDate(factura.Fecha_emision)}</td>
@@ -689,7 +771,10 @@ export default function Facturas() {
                                                         {estadoOptions.map((estado) => (
                                                             <button
                                                                 key={estado}
-                                                                onClick={() => handleUpdateEstado(factura.idFactura, estado)}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleUpdateEstado(factura.idFactura, estado);
+                                                                }}
                                                                 className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${
                                                                     estado === factura.Estado ? "font-semibold bg-gray-50" : ""
                                                                 }`}
@@ -710,36 +795,35 @@ export default function Facturas() {
                                             <div className="flex justify-center gap-2 items-center">
                                                 {/* Botón de editar */}
                                                 <button
-                                                   onClick={() => handleEditFactura(factura)}
-                                                   className="text-gray-500 hover:text-blue-600"
-                                                   title="Editar factura"
-                                               >
-                                                   <Pencil className="w-5 h-5" />
-                                               </button>
-                                               
-                                               {/* Botón de descargar/insertar */}
-                                               {factura.Ruta_pdf ? (
-                                                   <Link
-                                                       href={`/api/facturas/descargar?id=${factura.idFactura}`}
-                                                       className="bg-red-600 text-white text-sm px-3 py-1 rounded hover:bg-red-700"
-                                                   >
-                                                       Descargar
-                                                   </Link>
-                                               ) : (
-                                                   <button
-                                                       onClick={() => handleInsertarFactura(factura.idFactura)}
-                                                       className="bg-green-600 text-white text-sm px-3 py-1 rounded hover:bg-green-700"
-                                                   >
-                                                       Insertar Factura
-                                                   </button>
-                                               )}
-                                           </div>
-                                       </td>
-                                   </tr>
-                               ))
-                           ) : (
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleEditFactura(factura);
+                                                    }}
+                                                    className="text-gray-500 hover:text-red-600"
+                                                    title="Editar factura"
+                                                >
+                                                    <Pencil className="w-5 h-5" />
+                                                </button>
+                                                
+                                                {/* Botón de insertar factura cuando no hay PDF */}
+                                                {!factura.Ruta_pdf && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleInsertarFactura(factura.idFactura);
+                                                        }}
+                                                        className="bg-green-600 text-white text-sm px-3 py-1 rounded hover:bg-green-700"
+                                                    >
+                                                        Insertar Factura
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
                                <tr>
-                                   <td colSpan="8" className="py-6 text-center text-gray-500">
+                                   <td colSpan="9" className="py-6 text-center text-gray-500">
                                        {userRole === "Jefe de Departamento" 
                                            ? `No se encontraron facturas para el departamento de ${departamento}` 
                                            : searchTerm || filterFecha || filterImporte || filterProveedor || filterEstado
@@ -751,6 +835,23 @@ export default function Facturas() {
                        </tbody>
                    </table>
                </div>
+           </div>
+           
+           {/* Botones de acción */}
+           <div className="flex justify-between mb-6">
+               {/* Botón para descargar facturas seleccionadas */}
+               <button
+                    onClick={handleDescargarSeleccionadas}
+                    disabled={!hayFacturasDescargables}
+                    className={`flex items-center gap-2 bg-red-600 opacity-80 text-white px-6 py-2 rounded-md ${
+                        hayFacturasDescargables 
+                            ? "hover:bg-red-700 cursor-pointer" 
+                            : "opacity-50 cursor-not-allowed"
+                    }`}
+                >
+                    <Download className="w-4 h-4" />
+                    <span>Descargar {selectedFacturas.length > 0 ? `(${selectedFacturas.length})` : ""}</span>
+                </button>
            </div>
            
            {/* Modal para subir factura */}

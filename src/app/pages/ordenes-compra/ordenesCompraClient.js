@@ -126,8 +126,8 @@ export default function OrdenesCompraClient({
   const generarNumeroOrden = () => {
     if (!formularioOrden.departamento) return "";
     
-    // Obtener las primeras 4 letras del departamento para el código
-    const departamentoCodigo = formularioOrden.departamento.substring(0, 4).toUpperCase();
+    // Obtener las primeras 3 letras del departamento para el código
+    const departamentoCodigo = formularioOrden.departamento.substring(0, 3).toUpperCase();
     
     const numeroOrden = getNextNumeroOrden(departamentoCodigo);
     const esInventariable = formularioOrden.inventariable ? "1" : "0";
