@@ -149,42 +149,89 @@ export default function InversionClient({
     return filteredOrdenes.reduce((sum, orden) => sum + (parseFloat(orden.Importe) || 0), 0);
   }, [filteredOrdenes]);
   
-  // Calcular gasto total acumulado en inversiones (todas las órdenes de inversión)
-  const gastoTotalInversion = useMemo(() => {
-    return allInvestmentOrders.reduce((sum, orden) => sum + (parseFloat(orden.Importe) || 0), 0);
-  }, [allInvestmentOrders]);
+ // Calcular gasto total acumulado en inversiones (todas las órdenes de inversión)
+const gastoTotalInversion = useMemo(() => {
+  // Solo considerar órdenes del año seleccionado
+  const ordenesDelAño = allInvestmentOrders.filter(orden => {
+    if (!orden.Fecha) return false;
+    const ordenDate = new Date(orden.Fecha);
+    const ordenAño = ordenDate.getFullYear().toString();
+    return ordenAño === selectedAño;
+  });
   
-  // Cargar datos cuando cambie el departamento
-  useEffect(() => {
-    if (!departamentoId) return
+  return ordenesDelAño.reduce((sum, orden) => sum + (parseFloat(orden.Importe) || 0), 0);
+}, [allInvestmentOrders, selectedAño]);
+  
+  // Cargar datos cuando cambie el departamento o el año seleccionado
+useEffect(() => {
+  if (!departamentoId) return
+  
+  try {
+    // Obtener datos de inversión
+    const inversionData = inversionesPorDepartamento[departamentoId] || [];
     
-    try {
-      // Obtener datos de inversión
-      const inversionData = inversionesPorDepartamento[departamentoId] || [];
-      
+    // Verificar si la inversión aplica para el año seleccionado
+    const fechaInicio = inversionData[0]?.fecha_inicio ? new Date(inversionData[0]?.fecha_inicio) : null;
+    const fechaFinal = inversionData[0]?.fecha_final ? new Date(inversionData[0]?.fecha_final) : null;
+    
+    // Si no hay fechas o la inversión incluye el año seleccionado, calcular valor
+    if (!fechaInicio || !fechaFinal || 
+        (fechaInicio.getFullYear() <= parseInt(selectedAño) && 
+        fechaFinal.getFullYear() >= parseInt(selectedAño))) {
       // Calcular inversión mensual
       const invMensual = (inversionData[0]?.total_inversion || 0) / 12;
       setInversionMensual(invMensual);
-    } catch (error) {
-      console.error("Error cargando datos de inversión:", error);
+    } else {
+      // Si el año seleccionado está fuera del rango, establecer a 0
+      setInversionMensual(0);
     }
-  }, [departamentoId, inversionesPorDepartamento]);
+  } catch (error) {
+    console.error("Error cargando datos de inversión:", error);
+  }
+}, [departamentoId, inversionesPorDepartamento, selectedAño]);
   
-  // Calcular inversión total anual
-  const inversionTotalAnual = useMemo(() => {
-    const inversionData = inversionesPorDepartamento[departamentoId] || [];
-    return inversionData[0]?.total_inversion || 0;
-  }, [inversionesPorDepartamento, departamentoId]);
+// Calcular inversión total anual para el año seleccionado
+const inversionTotalAnual = useMemo(() => {
+  const inversionData = inversionesPorDepartamento[departamentoId] || [];
+  const total = inversionData[0]?.total_inversion || 0;
+  
+  // Verificar si la inversión aplica para el año seleccionado
+  const fechaInicio = inversionData[0]?.fecha_inicio ? new Date(inversionData[0]?.fecha_inicio) : null;
+  const fechaFinal = inversionData[0]?.fecha_final ? new Date(inversionData[0]?.fecha_final) : null;
+  
+  // Si no hay fechas o la inversión incluye el año seleccionado, usar el valor completo
+  if (!fechaInicio || !fechaFinal || 
+      (fechaInicio.getFullYear() <= parseInt(selectedAño) && 
+       fechaFinal.getFullYear() >= parseInt(selectedAño))) {
+    return total;
+  }
+  
+  // Si no coincide el año, retornar 0
+  return 0;
+}, [inversionesPorDepartamento, departamentoId, selectedAño]);
   
   // Calcular saldo actual en tiempo real (inversión total - gasto acumulado)
   const saldoActual = useMemo(() => {
     return inversionTotalAnual - gastoTotalInversion;
   }, [inversionTotalAnual, gastoTotalInversion]);
   
-  // Calcular inversión mensual disponible
-  const inversionMensualDisponible = useMemo(() => {
+  // Calcular inversión mensual disponible para el mes y año seleccionados
+const inversionMensualDisponible = useMemo(() => {
+  // Verificar si la inversión aplica para el año y mes seleccionados
+  const inversionData = inversionesPorDepartamento[departamentoId] || [];
+  const fechaInicio = inversionData[0]?.fecha_inicio ? new Date(inversionData[0]?.fecha_inicio) : null;
+  const fechaFinal = inversionData[0]?.fecha_final ? new Date(inversionData[0]?.fecha_final) : null;
+  
+  // Si no hay fechas o la inversión incluye el año seleccionado, calcular disponible
+  if (!fechaInicio || !fechaFinal || 
+      (fechaInicio.getFullYear() <= parseInt(selectedAño) && 
+       fechaFinal.getFullYear() >= parseInt(selectedAño))) {
     return inversionMensual - gastoDelMes;
-  }, [inversionMensual, gastoDelMes]);
+  }
+  
+  // Si no coincide el año, no hay disponible
+  return 0;
+}, [inversionMensual, gastoDelMes, departamentoId, inversionesPorDepartamento, selectedAño]);
   
   // Función para cambiar el departamento (solo para admin/contable)
   const handleChangeDepartamento = (newDepartamento) => {
@@ -390,9 +437,11 @@ export default function InversionClient({
                   ) : (
                     <tr>
                       <td colSpan="3" className="py-4 text-center text-gray-400">
-                        {selectedMes && selectedAño 
-                          ? `No hay órdenes de inversión para ${selectedMes} ${selectedAño}`
-                          : "No hay órdenes de inversión registradas"}
+                          {filteredOrdenes.length === 0 && allInvestmentOrders.length > 0
+                            ? `No hay órdenes de inversión para ${selectedMes} ${selectedAño}`
+                            : allInvestmentOrders.length === 0
+                              ? "No hay órdenes de inversión registradas para este departamento"
+                              : "No hay órdenes de inversión que cumplan con los filtros seleccionados"}
                       </td>
                     </tr>
                   )}
