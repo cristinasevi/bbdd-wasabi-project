@@ -542,7 +542,7 @@ export default function OrdenesCompraClient({
       cantidad: orden.Cantidad || "",
       departamento: orden.Departamento || "",
       proveedor: orden.Proveedor || "",
-      estadoOrden: orden.Estado || "En proceso", // Añade esta línea
+      estadoOrden: orden.Estado || "En proceso", // Aseguramos que cargue el estado actual
     });
     setModalMode("edit");
     setShowModal(true);
@@ -670,6 +670,15 @@ export default function OrdenesCompraClient({
         throw new Error("No se encontró el departamento o proveedor seleccionado");
       }
       
+      // Encontrar el ID del estado según su tipo
+      const estadoSeleccionado = estadosOrden.find(
+        estado => estado.tipo === formularioOrden.estadoOrden
+      );
+      
+      if (!estadoSeleccionado) {
+        throw new Error("No se encontró el estado seleccionado");
+      }
+      
       // Preparar los datos para enviar
       const ordenData = {
         Num_orden: formularioOrden.numero,
@@ -681,7 +690,7 @@ export default function OrdenesCompraClient({
         id_DepartamentoFK: departamentoSeleccionado.id_Departamento,
         id_ProveedorFK: proveedorSeleccionado.idProveedor,
         id_UsuarioFK: 1, // Aquí deberías obtener el usuario actual
-        id_EstadoOrdenFK: 1, // Añade esta línea - Valor por defecto: "En proceso" (id 1)
+        id_EstadoOrdenFK: estadoSeleccionado.id_EstadoOrden, // Usar el ID del estado seleccionado
       };
       
       // Añadir datos de inversión si es necesario
@@ -690,7 +699,7 @@ export default function OrdenesCompraClient({
         
         // Buscar ID de la bolsa de inversión para este departamento
         // Aquí podrías hacer una llamada a la API para obtener este ID
-        ordenData.id_InversionFK = departamentoSeleccionado.id_Departamento; // Esto es una simplificación
+        ordenData.id_InversionFK = departamentoSeleccionado.id_Departamento; // Simplificación
       } else {
         // Si no es inversión, podría ir a presupuesto
         ordenData.id_PresupuestoFK = departamentoSeleccionado.id_Departamento; // Simplificación
@@ -743,7 +752,7 @@ export default function OrdenesCompraClient({
       }
 
       // Intentar analizar la respuesta como JSON si existe
-      let responseData = {}; // Cambiado de 'data' a 'responseData'
+      let responseData = {}; 
       try {
         const contentType = response.headers.get("content-type");
         if (contentType && contentType.includes("application/json")) {
@@ -765,7 +774,7 @@ export default function OrdenesCompraClient({
         } else {
           // Crear una versión local de la nueva orden para actualizar la UI
           const nuevaOrden = {
-            idOrden: responseData.insertedId, // CAMBIADO data → responseData
+            idOrden: responseData.insertedId,
             Num_orden: ordenData.Num_orden,
             Importe: ordenData.Importe,
             Fecha: ordenData.Fecha,
@@ -775,6 +784,7 @@ export default function OrdenesCompraClient({
             Departamento: formularioOrden.departamento,
             Proveedor: formularioOrden.proveedor,
             Num_inversion: formularioOrden.esInversion ? formularioOrden.numInversion : null,
+            Estado: formularioOrden.estadoOrden, // Incluir el estado
           };
           setOrdenes([...ordenes, nuevaOrden]);
         }
@@ -794,6 +804,7 @@ export default function OrdenesCompraClient({
                   Departamento: formularioOrden.departamento,
                   Proveedor: formularioOrden.proveedor,
                   Num_inversion: formularioOrden.esInversion ? formularioOrden.numInversion : null,
+                  Estado: formularioOrden.estadoOrden, // Actualizar el estado en la UI
                 }
               : orden
           )
@@ -1368,11 +1379,15 @@ export default function OrdenesCompraClient({
                     required
                   >
                     <option value="">Seleccionar proveedor</option>
-                    {Array.isArray(proveedores) && proveedores.map((proveedor) => (
-                      <option key={`prov-${proveedor.Nombre}`} value={proveedor.Nombre}>
-                        {proveedor.Nombre}
-                      </option>
-                    ))}
+                    {Array.isArray(proveedores) && proveedores.map((proveedor, index) => {
+                      // Crear una clave completamente única usando nombre, id e índice
+                      const uniqueKey = `prov-${proveedor.Nombre}-${proveedor.idProveedor}-${index}`;
+                      return (
+                        <option key={uniqueKey} value={proveedor.Nombre}>
+                          {proveedor.Nombre}
+                        </option>
+                      );
+                    })}
                   </select>
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                     <ChevronDown className="w-4 h-4 text-gray-500" />
