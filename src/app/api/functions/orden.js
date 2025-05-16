@@ -3,7 +3,7 @@ import { pool } from '@/app/api/lib/db';
 export async function getOrden() {
   try {
     const [rows] = await pool.query(`
-      SELECT 
+      SELECT
         o.idOrden,
         o.Num_orden,
         o.Fecha,

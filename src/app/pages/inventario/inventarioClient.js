@@ -16,8 +16,15 @@ export default function InventarioClient({
   const { departamento, isLoading: isDepartamentoLoading } = useUserDepartamento()
   const [userRole, setUserRole] = useState(null)
   
-  // Estados principales
-  const [inventarios, setInventarios] = useState(initialInventarios);
+  // Añadimos un ID único a todos los items al inicializar
+  const [inventarios, setInventarios] = useState(() => {
+    return initialInventarios.map((item, index) => ({
+      ...item,
+      // Crear un ID único absoluto para React keys
+      _reactKey: `item-${item.idOrden}-${index}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    }));
+  });
+  
   const [departamentos] = useState(initialDepartamentos);
   const [proveedores] = useState(initialProveedores);
   const [selectedItems, setSelectedItems] = useState([]);
@@ -76,25 +83,30 @@ export default function InventarioClient({
     fetchUserRole()
   }, [departamento])
 
-  // Proveedores filtrados por departamento
-  const proveedoresFiltrados = useMemo(() => {
-    if (!filterDepartamento) return proveedores;
+  // Eliminamos duplicados basándose en idOrden pero manteniendo _reactKey únicos
+  const uniqueInventarios = useMemo(() => {
+    const seen = new Map();
+    const result = [];
     
-    return proveedores.filter(proveedor => {
-      return inventarios.some(item => 
-        item.Proveedor === proveedor.Nombre && item.Departamento === filterDepartamento
-      );
+    inventarios.forEach(item => {
+      const key = item.idOrden;
+      
+      if (!seen.has(key)) {
+        // Es el primer item con este idOrden
+        seen.set(key, true);
+        result.push(item);
+      } else {
+        // Es un duplicado - no lo añadimos pero podríamos hacer merge si fuera necesario
+        console.log(`Duplicado encontrado y omitido: idOrden ${key}`);
+      }
     });
-  }, [filterDepartamento, proveedores, inventarios]);
+    
+    return result;
+  }, [inventarios]);
 
-  // Reset proveedor cuando cambia departamento
-  useMemo(() => {
-    setFilterProveedor("");
-  }, [filterDepartamento]);
-
-  // Filtrar inventarios según los criterios de búsqueda y filtrado
+  // Filtrar inventarios únicos según los criterios de búsqueda y filtrado
   const filteredInventarios = useMemo(() => {
-    return inventarios.filter((item) => {
+    return uniqueInventarios.filter((item) => {
       // Filtro por término de búsqueda (descripción)
       const matchesSearch =
         searchTerm === "" ||
@@ -115,7 +127,23 @@ export default function InventarioClient({
 
       return matchesSearch && matchesDepartamento && matchesProveedor && matchesInventariable;
     });
-  }, [inventarios, searchTerm, filterDepartamento, filterProveedor, filterInventariable]);
+  }, [uniqueInventarios, searchTerm, filterDepartamento, filterProveedor, filterInventariable]);
+
+  // Proveedores filtrados por departamento
+  const proveedoresFiltrados = useMemo(() => {
+    if (!filterDepartamento) return proveedores;
+    
+    return proveedores.filter(proveedor => {
+      return uniqueInventarios.some(item => 
+        item.Proveedor === proveedor.Nombre && item.Departamento === filterDepartamento
+      );
+    });
+  }, [filterDepartamento, proveedores, uniqueInventarios]);
+
+  // Reset proveedor cuando cambia departamento
+  useMemo(() => {
+    setFilterProveedor("");
+  }, [filterDepartamento]);
 
   // Toggle selección de item
   const toggleSelectItem = (itemId) => {
@@ -155,6 +183,7 @@ export default function InventarioClient({
   const handleOpenEditModal = (item) => {
     setFormularioItem({
       idOrden: item.idOrden,
+      _reactKey: item._reactKey, // Mantener el reactKey para edición
       descripcion: item.Descripcion || "",
       proveedor: item.Proveedor || "",
       departamento: item.Departamento || "",
@@ -227,23 +256,24 @@ export default function InventarioClient({
     setIsLoading(true);
 
     try {
-      // Implementar la lógica para guardar en la base de datos
-      // Por ahora solo actualizamos la UI localmente
       if (modalMode === "add") {
         const nuevoItem = {
-          idOrden: Date.now(), // ID temporal
+          idOrden: Date.now(), // ID temporal único
           Descripcion: formularioItem.descripcion,
           Proveedor: formularioItem.proveedor,
           Departamento: formularioItem.departamento,
           Cantidad: parseInt(formularioItem.cantidad),
           Inventariable: formularioItem.inventariable === "Sí" ? 1 : 0,
+          // Crear _reactKey único para el nuevo item
+          _reactKey: `item-${Date.now()}-new-${Math.random().toString(36).substr(2, 9)}`
         };
         
         setInventarios([...inventarios, nuevoItem]);
       } else {
+        // Para edición, mantener la estructura existente pero actualizar los campos
         setInventarios(
           inventarios.map((item) =>
-            item.idOrden === formularioItem.idOrden
+            item._reactKey === formularioItem._reactKey
               ? {
                   ...item,
                   Descripcion: formularioItem.descripcion,
@@ -251,6 +281,8 @@ export default function InventarioClient({
                   Departamento: formularioItem.departamento,
                   Cantidad: parseInt(formularioItem.cantidad),
                   Inventariable: formularioItem.inventariable === "Sí" ? 1 : 0,
+                  // Mantener el _reactKey existente
+                  _reactKey: item._reactKey
                 }
               : item
           )
@@ -291,8 +323,7 @@ export default function InventarioClient({
     setIsLoading(true);
 
     try {
-      // Implementar la lógica para eliminar de la base de datos
-      // Por ahora solo actualizamos la UI localmente
+      // Eliminar basándose en idOrden
       setInventarios(inventarios.filter((i) => !selectedItems.includes(i.idOrden)));
       setSelectedItems([]);
       addNotification(`${selectedItems.length} item(s) eliminados correctamente`, "success");
@@ -317,8 +348,6 @@ export default function InventarioClient({
   }
 
   return (
-    // La clase h-[calc(100vh-8rem)] asegura que el contenedor principal tenga una altura que se ajuste a la pantalla
-    // restando aproximadamente el espacio del header y footer
     <div className="p-6 h-[calc(100vh-8rem)] flex flex-col">
       {/* Notificaciones */}
       {notificationComponents}
@@ -332,13 +361,13 @@ export default function InventarioClient({
         onClose={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
       />
 
-      {/* Encabezado - Reducimos el margen inferior */}
+      {/* Encabezado */}
       <div className="mb-4">
         <h1 className="text-3xl font-bold">Inventario</h1>
         <h2 className="text-xl text-gray-400">Departamento {departamento}</h2>
       </div>
 
-      {/* Filtros y búsqueda - Reducimos el margen inferior */}
+      {/* Filtros y búsqueda */}
       <div className="mb-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="relative">
           <input
@@ -358,7 +387,7 @@ export default function InventarioClient({
             value={filterDepartamento}
             onChange={(e) => setFilterDepartamento(e.target.value)}
             className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10"
-            disabled={userRole === "Jefe de Departamento"} // Deshabilitar si es jefe de departamento
+            disabled={userRole === "Jefe de Departamento"}
           >
             <option value="">Todos los departamentos</option>
             {departamentos.map((departamento) => (
@@ -412,12 +441,12 @@ export default function InventarioClient({
         </div>
       </div>
 
-      {/* Indicador de resultados - Reducimos el margen inferior */}
+      {/* Indicador de resultados */}
       <div className="mb-2 text-sm text-gray-500">
-        Mostrando {filteredInventarios.length} de {inventarios.length} items
+        Mostrando {filteredInventarios.length} de {uniqueInventarios.length} items únicos
       </div>
 
-      {/* Tabla de inventario - Usamos flex-grow para que ocupe el espacio disponible */}
+      {/* Tabla de inventario */}
       <div className="border border-gray-200 rounded-lg overflow-hidden flex-grow">
         <div className="h-full overflow-y-auto">
           <table className="w-full">
@@ -448,7 +477,8 @@ export default function InventarioClient({
               {filteredInventarios.length > 0 ? (
                 filteredInventarios.map((item) => (
                   <tr
-                    key={item.idOrden}
+                    // Usar _reactKey que garantiza unicidad absoluta
+                    key={item._reactKey}
                     className={`border-t border-gray-200 cursor-pointer hover:bg-gray-50 ${
                       selectedItems.includes(item.idOrden) ? "bg-red-50 hover:bg-red-100" : ""
                     }`}
@@ -499,7 +529,7 @@ export default function InventarioClient({
         </div>
       </div>
 
-      {/* Botones de acción - Reducimos el margen inferior y superior */}
+      {/* Botones de acción */}
       <div className="flex justify-end mt-4">
         <Button
           onClick={handleEliminarItems}
@@ -590,7 +620,7 @@ export default function InventarioClient({
                     value={formularioItem.departamento}
                     onChange={handleInputChange}
                     className="appearance-none border border-gray-300 rounded px-3 py-2 w-full pr-8 text-gray-500"
-                    disabled={userRole === "Jefe de Departamento"} // Deshabilitar si es jefe de departamento
+                    disabled={userRole === "Jefe de Departamento"}
                   >
                     <option value="">Seleccionar departamento</option>
                     {departamentos.map((departamento) => (
@@ -614,11 +644,12 @@ export default function InventarioClient({
                     className="appearance-none border border-gray-300 rounded px-3 py-2 w-full pr-8 text-gray-500"
                   >
                     <option value="">Seleccionar proveedor</option>
-                    {proveedores.map((proveedor) => (
-                      <option key={proveedor.idProveedor} value={proveedor.Nombre}>
+                    {proveedores.map((proveedor, index) => (
+                      <option key={`proveedor-${proveedor.idProveedor}-${index}-${proveedor.Nombre}`} value={proveedor.Nombre}>
                         {proveedor.Nombre}
                       </option>
                     ))}
+
                   </select>
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                     <ChevronDown className="w-4 h-4 text-gray-500" />
