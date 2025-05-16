@@ -169,10 +169,10 @@ export default function ResumenClient({
                         {/* Gasto acumulado anual */}
                         <div className="bg-white rounded-lg p-6 shadow-sm">
                             <h3 className="text-gray-500 mb-2 text-xl">Gasto en presupuesto acumulado</h3>
-                            <div className="text-4xl font-bold">
+                            <div className={`text-4xl font-bold ${gastoPresupuestoCalculado > 0 ? "text-red-600" : "text-gray-900"}`}>
                                 {gastoPresupuestoCalculado?.toLocaleString("es-ES", {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
                                 })} €
                             </div>
                         </div>
@@ -180,10 +180,10 @@ export default function ResumenClient({
                         {/* Inversión acumulada anual */}
                         <div className="bg-white rounded-lg p-6 shadow-sm">
                             <h3 className="text-gray-500 mb-2 text-xl">Inversión acumulada anual</h3>
-                            <div className="text-4xl font-bold">
+                            <div className={`text-4xl font-bold ${gastoInversion > 0 ? "text-red-600" : "text-gray-900"}`}>
                                 {gastoInversion?.toLocaleString("es-ES", {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
                                 })} €
                             </div>
                         </div>

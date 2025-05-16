@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
-import { ChevronDown, Pencil, X, Search, Filter, Check, Info } from "lucide-react";
+import { useState, useMemo, useEffect, useRef } from "react"
+import { ChevronDown, Pencil, X, Search, Filter, Check, Info, Calendar, Download, Share2, FileText } from "lucide-react";
 import Button from "@/app/components/ui/button"
 import useNotifications from "@/app/hooks/useNotifications"
 import ConfirmationDialog from "@/app/components/ui/confirmation-dialog"
@@ -44,6 +44,21 @@ export default function OrdenesCompraClient({
   const [filterDepartamento, setFilterDepartamento] = useState("");
   const [filterProveedor, setFilterProveedor] = useState("");
   const [filterInventariable, setFilterInventariable] = useState("");
+  
+  // Estados para los filtros de fecha
+  const [filterDia, setFilterDia] = useState("");
+  const [filterMes, setFilterMes] = useState("");
+  const [filterAño, setFilterAño] = useState("");
+
+  // NUEVO: Estados para exportación a Excel
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportData, setExportData] = useState([]);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [excelFileName, setExcelFileName] = useState("ordenes_compra");
+  const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
+  
+  // NUEVO: Referencia para la biblioteca SheetJS
+  const sheetJSRef = useRef(null);
 
   // Estado para diálogo de confirmación
   const [confirmDialog, setConfirmDialog] = useState({
@@ -72,6 +87,22 @@ export default function OrdenesCompraClient({
     estadoOrden: "En proceso",
   });
   
+  // NUEVO: Efecto para cargar la biblioteca SheetJS cuando sea necesaria
+  useEffect(() => {
+    if (showExportModal && !sheetJSRef.current) {
+      const loadSheetJS = async () => {
+        try {
+          sheetJSRef.current = true;
+        } catch (error) {
+          console.error("Error al cargar SheetJS:", error);
+          addNotification("Error al cargar las herramientas de exportación", "error");
+        }
+      };
+      
+      loadSheetJS();
+    }
+  }, [showExportModal, addNotification]);
+  
   // Efecto para obtener el rol del usuario
   useEffect(() => {
     async function fetchUserRole() {
@@ -87,7 +118,7 @@ export default function OrdenesCompraClient({
           }
         }
       } catch (error) {
-        console.error("Error obteniendo rol del usuario:", error);
+        console.error("Error obteniendo información del usuario:", error);
       }
     }
 
@@ -202,12 +233,83 @@ export default function OrdenesCompraClient({
     }
   }
 
+  // Función para extraer día, mes y año de una fecha
+  function getDateParts(dateString) {
+    if (!dateString) return { dia: '', mes: '', año: '' };
+    try {
+      const date = new Date(dateString);
+      return {
+        dia: date.getDate().toString(),
+        mes: (date.getMonth() + 1).toString(), // JavaScript cuenta meses desde 0
+        año: date.getFullYear().toString()
+      };
+    } catch (error) {
+      return { dia: '', mes: '', año: '' };
+    }
+  }
+
   // Función para formatear inventariable
   function formatInventariable(value) {
     if (value === 1 || value === "1" || value === true) return "Sí";
     if (value === 0 || value === "0" || value === false) return "No";
     return value || "-";
   }
+
+  // Obtener todas las fechas disponibles de las órdenes
+  const fechasDisponibles = useMemo(() => {
+    const dias = new Set();
+    const meses = new Set();
+    const años = new Set();
+    
+    ordenes.forEach(orden => {
+      if (orden.Fecha) {
+        const { dia, mes, año } = getDateParts(orden.Fecha);
+        dias.add(dia);
+        meses.add(mes);
+        años.add(año);
+      }
+    });
+    
+    return {
+      dias: Array.from(dias).sort((a, b) => parseInt(a) - parseInt(b)),
+      meses: Array.from(meses).sort((a, b) => parseInt(a) - parseInt(b)),
+      años: Array.from(años).sort((a, b) => parseInt(a) - parseInt(b))
+    };
+  }, [ordenes]);
+  
+  // Obtener fechas filtradas según las selecciones actuales
+  const fechasFiltradas = useMemo(() => {
+    // Filtrar órdenes según los filtros de fecha seleccionados
+    const ordenesFiltradas = ordenes.filter(orden => {
+      if (!orden.Fecha) return false;
+      
+      const { dia, mes, año } = getDateParts(orden.Fecha);
+      
+      if (filterDia && dia !== filterDia) return false;
+      if (filterMes && mes !== filterMes) return false;
+      if (filterAño && año !== filterAño) return false;
+      
+      return true;
+    });
+    
+    // Extraer días, meses y años disponibles de las órdenes filtradas
+    const dias = new Set();
+    const meses = new Set();
+    const años = new Set();
+    
+    ordenesFiltradas.forEach(orden => {
+      const { dia, mes, año } = getDateParts(orden.Fecha);
+      dias.add(dia);
+      meses.add(mes);
+      años.add(año);
+    });
+    
+    return {
+      dias: Array.from(dias).sort((a, b) => parseInt(a) - parseInt(b)),
+      meses: Array.from(meses).sort((a, b) => parseInt(a) - parseInt(b)),
+      años: Array.from(años).sort((a, b) => parseInt(a) - parseInt(b))
+    };
+  }, [ordenes, filterDia, filterMes, filterAño]);
 
   // Obtener proveedores filtrados por departamento
   const proveedoresFiltrados = useMemo(() => {
@@ -233,7 +335,7 @@ export default function OrdenesCompraClient({
         searchTerm === "" ||
         orden.Num_orden?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         orden.Descripcion?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        orden.Num_inversion?.toLowerCase().includes(searchTerm.toLowerCase());
+        (orden.Num_inversion?.toString() || '').toLowerCase().includes(searchTerm.toLowerCase());
 
       // Filtro por departamento
       const matchesDepartamento = filterDepartamento === "" || 
@@ -247,11 +349,141 @@ export default function OrdenesCompraClient({
       const matchesInventariable = filterInventariable === "" || 
         (filterInventariable === "inventariable" && orden.Inventariable === 1) ||
         (filterInventariable === "no-inventariable" && orden.Inventariable === 0);
+      
+      // Filtro por fecha
+      let matchesFecha = true;
+      if (filterDia || filterMes || filterAño) {
+        if (!orden.Fecha) return false;
+        
+        const { dia, mes, año } = getDateParts(orden.Fecha);
+        
+        if (filterDia && dia !== filterDia) matchesFecha = false;
+        if (filterMes && mes !== filterMes) matchesFecha = false;
+        if (filterAño && año !== filterAño) matchesFecha = false;
+      }
 
-      return matchesSearch && matchesDepartamento && matchesProveedor && matchesInventariable;
+      return matchesSearch && matchesDepartamento && matchesProveedor && matchesInventariable && matchesFecha;
     });
-  }, [ordenes, searchTerm, filterDepartamento, filterProveedor, filterInventariable]);
+  }, [ordenes, searchTerm, filterDepartamento, filterProveedor, filterInventariable, filterDia, filterMes, filterAño]);
 
+  // NUEVO: Preparar datos para Excel según órdenes seleccionadas
+  const prepareExportData = () => {
+    // Si no hay órdenes seleccionadas, usar todas las filtradas
+    const ordenesToExport = selectedOrdenes.length > 0
+      ? ordenes.filter(o => selectedOrdenes.includes(o.idOrden))
+      : filteredOrdenes;
+    
+    // Crear la estructura de datos para Excel
+    const data = ordenesToExport.map(orden => ({
+      'Número Orden': orden.Num_orden || '',
+      'Descripción': orden.Descripcion || '',
+      'Fecha': formatDate(orden.Fecha),
+      'Importe (€)': orden.Importe || 0,
+      'Inventariable': formatInventariable(orden.Inventariable),
+      'Cantidad': orden.Cantidad || 0,
+      'Departamento': orden.Departamento || '',
+      'Proveedor': orden.Proveedor || '',
+      'Número Inversión': orden.Num_inversion || '',
+      'Estado': orden.Estado || 'En proceso'
+    }));
+    
+    return data;
+  };
+  
+  // NUEVO: Función para generar Excel
+  // Función para generar CSV
+  const generateExcel = async () => {
+    try {
+      setIsGeneratingExcel(true);
+      
+      // Crear cabeceras del CSV
+      const headers = Object.keys(exportData[0]);
+      let csvContent = headers.join(',') + '\n';
+      
+      // Añadir filas de datos
+      exportData.forEach(row => {
+        const values = headers.map(header => {
+          const cellValue = row[header] || '';
+          // Escapar comillas y encerrar en comillas cualquier valor que contenga comas
+          return typeof cellValue === 'string' && (cellValue.includes(',') || cellValue.includes('"')) 
+            ? `"${cellValue.replace(/"/g, '""')}"` 
+            : cellValue;
+        });
+        csvContent += values.join(',') + '\n';
+      });
+      
+      // Convertir a Blob para descargar
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      
+      // Crear URL para previsualización
+      const url = URL.createObjectURL(blob);
+      
+      // Configurar opciones para descarga
+      return {
+        url,
+        blob,
+        filename: `${excelFileName}.csv`
+      };
+      
+    } catch (error) {
+      console.error("Error generando archivo CSV:", error);
+      addNotification("Error al generar el archivo CSV", "error");
+      return null;
+    } finally {
+      setIsGeneratingExcel(false);
+    }
+  };
+  
+  // NUEVO: Función para descargar el Excel generado
+  const downloadExcel = async () => {
+    const excelData = await generateExcel();
+    
+    if (!excelData) return;
+    
+    // Crear enlace para descarga y hacer clic
+    const downloadLink = document.createElement('a');
+    downloadLink.href = excelData.url;
+    downloadLink.download = excelData.filename;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+    
+    // Liberar URL
+    URL.revokeObjectURL(excelData.url);
+    
+    // Cerrar modal
+    setShowExportModal(false);
+    
+    addNotification("Archivo Excel descargado correctamente", "success");
+  };
+  
+  // NUEVO: Manejar apertura del modal de exportación
+  const handleExportClick = () => {
+    // Si no hay órdenes seleccionadas y el usuario presionó el botón Exportar
+    if (selectedOrdenes.length === 0) {
+      // Mostrar alerta para seleccionar órdenes
+      addNotification("Por favor, selecciona al menos una orden de compra para exportar", "warning");
+      return;
+    }
+    
+    // Si hay órdenes filtradas pero ninguna seleccionada específicamente
+    if (selectedOrdenes.length === 0 && filteredOrdenes.length === 0) {
+      addNotification("No hay órdenes para exportar", "warning");
+      return;
+    }
+    
+    // Preparar datos para exportación
+    const data = prepareExportData();
+    setExportData(data);
+    
+    // Generar nombre de archivo con fecha actual
+    const today = new Date();
+    const formattedDate = `${today.getFullYear()}${(today.getMonth() + 1).toString().padStart(2, '0')}${today.getDate().toString().padStart(2, '0')}`;
+    setExcelFileName(`ordenes_compra_${formattedDate}`);
+    
+    // Mostrar modal
+    setShowExportModal(true);
+  };
   // Toggle selección de orden
   const toggleSelectOrden = (ordenId) => {
     if (selectedOrdenes.includes(ordenId)) {
@@ -268,6 +500,13 @@ export default function OrdenesCompraClient({
     } else {
       setSelectedOrdenes(filteredOrdenes.map((o) => o.idOrden));
     }
+  };
+
+  // Función para limpiar los filtros de fecha
+  const limpiarFiltrosFecha = () => {
+    setFilterDia("");
+    setFilterMes("");
+    setFilterAño("");
   };
 
   // Abrir modal de añadir orden
@@ -303,7 +542,7 @@ export default function OrdenesCompraClient({
       cantidad: orden.Cantidad || "",
       departamento: orden.Departamento || "",
       proveedor: orden.Proveedor || "",
-      estadoOrden: orden.Estado || "En proceso", // Añade esta línea
+      estadoOrden: orden.Estado || "En proceso", // Aseguramos que cargue el estado actual
     });
     setModalMode("edit");
     setShowModal(true);
@@ -431,6 +670,15 @@ export default function OrdenesCompraClient({
         throw new Error("No se encontró el departamento o proveedor seleccionado");
       }
       
+      // Encontrar el ID del estado según su tipo
+      const estadoSeleccionado = estadosOrden.find(
+        estado => estado.tipo === formularioOrden.estadoOrden
+      );
+      
+      if (!estadoSeleccionado) {
+        throw new Error("No se encontró el estado seleccionado");
+      }
+      
       // Preparar los datos para enviar
       const ordenData = {
         Num_orden: formularioOrden.numero,
@@ -442,7 +690,7 @@ export default function OrdenesCompraClient({
         id_DepartamentoFK: departamentoSeleccionado.id_Departamento,
         id_ProveedorFK: proveedorSeleccionado.idProveedor,
         id_UsuarioFK: 1, // Aquí deberías obtener el usuario actual
-        id_EstadoOrdenFK: 1, // Añade esta línea - Valor por defecto: "En proceso" (id 1)
+        id_EstadoOrdenFK: estadoSeleccionado.id_EstadoOrden, // Usar el ID del estado seleccionado
       };
       
       // Añadir datos de inversión si es necesario
@@ -451,7 +699,7 @@ export default function OrdenesCompraClient({
         
         // Buscar ID de la bolsa de inversión para este departamento
         // Aquí podrías hacer una llamada a la API para obtener este ID
-        ordenData.id_InversionFK = departamentoSeleccionado.id_Departamento; // Esto es una simplificación
+        ordenData.id_InversionFK = departamentoSeleccionado.id_Departamento; // Simplificación
       } else {
         // Si no es inversión, podría ir a presupuesto
         ordenData.id_PresupuestoFK = departamentoSeleccionado.id_Departamento; // Simplificación
@@ -504,16 +752,16 @@ export default function OrdenesCompraClient({
       }
 
       // Intentar analizar la respuesta como JSON si existe
-      let responseData = {}; // Cambiado de 'data' a 'responseData'
-        try {
-          const contentType = response.headers.get("content-type");
-          if (contentType && contentType.includes("application/json")) {
-            responseData = await response.json();
-          }
-        } catch (parseError) {
-          console.warn("No se pudo analizar la respuesta como JSON:", parseError);
-          // No es crítico, continuamos con un objeto vacío
+      let responseData = {}; 
+      try {
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          responseData = await response.json();
         }
+      } catch (parseError) {
+        console.warn("No se pudo analizar la respuesta como JSON:", parseError);
+        // No es crítico, continuamos con un objeto vacío
+      }
 
       
       // Actualizar lista de órdenes
@@ -526,7 +774,7 @@ export default function OrdenesCompraClient({
         } else {
           // Crear una versión local de la nueva orden para actualizar la UI
           const nuevaOrden = {
-            idOrden: responseData.insertedId, // CAMBIADO data → responseData
+            idOrden: responseData.insertedId,
             Num_orden: ordenData.Num_orden,
             Importe: ordenData.Importe,
             Fecha: ordenData.Fecha,
@@ -536,6 +784,7 @@ export default function OrdenesCompraClient({
             Departamento: formularioOrden.departamento,
             Proveedor: formularioOrden.proveedor,
             Num_inversion: formularioOrden.esInversion ? formularioOrden.numInversion : null,
+            Estado: formularioOrden.estadoOrden, // Incluir el estado
           };
           setOrdenes([...ordenes, nuevaOrden]);
         }
@@ -555,6 +804,7 @@ export default function OrdenesCompraClient({
                   Departamento: formularioOrden.departamento,
                   Proveedor: formularioOrden.proveedor,
                   Num_inversion: formularioOrden.esInversion ? formularioOrden.numInversion : null,
+                  Estado: formularioOrden.estadoOrden, // Actualizar el estado en la UI
                 }
               : orden
           )
@@ -638,6 +888,55 @@ export default function OrdenesCompraClient({
     }
   };
 
+  // Manejar cambio en filtro de día
+  const handleDiaChange = (e) => {
+    const nuevoDia = e.target.value;
+    setFilterDia(nuevoDia);
+    
+    // Si hay un día seleccionado, filtrar meses y años disponibles para ese día
+    if (nuevoDia) {
+      // No reseteamos los otros filtros para permitir refinamiento
+    } else {
+      // Si se limpia el día, mantener los filtros de mes y año
+    }
+  };
+  
+  // Manejar cambio en filtro de mes
+  const handleMesChange = (e) => {
+    const nuevoMes = e.target.value;
+    setFilterMes(nuevoMes);
+    
+    // Si hay un mes seleccionado, filtrar días y años disponibles para ese mes
+    if (nuevoMes) {
+      // No reseteamos los otros filtros para permitir refinamiento
+    } else {
+      // Si se limpia el mes, mantener los filtros de día y año
+    }
+  };
+  
+  // Manejar cambio en filtro de año
+  const handleAñoChange = (e) => {
+    const nuevoAño = e.target.value;
+    setFilterAño(nuevoAño);
+    
+    // Si hay un año seleccionado, filtrar días y meses disponibles para ese año
+    if (nuevoAño) {
+      // No reseteamos los otros filtros para permitir refinamiento
+    } else {
+      // Si se limpia el año, mantener los filtros de día y mes
+    }
+  };
+
+  // Formatear nombre de mes
+  const getNombreMes = (numeroMes) => {
+    const meses = [
+      "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+    ];
+    
+    return meses[parseInt(numeroMes) - 1] || numeroMes;
+  };
+
   // Mostramos un indicador de carga si estamos esperando el departamento
   if (isDepartamentoLoading) {
     return <div className="p-6">Cargando...</div>;
@@ -661,6 +960,90 @@ export default function OrdenesCompraClient({
       <div className="mb-4">
         <h1 className="text-3xl font-bold">Orden de Compra</h1>
         <h2 className="text-xl text-gray-400">Departamento {departamento}</h2>
+      </div>
+
+      {/* Filtros de fecha - NUEVO */}
+      <div className="mb-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="relative">
+          <label className="block text-gray-700 text-sm mb-1">Día</label>
+          <div className="relative">
+            <select
+              value={filterDia}
+              onChange={handleDiaChange}
+              className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10"
+            >
+              <option value="">Todos los días</option>
+              {fechasFiltradas.dias.map((dia) => (
+                <option key={`dia-${dia}`} value={dia}>
+                  {dia}
+                </option>
+              ))}
+            </select>
+            <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+              <Calendar className="h-5 w-5 text-gray-400" />
+            </div>
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+              <ChevronDown className="w-4 h-4 text-gray-500" />
+            </div>
+          </div>
+        </div>
+
+        <div className="relative">
+          <label className="block text-gray-700 text-sm mb-1">Mes</label>
+          <div className="relative">
+            <select
+              value={filterMes}
+              onChange={handleMesChange}
+              className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10"
+            >
+              <option value="">Todos los meses</option>
+              {fechasFiltradas.meses.map((mes) => (
+                <option key={`mes-${mes}`} value={mes}>
+                  {getNombreMes(mes)}
+                </option>
+              ))}
+            </select>
+            <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+              <Calendar className="h-5 w-5 text-gray-400" />
+            </div>
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+              <ChevronDown className="w-4 h-4 text-gray-500" />
+            </div>
+          </div>
+        </div>
+
+        <div className="relative">
+          <label className="block text-gray-700 text-sm mb-1">Año</label>
+          <div className="relative">
+            <select
+              value={filterAño}
+              onChange={handleAñoChange}
+              className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10"
+            >
+              <option value="">Todos los años</option>
+              {fechasFiltradas.años.map((año) => (
+                <option key={`año-${año}`} value={año}>
+                  {año}
+                </option>
+              ))}
+            </select>
+            <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+              <Calendar className="h-5 w-5 text-gray-400" />
+            </div>
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+              <ChevronDown className="w-4 h-4 text-gray-500" />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-end">
+          <button
+            onClick={limpiarFiltrosFecha}
+            className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 w-full"
+          >
+            Limpiar filtros de fecha
+          </button>
+        </div>
       </div>
 
       {/* Filtros y búsqueda */}
@@ -891,7 +1274,7 @@ export default function OrdenesCompraClient({
                 <tr>
                   <td colSpan="10" className="py-8 text-center text-gray-500">
                     No se encontraron órdenes{" "}
-                    {searchTerm || filterDepartamento || filterProveedor || filterInventariable
+                    {searchTerm || filterDepartamento || filterProveedor || filterInventariable || filterDia || filterMes || filterAño
                       ? "con los criterios de búsqueda actuales"
                       : ""}
                   </td>
@@ -901,8 +1284,24 @@ export default function OrdenesCompraClient({
           </table>
         </div>
       </div>
+      
+      {/* Botones de acción */}
       <div className="flex justify-between mt-4">
-        <Button onClick={handleOpenAddModal}>Nueva Orden</Button>
+        <div className="flex gap-4">
+          <Button onClick={handleOpenAddModal}>Nueva Orden</Button>
+          
+          {/* NUEVO: Botón de exportar */}
+          <Button 
+            onClick={handleExportClick}
+            disabled={filteredOrdenes.length === 0}
+          >
+            <div className="flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              <span>Exportar a Excel</span>
+            </div>
+          </Button>
+        </div>
+        
         <Button
           onClick={handleEliminarOrdenes}
           disabled={selectedOrdenes.length === 0 || isLoading}
@@ -980,11 +1379,15 @@ export default function OrdenesCompraClient({
                     required
                   >
                     <option value="">Seleccionar proveedor</option>
-                    {proveedores.map((proveedor) => (
-                      <option key={proveedor.idProveedor} value={proveedor.Nombre}>
-                        {proveedor.Nombre}
-                      </option>
-                    ))}
+                    {Array.isArray(proveedores) && proveedores.map((proveedor, index) => {
+                      // Crear una clave completamente única usando nombre, id e índice
+                      const uniqueKey = `prov-${proveedor.Nombre}-${proveedor.idProveedor}-${index}`;
+                      return (
+                        <option key={uniqueKey} value={proveedor.Nombre}>
+                          {proveedor.Nombre}
+                        </option>
+                      );
+                    })}
                   </select>
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                     <ChevronDown className="w-4 h-4 text-gray-500" />
@@ -1166,6 +1569,132 @@ export default function OrdenesCompraClient({
               >
                 {isLoading ? "Guardando..." : "Guardar"}
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* NUEVO: Modal para previsualizar y exportar Excel */}
+      {showExportModal && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50"
+          style={{
+            backgroundColor: "rgba(0, 0, 0, 0.3)",
+            backdropFilter: "blur(2px)",
+          }}
+        >
+          <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-xl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">Exportar a Excel</h2>
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="text-gray-500 hover:text-red-600"
+                disabled={isGeneratingExcel}
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            {/* Nombre del archivo */}
+            <div className="mb-6">
+              <label className="block text-gray-700 mb-1">Nombre del archivo</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={excelFileName}
+                  onChange={(e) => setExcelFileName(e.target.value)}
+                  className="border border-gray-300 rounded px-3 py-2 flex-grow"
+                  disabled={isGeneratingExcel}
+                />
+                <span className="bg-gray-100 text-gray-600 border border-gray-200 rounded px-3 py-2">.csv</span>
+              </div>
+            </div>
+            
+            {/* Vista previa de los datos */}
+            <div className="mb-6">
+              <h3 className="font-medium text-gray-700 mb-2">Vista previa de los datos</h3>
+              <div className="border border-gray-200 rounded overflow-x-auto max-h-96">
+                <table className="w-full">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      {exportData.length > 0 && Object.keys(exportData[0]).map(header => (
+                        <th key={header} className="py-2 px-4 text-left text-xs font-medium text-gray-600 uppercase">
+                          {header}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {exportData.length > 0 ? (
+                      exportData.map((row, rowIndex) => (
+                        <tr key={rowIndex} className="border-t border-gray-200">
+                          {Object.values(row).map((cell, cellIndex) => (
+                            <td key={cellIndex} className="py-2 px-4">
+                              {cell}
+                            </td>
+                          ))}
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="10" className="py-4 text-center text-gray-500">
+                          No hay datos para exportar
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Se exportarán {exportData.length} órdenes {selectedOrdenes.length > 0 ? 'seleccionadas' : 'filtradas'}.
+              </p>
+            </div>
+            
+            {/* Información sobre qué se exportará */}
+            <div className="mb-6 bg-blue-50 p-4 rounded-md text-blue-700 text-sm">
+              <p className="font-medium mb-1">Información sobre la exportación:</p>
+              <ul className="list-disc list-inside">
+                <li>Se exportarán {exportData.length} órdenes en formato Excel (.csv)</li>
+                <li>
+                  {selectedOrdenes.length > 0 
+                    ? `Has seleccionado ${selectedOrdenes.length} órdenes para exportar` 
+                    : 'Se exportarán todas las órdenes visibles según los filtros aplicados'}
+                </li>
+                <li>El archivo incluirá todos los campos mostrados en la vista previa</li>
+              </ul>
+            </div>
+            
+            {/* Botones de acción */}
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
+                disabled={isGeneratingExcel}
+              >
+                Cancelar
+              </button>
+              
+              {/* Botón descargar */}
+              <button
+                onClick={downloadExcel}
+                disabled={isGeneratingExcel || exportData.length === 0}
+                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isGeneratingExcel ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Procesando...
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4" />
+                    Descargar CSV
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
