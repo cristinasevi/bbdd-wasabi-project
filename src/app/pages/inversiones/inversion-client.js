@@ -303,7 +303,7 @@ const inversionMensualDisponible = useMemo(() => {
               <select
                 value={departamento}
                 onChange={(e) => handleChangeDepartamento(e.target.value)}
-                className="appearance-none bg-gray-100 border border-gray-200 rounded-md px-4 py-2 pr-8"
+                className="appearance-none bg-gray-100 border border-gray-200 rounded-md px-4 py-2 pr-8 cursor-pointer"
               >
                 <option value="">Seleccionar departamento</option>
                 {initialDepartamentos.map((dep) => (
@@ -325,7 +325,7 @@ const inversionMensualDisponible = useMemo(() => {
             <select
               value={selectedMes}
               onChange={handleMesChange}
-              className="appearance-none bg-gray-100 border border-gray-200 rounded-md px-4 py-2 pr-8"
+              className="appearance-none bg-gray-100 border border-gray-200 rounded-md px-4 py-2 pr-8 cursor-pointer"
             >
               {availableMeses.map(mes => (
                 <option key={mes} value={mes}>{mes}</option>
@@ -341,7 +341,7 @@ const inversionMensualDisponible = useMemo(() => {
             <select
               value={selectedAño}
               onChange={handleAñoChange}
-              className="appearance-none bg-gray-100 border border-gray-200 rounded-md px-4 py-2 pr-8"
+              className="appearance-none bg-gray-100 border border-gray-200 rounded-md px-4 py-2 pr-8 cursor-pointer"
             >
               {availableAños.map(año => (
                 <option key={año} value={año}>{año}</option>

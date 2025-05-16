@@ -607,7 +607,7 @@ export default function ProveedoresClient({
           <select
             value={filterDepartamento}
             onChange={(e) => setFilterDepartamento(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10"
+            className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10 cursor-pointer"
             disabled={userRole === "Jefe de Departamento"} // Deshabilitar si es jefe de departamento
           >
             <option value="">Todos los departamentos</option>
@@ -691,13 +691,13 @@ export default function ProveedoresClient({
                         ))}
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-center">
+                    <td className="py-3 px-4 text-center cursor-pointer">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleOpenEditModal(proveedor);
                         }}
-                        className="text-gray-500 hover:text-red-600"
+                        className="text-gray-500 hover:text-red-600 cursor-pointer"
                       >
                         <Pencil className="w-5 h-5" />
                       </button>
@@ -752,7 +752,7 @@ export default function ProveedoresClient({
                 onClick={handleCloseModal}
                 className="text-gray-500 hover:text-red-600"
               >
-                <X className="w-6 h-6" />
+                <X className="w-6 h-6 cursor-pointer" />
               </button>
             </div>
 
@@ -851,7 +851,7 @@ export default function ProveedoresClient({
                   <button
                     type="button"
                     onClick={() => setShowDepartamentosSelector(!showDepartamentosSelector)}
-                    className="text-blue-600 hover:text-blue-800 text-sm flex items-center"
+                    className="text-blue-600 hover:text-blue-800 text-sm flex items-center cursor-pointer"
                     disabled={userRole === "Jefe de Departamento"} // Deshabilitar si es jefe de departamento
                   >
                     <Plus className="w-4 h-4 mr-1" />
@@ -872,7 +872,7 @@ export default function ProveedoresClient({
                             className="text-gray-500 hover:text-red-600"
                             disabled={userRole === "Jefe de Departamento" || dep === formularioProveedor.departamento}
                           >
-                            <X className="w-4 h-4" />
+                            <X className="w-4 h-4 cursor-pointer" />
                           </button>
                         </div>
                       ))}
@@ -924,7 +924,7 @@ export default function ProveedoresClient({
               <button
                 type="button"
                 onClick={handleCloseModal}
-                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
+                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100 cursor-pointer"
                 disabled={isLoading}
               >
                 Cancelar

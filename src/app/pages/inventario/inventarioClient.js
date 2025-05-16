@@ -461,9 +461,9 @@ export default function InventarioClient({
         <div className="flex justify-end">
         <button
           onClick={handleClearFilters}
-          className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 transition-colors flex items-center gap-2"
+          className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 transition-colors flex items-center gap-2 cursor-pointer"
         >
-          <X className="w-4 h-4" />
+          <X className="w-4 h-4 cursor-pointer" />
           Limpiar filtros
         </button>
         </div>

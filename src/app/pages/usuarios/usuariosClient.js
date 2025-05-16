@@ -575,7 +575,7 @@ export default function UsuariosClient({
                             e.stopPropagation(); // Evitar que se seleccione al editar
                             handleOpenEditModal(usuario);
                           }}
-                          className="text-gray-500 hover:text-red-600"
+                          className="text-gray-500 hover:text-red-600 cursor-pointer"
                         >
                           <Pencil className="w-5 h-5" />
                         </button>
@@ -630,7 +630,7 @@ export default function UsuariosClient({
                 onClick={handleCloseModal}
                 className="text-gray-500 hover:text-red-600"
               >
-                <X className="w-6 h-6" />
+                <X className="w-6 h-6 cursor-pointer" />
               </button>
             </div>
 
@@ -797,7 +797,7 @@ export default function UsuariosClient({
             <div className="flex justify-end gap-3">
               <button
                 onClick={handleCloseModal}
-                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
+                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100 cursor-pointer"
               >
                 Cancelar
               </button>
