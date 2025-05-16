@@ -5,12 +5,22 @@ import { ChevronDown, Pencil, X, Search, Filter } from "lucide-react";
 import Button from "@/app/components/ui/button";
 import useNotifications from "@/app/hooks/useNotifications";
 import ConfirmationDialog from "@/app/components/ui/confirmation-dialog";
+import useUserDepartamento from "@/app/hooks/useUserDepartamento";
+import { useRouter } from "next/navigation";
+import AccesoDenegado from "@/app/components/ui/acceso-denegado";
 
 export default function UsuariosClient({
   initialUsuarios,
   initialRoles,
   initialDepartamentos,
 }) {
+
+  const router = useRouter();
+  const { userRole, isAdmin, isLoading: isUserLoading } = useUserDepartamento();
+
+  // Hook de notificaciones
+  const { addNotification, notificationComponents } = useNotifications();
+
   // Estados principales
   const [usuarios, setUsuarios] = useState(initialUsuarios);
   const [roles] = useState(initialRoles);
@@ -33,9 +43,6 @@ export default function UsuariosClient({
     onConfirm: () => {},
   });
 
-  // Hook de notificaciones
-  const { addNotification, notificationComponents } = useNotifications();
-
   // Estado del formulario - COMPLETAMENTE SEPARADO del estado de búsqueda
   const [formularioUsuario, setFormularioUsuario] = useState({
     idUsuario: null,
@@ -50,6 +57,13 @@ export default function UsuariosClient({
     departamento: "",
     permisos: "",
   });
+
+  useEffect(() => {
+    if (!isUserLoading && userRole !== null && !isAdmin) {
+      // Redirigir a la página principal si no es administrador
+      router.push("/pages/home");
+    }
+  }, [isUserLoading, userRole, isAdmin, router]);
 
   // Filtrar usuarios según los criterios de búsqueda y filtrado
   const filteredUsuarios = useMemo(() => {

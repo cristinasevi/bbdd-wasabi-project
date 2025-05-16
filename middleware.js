@@ -10,6 +10,8 @@ export async function middleware(request) {
 
   const isLoginPage = request.nextUrl.pathname === "/"
   const isHomePage = request.nextUrl.pathname === "/pages/home"
+  const isUsersPage = request.nextUrl.pathname === "/pages/usuarios" || 
+                      request.nextUrl.pathname.startsWith("/pages/usuarios/")
 
   // Si el usuario no está autenticado y no está en la página de login, redirigir a login
   if (!token && !isLoginPage) {
@@ -19,6 +21,25 @@ export async function middleware(request) {
   // Si el usuario está autenticado y está en la página de login, redirigir a la página principal
   if (token && isLoginPage) {
     return NextResponse.redirect(new URL("/pages/home", request.url))
+  }
+
+  // Verificar el rol para la página de usuarios
+  if (token && isUsersPage) {
+    try {
+      // Hacer una petición a la API para obtener información del usuario
+      const userResponse = await fetch(new URL(`/api/getUsuarios/${token.id}`, request.url).toString())
+      
+      if (userResponse.ok) {
+        const userData = await userResponse.json()
+        
+        // Si no es Administrador, redirigir a la página principal
+        if (userData.Rol !== "Administrador") {
+          return NextResponse.redirect(new URL(`/pages/home`, request.url))
+        }
+      }
+    } catch (error) {
+      console.error("Error verificando rol de usuario:", error)
+    }
   }
 
   // Si es la página de inicio, verificar el rol del usuario

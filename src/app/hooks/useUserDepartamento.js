@@ -1,42 +1,40 @@
-"use client"
+'use client';
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function useUserDepartamento() {
-  const [departamento, setDepartamento] = useState("")
-  const [isLoading, setIsLoading] = useState(true)
+  const [departamento, setDepartamento] = useState('');
+  const [userRole, setUserRole] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
-    const getUserDepartamento = async () => {
+    async function fetchUserInfo() {
       try {
-        // Primero intentamos obtener del global
-        if (typeof window !== 'undefined' && window.userDepartamento) {
-          setDepartamento(window.userDepartamento)
-          setIsLoading(false)
-          return
-        }
-
-        // Si no está disponible, lo obtenemos de la API
-        const res = await fetch('/api/getSessionUser')
-        if (res.ok) {
-          const data = await res.json()
-          const userDept = data.usuario?.departamento || ''
-          setDepartamento(userDept)
+        const response = await fetch('/api/getSessionUser');
+        if (response.ok) {
+          const data = await response.json();
+          setDepartamento(data.usuario?.departamento || '');
+          setUserRole(data.usuario?.rol || '');
           
-          // Guardarlo globalmente para futuras referencias
-          if (typeof window !== 'undefined') {
-            window.userDepartamento = userDept
-          }
+          // Verificar si el usuario es administrador
+          const isUserAdmin = data.usuario?.rol === 'Administrador';
+          setIsAdmin(isUserAdmin);
+        } else {
+          // Si hay error en la sesión, redirigir al login
+          router.push('/');
         }
       } catch (error) {
-        console.error("Error obteniendo departamento del usuario:", error)
+        console.error('Error obteniendo información del usuario:', error);
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
     }
 
-    getUserDepartamento()
-  }, [])
+    fetchUserInfo();
+  }, [router]);
 
-  return { departamento, isLoading }
+  return { departamento, userRole, isAdmin, isLoading };
 }
