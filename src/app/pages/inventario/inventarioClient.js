@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
-import { ChevronDown, Pencil, X, Search, Filter } from "lucide-react"
+import { useState, useMemo, useEffect, useRef } from "react"
+import { ChevronDown, Pencil, X, Search, Filter, Download, FileText } from "lucide-react"
 import Button from "@/app/components/ui/button"
 import useNotifications from "@/app/hooks/useNotifications"
 import ConfirmationDialog from "@/app/components/ui/confirmation-dialog"
@@ -38,6 +38,14 @@ export default function InventarioClient({
   const [filterDepartamento, setFilterDepartamento] = useState("");
   const [filterProveedor, setFilterProveedor] = useState("");
   const [filterInventariable, setFilterInventariable] = useState("");
+
+  // NUEVO: Estados para exportación
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportData, setExportData] = useState([]);
+  const sheetJSRef = useRef(null); // NUEVO: Referencia para la biblioteca SheetJS
+  const [exportLoading, setExportLoading] = useState(false);
+  const [excelFileName, setExcelFileName] = useState("inventario");
+  const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
 
   // Estado para diálogo de confirmación
   const [confirmDialog, setConfirmDialog] = useState({
@@ -144,6 +152,149 @@ export default function InventarioClient({
   useMemo(() => {
     setFilterProveedor("");
   }, [filterDepartamento]);
+
+  // NUEVO: Preparar datos para exportación
+  const prepareExportData = () => {
+    // Si hay items seleccionados, usar esos; si no, usar todos los filtrados
+    const itemsToExport = selectedItems.length > 0
+      ? uniqueInventarios.filter(item => selectedItems.includes(item.idOrden))
+      : filteredInventarios;
+    
+    // Crear la estructura de datos para Excel/CSV
+    const data = itemsToExport.map(item => ({
+      'ID Orden': item.idOrden || '',
+      'Descripción': item.Descripcion || '',
+      'Proveedor': item.Proveedor || '',
+      'Departamento': item.Departamento || '',
+      'Cantidad': item.Cantidad || 0,
+      'Inventariable': formatInventariable(item.Inventariable),
+      'Fecha': formatDate(item.Fecha) || '',
+      'Importe': item.Importe || 0
+    }));
+    
+    return data;
+  };
+
+ // NUEVO: Efecto para cargar la biblioteca SheetJS cuando sea necesaria
+  useEffect(() => {
+    if (showExportModal && !sheetJSRef.current) {
+      const loadSheetJS = async () => {
+        try {
+          const XLSX = await import('xlsx');
+          sheetJSRef.current = XLSX;
+        } catch (error) {
+          console.error("Error al cargar SheetJS:", error);
+          addNotification("Error al cargar las herramientas de exportación", "error");
+        }
+      };
+      
+      loadSheetJS();
+    }
+  }, [showExportModal, addNotification]);
+
+  // NUEVO: Función para generar Excel
+  const generateExcel = async () => {
+    try {
+      setIsGeneratingExcel(true);
+      
+      // Verificar que SheetJS esté cargado
+      if (!sheetJSRef.current) {
+        throw new Error("SheetJS no está cargado");
+      }
+      
+      const XLSX = sheetJSRef.current;
+      
+      // Crear un nuevo libro de trabajo
+      const workbook = XLSX.utils.book_new();
+      
+      // Convertir los datos a una hoja de trabajo
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      
+      // Agregar la hoja al libro
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Inventario");
+      
+      // Configurar el ancho de las columnas para mejor visualización
+      const colWidths = Object.keys(exportData[0] || {}).map(key => ({
+        wch: Math.max(key.length, 15) // Ancho mínimo de 15 caracteres
+      }));
+      worksheet['!cols'] = colWidths;
+      
+      // Generar el archivo Excel
+      const excelBuffer = XLSX.write(workbook, { 
+        bookType: 'xlsx', 
+        type: 'array',
+        compression: true 
+      });
+      
+      // Convertir a Blob
+      const blob = new Blob([excelBuffer], { 
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      });
+      
+      // Crear URL para descarga
+      const url = URL.createObjectURL(blob);
+      
+      return {
+        url,
+        blob,
+        filename: `${excelFileName}.xlsx`
+      };
+      
+    } catch (error) {
+      console.error("Error generando archivo Excel:", error);
+      addNotification("Error al generar el archivo Excel", "error");
+      return null;
+    } finally {
+      setIsGeneratingExcel(false);
+    }
+  };
+
+  // NUEVO: Función para descargar el archivo Excel generado
+  const downloadExcel = async () => {
+    const excelData = await generateExcel();
+    
+    if (!excelData) return;
+    
+    // Crear enlace para descarga y hacer clic
+    const downloadLink = document.createElement('a');
+    downloadLink.href = excelData.url;
+    downloadLink.download = excelData.filename;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+    
+    // Liberar URL
+    URL.revokeObjectURL(excelData.url);
+    
+    // Cerrar modal
+    setShowExportModal(false);
+    
+    addNotification("Archivo Excel descargado correctamente", "success");
+  };
+
+  // NUEVO: Manejar apertura del modal de exportación
+  const handleExportClick = () => {
+    // Preparar datos para exportación
+    const data = prepareExportData();
+    
+    if (data.length === 0) {
+      addNotification("No hay datos para exportar", "warning");
+      return;
+    }
+    
+    setExportData(data);
+    
+    // Generar nombre de archivo con fecha actual
+    const today = new Date();
+    const formattedDate = `${today.getFullYear()}${(today.getMonth() + 1).toString().padStart(2, '0')}${today.getDate().toString().padStart(2, '0')}`;
+    
+    // Incluir departamento en el nombre si está aplicado el filtro
+    const depName = filterDepartamento ? `_${filterDepartamento}` : '';
+    setExcelFileName(`inventario${depName}_${formattedDate}`);
+    
+    // Mostrar modal
+    setShowExportModal(true);
+  };
 
   // Toggle selección de item
   const toggleSelectItem = (itemId) => {
@@ -303,43 +454,25 @@ export default function InventarioClient({
     }
   };
 
-  // Eliminar items seleccionados
-  const handleEliminarItems = () => {
-    if (selectedItems.length === 0) {
-      addNotification("Por favor, selecciona al menos un item para eliminar", "warning");
-      return;
-    }
-
-    setConfirmDialog({
-      isOpen: true,
-      title: "Confirmar eliminación",
-      message: `¿Estás seguro de que deseas eliminar ${selectedItems.length} item(s)? Esta acción no se puede deshacer.`,
-      onConfirm: confirmDeleteItems,
-    });
-  };
-
-  // Confirmar eliminación de items
-  const confirmDeleteItems = async () => {
-    setIsLoading(true);
-
-    try {
-      // Eliminar basándose en idOrden
-      setInventarios(inventarios.filter((i) => !selectedItems.includes(i.idOrden)));
-      setSelectedItems([]);
-      addNotification(`${selectedItems.length} item(s) eliminados correctamente`, "success");
-    } catch (error) {
-      console.error("Error al eliminar items:", error);
-      addNotification(`Error al eliminar items: ${error.message}`, "error");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   // Función para formatear el estado de inventariable
   function formatInventariable(value) {
     if (value === 1 || value === "1" || value === true) return "Sí";
     if (value === 0 || value === "0" || value === false) return "No";
     return value || "-";
+  }
+
+  // Función para formatear fechas
+  function formatDate(dateString) {
+    if (!dateString) return "-";
+    if (dateString instanceof Date) {
+      return dateString.toLocaleDateString();
+    }
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString();
+    } catch (error) {
+      return dateString;
+    }
   }
   
   // Mostramos un indicador de carga si estamos esperando el departamento
@@ -530,14 +663,18 @@ export default function InventarioClient({
       </div>
 
       {/* Botones de acción */}
-      <div className="flex justify-end mt-4">
+      <div className="flex justify-between mt-4">
+        
+        
+        {/* CAMBIADO: Botón de exportar en lugar de eliminar */}
         <Button
-          onClick={handleEliminarItems}
-          disabled={selectedItems.length === 0 || isLoading}
+          onClick={handleExportClick}
+          disabled={isLoading || filteredInventarios.length === 0}
         >
-          {isLoading
-            ? "Procesando..."
-            : `Eliminar ${selectedItems.length > 0 ? `(${selectedItems.length})` : ""}`}
+          <div className="flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            <span>Exportar</span>
+          </div>
         </Button>
       </div>
 
@@ -635,44 +772,170 @@ export default function InventarioClient({
                 </div>
               </div>
               <div>
-                <label className="block text-gray-700 mb-1">Proveedor</label>
-                <div className="relative">
-                  <select
-                    name="proveedor"
-                    value={formularioItem.proveedor}
-                    onChange={handleInputChange}
-                    className="appearance-none border border-gray-300 rounded px-3 py-2 w-full pr-8 text-gray-500"
-                  >
-                    <option value="">Seleccionar proveedor</option>
-                    {proveedores.map((proveedor, index) => (
-                      <option key={`proveedor-${proveedor.idProveedor}-${index}-${proveedor.Nombre}`} value={proveedor.Nombre}>
-                        {proveedor.Nombre}
-                      </option>
-                    ))}
-
-                  </select>
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                    <ChevronDown className="w-4 h-4 text-gray-500" />
+                  <label className="block text-gray-700 mb-1">Proveedor</label>
+                  <div className="relative">
+                    <select
+                      name="proveedor"
+                      value={formularioItem.proveedor}
+                      onChange={handleInputChange}
+                      className="appearance-none border border-gray-300 rounded px-3 py-2 w-full pr-8 text-gray-500"
+                    >
+                      <option value="">Seleccionar proveedor</option>
+                      {proveedores.map((proveedor, index) => (
+                        <option key={`${proveedor.idProveedor}-${index}`} value={proveedor.Nombre}>
+                          {proveedor.Nombre}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                      <ChevronDown className="w-4 h-4 text-gray-500" />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Botones del formulario */}
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={handleCloseModal}
-                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
-              >
-                Cancelar
-              </button>
-              <Button onClick={handleGuardarItem} disabled={isLoading}>
-                {isLoading ? "Guardando..." : "Guardar"}
-              </Button>
+              {/* Botones del formulario */}
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={handleCloseModal}
+                  className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
+                >
+                  Cancelar
+                </button>
+                <Button onClick={handleGuardarItem} disabled={isLoading}>
+                  {isLoading ? "Guardando..." : "Guardar"}
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
-  );
-}
+        )}
+
+        {/* NUEVO: Modal para previsualizar y exportar Excel */}
+        {showExportModal && (
+          <div
+            className="fixed inset-0 flex items-center justify-center z-50"
+            style={{
+              backgroundColor: "rgba(0, 0, 0, 0.3)",
+              backdropFilter: "blur(2px)",
+            }}
+          >
+            <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-xl">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">Exportar</h2>
+                <button
+                  onClick={() => setShowExportModal(false)}
+                  className="text-gray-500 hover:text-red-600"
+                  disabled={isGeneratingExcel}
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              
+              {/* Nombre del archivo */}
+              <div className="mb-6">
+                <label className="block text-gray-700 mb-1">Nombre del archivo</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={excelFileName}
+                    onChange={(e) => setExcelFileName(e.target.value)}
+                    className="border border-gray-300 rounded px-3 py-2 flex-grow"
+                    disabled={isGeneratingExcel}
+                  />
+                  <span className="bg-gray-100 text-gray-600 border border-gray-200 rounded px-3 py-2">.xlsx</span>
+                </div>
+              </div>
+              
+              {/* Vista previa de los datos */}
+              <div className="mb-6">
+                <h3 className="font-medium text-gray-700 mb-2">Vista previa de los datos</h3>
+                <div className="border border-gray-200 rounded overflow-x-auto max-h-96">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr>
+                        {exportData.length > 0 && Object.keys(exportData[0]).map(header => (
+                          <th key={header} className="py-2 px-4 text-left text-xs font-medium text-gray-600 uppercase">
+                            {header}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {exportData.length > 0 ? (
+                        exportData.map((row, rowIndex) => (
+                          <tr key={rowIndex} className="border-t border-gray-200">
+                            {Object.values(row).map((cell, cellIndex) => (
+                              <td key={cellIndex} className="py-2 px-4">
+                                {cell}
+                              </td>
+                            ))}
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan="8" className="py-4 text-center text-gray-500">
+                            No hay datos para exportar
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Se exportarán {exportData.length} items {selectedItems.length > 0 ? 'seleccionados' : 'filtrados'}.
+                </p>
+              </div>
+              
+              {/* Información sobre qué se exportará */}
+              <div className="mb-6 bg-blue-50 p-4 rounded-md text-blue-700 text-sm">
+                <p className="font-medium mb-1">Información sobre la exportación:</p>
+                <ul className="list-disc list-inside">
+                  <li>Se exportarán {exportData.length} items en formato XLSX</li>
+                  <li>Las columnas se ajustarán automáticamente para mejor visualización</li>
+                  <li>
+                    {selectedItems.length > 0 
+                      ? `Has seleccionado ${selectedItems.length} items para exportar` 
+                      : 'Se exportarán todos los items visibles según los filtros aplicados'}
+                  </li>
+                  <li>El archivo incluirá todos los campos mostrados en la vista previa</li>
+                </ul>
+              </div>
+              
+              {/* Botones de acción */}
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowExportModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
+                  disabled={isGeneratingExcel}
+                >
+                  Cancelar
+                </button>
+                
+                {/* Botón descargar */}
+                <button
+                  onClick={downloadExcel}
+                  disabled={isGeneratingExcel || exportData.length === 0}
+                  className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isGeneratingExcel ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Procesando...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      Descargar Excel
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
