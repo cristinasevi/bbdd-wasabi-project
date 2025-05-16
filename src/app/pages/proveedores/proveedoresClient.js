@@ -16,7 +16,7 @@ export default function ProveedoresClient({
   const [userRole, setUserRole] = useState(null); // Añadimos estado para el rol
   
   // Estados principales
-  const [proveedores, setProveedores] = useState(initialProveedores);
+  const [proveedores, setProveedores] = useState([]);
   const [departamentos] = useState(initialDepartamentos);
   const [selectedProveedores, setSelectedProveedores] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -50,6 +50,38 @@ export default function ProveedoresClient({
     
     fetchUserRole();
   }, [departamento]);
+  
+  // Procesamiento para eliminar duplicados de proveedores y agrupar sus departamentos
+  useEffect(() => {
+    if (initialProveedores && initialProveedores.length > 0) {
+      // Crear un mapa para agrupar proveedores por ID
+      const proveedoresMap = new Map();
+      
+      initialProveedores.forEach(proveedor => {
+        const id = proveedor.idProveedor;
+        
+        if (!proveedoresMap.has(id)) {
+          // Si es la primera vez que vemos este proveedor, lo añadimos con un array de departamentos
+          proveedoresMap.set(id, {
+            ...proveedor,
+            Departamentos: [proveedor.Departamento]
+          });
+        } else {
+          // Si ya existe, añadimos el departamento al array si no está ya
+          const proveedorExistente = proveedoresMap.get(id);
+          if (!proveedorExistente.Departamentos.includes(proveedor.Departamento)) {
+            proveedorExistente.Departamentos.push(proveedor.Departamento);
+          }
+        }
+      });
+      
+      // Convertir el mapa a un array de proveedores sin duplicados
+      const proveedoresUnicos = Array.from(proveedoresMap.values());
+      setProveedores(proveedoresUnicos);
+    } else {
+      setProveedores([]);
+    }
+  }, [initialProveedores]);
 
   // Estado para diálogo de confirmación
   const [confirmDialog, setConfirmDialog] = useState({
@@ -71,6 +103,7 @@ export default function ProveedoresClient({
     telefono: "",
     email: "",
     departamento: "",
+    departamentos: []
   });
 
   // Filtrar proveedores según los criterios de búsqueda y filtrado
@@ -83,9 +116,10 @@ export default function ProveedoresClient({
         (proveedor.NIF && proveedor.NIF.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (proveedor.Email && proveedor.Email.toLowerCase().includes(searchTerm.toLowerCase()));
 
-      // Filtro por departamento
+      // Filtro por departamento (ahora busca en el array de departamentos)
       const matchesDepartamento =
-        filterDepartamento === "" || proveedor.Departamento === filterDepartamento;
+        filterDepartamento === "" || 
+        (proveedor.Departamentos && proveedor.Departamentos.includes(filterDepartamento));
 
       return matchesSearch && matchesDepartamento;
     });
@@ -117,7 +151,8 @@ export default function ProveedoresClient({
     if (userRole === "Jefe de Departamento" && departamento) {
       setFormularioProveedor(prev => ({
         ...prev,
-        departamento: departamento
+        departamento: departamento,
+        departamentos: [departamento]
       }));
     }
     
@@ -127,6 +162,11 @@ export default function ProveedoresClient({
 
   // Abrir modal de editar proveedor
   const handleOpenEditModal = (proveedor) => {
+    // Elegimos el primer departamento como el principal (para compatibilidad con la API)
+    const departamentoPrincipal = proveedor.Departamentos && proveedor.Departamentos.length > 0 
+      ? proveedor.Departamentos[0] 
+      : "";
+      
     setFormularioProveedor({
       idProveedor: proveedor.idProveedor,
       nombre: proveedor.Nombre || "",
@@ -134,7 +174,8 @@ export default function ProveedoresClient({
       direccion: proveedor.Direccion || "",
       telefono: proveedor.Telefono || "",
       email: proveedor.Email || "",
-      departamento: proveedor.Departamento || "",
+      departamento: departamentoPrincipal,
+      departamentos: proveedor.Departamentos || []
     });
     setModalMode("edit");
     setShowModal(true);
@@ -156,6 +197,7 @@ export default function ProveedoresClient({
       telefono: "",
       email: "",
       departamento: "",
+      departamentos: []
     });
     setFormError("");
   };
@@ -163,10 +205,21 @@ export default function ProveedoresClient({
   // Manejar cambios en el formulario
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormularioProveedor({
-      ...formularioProveedor,
-      [name]: value,
-    });
+    
+    // Si cambia el departamento, también actualizamos el array de departamentos
+    if (name === "departamento") {
+      setFormularioProveedor({
+        ...formularioProveedor,
+        [name]: value,
+        // En modo edición, mantenemos los departamentos existentes, en modo añadir solo el seleccionado
+        departamentos: modalMode === "add" ? [value] : [value, ...formularioProveedor.departamentos.filter(dep => dep !== value)]
+      });
+    } else {
+      setFormularioProveedor({
+        ...formularioProveedor,
+        [name]: value,
+      });
+    }
   };
 
   // Validar formulario
@@ -233,7 +286,27 @@ export default function ProveedoresClient({
       if (response?.ok) {
         // Actualizar lista de proveedores
         const updatedProveedores = await fetch("/api/getProveedores").then((res) => res.json());
-        setProveedores(updatedProveedores);
+        
+        // Procesar los proveedores actualizados para eliminar duplicados
+        const proveedoresMap = new Map();
+        
+        updatedProveedores.forEach(proveedor => {
+          const id = proveedor.idProveedor;
+          
+          if (!proveedoresMap.has(id)) {
+            proveedoresMap.set(id, {
+              ...proveedor,
+              Departamentos: [proveedor.Departamento]
+            });
+          } else {
+            const proveedorExistente = proveedoresMap.get(id);
+            if (!proveedorExistente.Departamentos.includes(proveedor.Departamento)) {
+              proveedorExistente.Departamentos.push(proveedor.Departamento);
+            }
+          }
+        });
+        
+        setProveedores(Array.from(proveedoresMap.values()));
 
         addNotification(
           modalMode === "add"
@@ -393,7 +466,7 @@ export default function ProveedoresClient({
                 <th className="text-left py-3 px-4 font-medium text-gray-600">Dirección</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-600">Teléfono</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-600">Email</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600">Departamento</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600">Departamentos</th>
                 <th className="py-3 px-4 w-10"></th>
               </tr>
             </thead>
@@ -421,9 +494,13 @@ export default function ProveedoresClient({
                     <td className="py-3 px-4">{proveedor.Telefono}</td>
                     <td className="py-3 px-4">{proveedor.Email}</td>
                     <td className="py-3 px-4">
-                      <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full">
-                        {proveedor.Departamento}
-                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {proveedor.Departamentos && proveedor.Departamentos.map((dep, i) => (
+                          <span key={`${proveedor.idProveedor}-${dep}-${i}`} className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs">
+                            {dep}
+                          </span>
+                        ))}
+                      </div>
                     </td>
                     <td className="py-3 px-4 text-center">
                       <button
@@ -555,7 +632,7 @@ export default function ProveedoresClient({
                 />
               </div>
               <div>
-                <label className="block text-gray-700 mb-1">Departamento</label>
+                <label className="block text-gray-700 mb-1">Departamento Principal</label>
                 <div className="relative">
                   <select
                     name="departamento"
@@ -576,18 +653,41 @@ export default function ProveedoresClient({
                   </div>
                 </div>
               </div>
+              
+              {/* Si estamos en modo edición, mostramos los departamentos asociados */}
+              {modalMode === "edit" && (
+                <div className="md:col-span-2">
+                  <label className="block text-gray-700 mb-1">Departamentos Asociados</label>
+                  <div className="p-3 bg-gray-50 rounded border border-gray-200">
+                    <div className="flex flex-wrap gap-2">
+                      {formularioProveedor.departamentos && formularioProveedor.departamentos.map((dep, i) => (
+                        <span key={`dep-${i}`} className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-sm">
+                          {dep}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Nota: Para editar la relación principal, seleccione otro departamento en el campo anterior.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Botones del formulario */}
             <div className="flex justify-end gap-4">
               <button
-                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
+                type="button"
                 onClick={handleCloseModal}
+                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
                 disabled={isLoading}
               >
                 Cancelar
               </button>
-              <Button onClick={handleGuardarProveedor} disabled={isLoading}>
+              <Button
+                onClick={handleGuardarProveedor}
+                disabled={isLoading}
+              >
                 {isLoading ? "Guardando..." : "Guardar"}
               </Button>
             </div>
