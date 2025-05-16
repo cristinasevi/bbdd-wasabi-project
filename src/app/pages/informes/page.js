@@ -1,16 +1,19 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
-import { ChevronDown, FileText, Download, Share2, X } from "lucide-react"
+import { useState, useEffect, useRef, useMemo } from "react"
+import { ChevronDown, Calendar, Download, X, FileText } from "lucide-react"
 import useUserDepartamento from "@/app/hooks/useUserDepartamento"
 import useNotifications from "@/app/hooks/useNotifications"
 import Image from 'next/image'
+import Link from "next/link"
 
 export default function Informes() {
     const { departamento, isLoading: isDepartamentoLoading } = useUserDepartamento()
     const { addNotification, notificationComponents } = useNotifications()
     const [userRole, setUserRole] = useState(null)
     const [loading, setLoading] = useState(false)
+    const [ordenes, setOrdenes] = useState([])
+    const [isLoadingOrdenes, setIsLoadingOrdenes] = useState(true)
     
     // Referencias para las bibliotecas de PDF
     const jsPDFRef = useRef(null)
@@ -35,10 +38,6 @@ export default function Informes() {
         "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
     ];
 
-    // Se generan los años dinámicamente desde 2020 hasta hoy
-    const currentYear = new Date().getFullYear();
-    const años = Array.from({ length: currentYear - 2020 + 1 }, (_, i) => 2020 + i);
-    
     // Cargar bibliotecas PDF cuando se necesiten
     useEffect(() => {
         if (showInformeModal && !pdfLibsLoaded) {
@@ -63,6 +62,70 @@ export default function Informes() {
         }
     }, [showInformeModal, pdfLibsLoaded, addNotification]);
     
+    // Obtener órdenes de compra para determinar meses y años disponibles
+    useEffect(() => {
+        async function fetchOrdenes() {
+            if (!departamento) return;
+            
+            setIsLoadingOrdenes(true);
+            try {
+                // Primero intentar obtener las órdenes por departamento
+                let response = await fetch(`/api/getOrdenByDepartamento?id=${encodeURIComponent(departamento)}`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log("Órdenes cargadas:", data.length);
+                    
+                    // Verificar si hay datos en las órdenes obtenidas
+                    if (data && data.length > 0) {
+                        setOrdenes(data);
+                    } else {
+                        console.warn("No se encontraron órdenes para el departamento:", departamento);
+                        
+                        // Como alternativa, intentar obtener todas las órdenes
+                        response = await fetch('/api/getOrden');
+                        if (response.ok) {
+                            const allOrdenes = await response.json();
+                            console.log("Todas las órdenes cargadas:", allOrdenes.length);
+                            
+                            // Filtrar solo las órdenes del departamento
+                            const filteredOrdenes = allOrdenes.filter(
+                                orden => orden.Departamento === departamento
+                            );
+                            
+                            console.log("Órdenes filtradas para departamento:", filteredOrdenes.length);
+                            setOrdenes(filteredOrdenes);
+                        }
+                    }
+                } else {
+                    // Si falla, intentar obtener todas las órdenes y filtrar por departamento
+                    console.warn("Error al obtener órdenes específicas del departamento:", await response.text());
+                    
+                    response = await fetch('/api/getOrden');
+                    if (response.ok) {
+                        const allOrdenes = await response.json();
+                        
+                        // Filtrar solo las órdenes del departamento
+                        const filteredOrdenes = allOrdenes.filter(
+                            orden => orden.Departamento === departamento
+                        );
+                        
+                        console.log("Órdenes filtradas para departamento:", filteredOrdenes.length);
+                        setOrdenes(filteredOrdenes);
+                    }
+                }
+            } catch (error) {
+                console.error("Error obteniendo órdenes de compra:", error);
+                addNotification("Error al cargar órdenes de compra", "error");
+            } finally {
+                setIsLoadingOrdenes(false);
+            }
+        }
+        
+        fetchOrdenes();
+    }, [departamento, addNotification]);
+
+    
     // Obtener información del usuario
     useEffect(() => {
         async function fetchUserInfo() {
@@ -80,6 +143,128 @@ export default function Informes() {
         fetchUserInfo()
     }, [])
     
+    // Función para extraer mes y año de una fecha
+    const extraerFecha = (fechaString) => {
+        if (!fechaString) return { mes: null, ano: null };
+        
+        try {
+            // Intentar diferentes formatos de fecha
+            let fecha;
+            
+            // Si es un objeto Date
+            if (fechaString instanceof Date) {
+                fecha = fechaString;
+            } 
+            // Si es un string ISO
+            else if (typeof fechaString === 'string') {
+                // Verificar si el formato es yyyy-mm-dd
+                const isoMatch = fechaString.match(/(\d{4})-(\d{2})-(\d{2})/);
+                if (isoMatch) {
+                    fecha = new Date(fechaString);
+                } 
+                // Verificar si el formato es dd/mm/yyyy
+                else if (fechaString.includes('/')) {
+                    const parts = fechaString.split('/');
+                    if (parts.length === 3) {
+                        // Si el primer número parece un día (1-31)
+                        if (parseInt(parts[0]) <= 31) {
+                            fecha = new Date(parts[2], parts[1] - 1, parts[0]);
+                        } else {
+                            fecha = new Date(parts[0], parts[1] - 1, parts[2]);
+                        }
+                    }
+                } else {
+                    // Intentar el análisis estándar
+                    fecha = new Date(fechaString);
+                }
+            }
+            
+            // Verificar si la fecha es válida
+            if (isNaN(fecha.getTime())) {
+                console.warn("Fecha inválida:", fechaString);
+                return { mes: null, ano: null };
+            }
+            
+            return {
+                mes: meses[fecha.getMonth()],
+                ano: fecha.getFullYear().toString()
+            };
+        } catch (e) {
+            console.error("Error al procesar fecha:", e, fechaString);
+            return { mes: null, ano: null };
+        }
+    };
+    
+    // Obtener meses y años disponibles basados en las órdenes existentes
+    const { mesesDisponibles, anosDisponibles, combinacionesDisponibles } = useMemo(() => {
+        const mesSet = new Set();
+        const anoSet = new Set();
+        const combinaciones = new Map(); // Mapa para almacenar combinaciones mes-año
+        
+        if (ordenes && ordenes.length > 0) {
+            ordenes.forEach(orden => {
+                if (orden.Fecha) {
+                    const { mes, ano } = extraerFecha(orden.Fecha);
+                    
+                    if (mes && ano) {
+                        mesSet.add(mes);
+                        anoSet.add(ano);
+                        
+                        // Almacenar combinaciones válidas de mes-año
+                        if (!combinaciones.has(mes)) {
+                            combinaciones.set(mes, new Set());
+                        }
+                        combinaciones.get(mes).add(ano);
+                    }
+                }
+            });
+        }
+        
+        // Convertir a arrays y ordenar
+        const mesesOrdenados = Array.from(mesSet).sort((a, b) => 
+            meses.indexOf(a) - meses.indexOf(b)
+        );
+        
+        const anosOrdenados = Array.from(anoSet).sort();
+        
+        return { 
+            mesesDisponibles: mesesOrdenados, 
+            anosDisponibles: anosOrdenados,
+            combinacionesDisponibles: combinaciones
+        };
+    }, [ordenes, meses]);
+    
+    // Agregar esto después del final del useMemo de combinacionesDisponibles
+    const hayDatosDisponibles = useMemo(() => {
+        return mesesDisponibles.length > 0 && anosDisponibles.length > 0;
+    }, [mesesDisponibles, anosDisponibles]);
+    // Filtrar años disponibles según el mes seleccionado
+    const anosFiltrados = useMemo(() => {
+        if (!mes) return anosDisponibles;
+        
+        // Si hay un mes seleccionado, mostrar solo los años que tienen datos para ese mes
+        if (combinacionesDisponibles.has(mes)) {
+            return Array.from(combinacionesDisponibles.get(mes)).sort();
+        }
+        
+        return [];
+    }, [mes, anosDisponibles, combinacionesDisponibles]);
+    
+    // Filtrar meses disponibles según el año seleccionado
+    const mesesFiltrados = useMemo(() => {
+        if (!ano) return mesesDisponibles;
+        
+        // Si hay un año seleccionado, mostrar solo los meses que tienen datos para ese año
+        const mesesDelAno = [];
+        combinacionesDisponibles.forEach((anos, mesKey) => {
+            if (anos.has(ano)) {
+                mesesDelAno.push(mesKey);
+            }
+        });
+        
+        return mesesDelAno.sort((a, b) => meses.indexOf(a) - meses.indexOf(b));
+    }, [ano, mesesDisponibles, combinacionesDisponibles, meses]);
+    
     // Función para generar el informe
     const handleGenerarInforme = async () => {
         // Validar que se haya seleccionado mes y año
@@ -88,43 +273,68 @@ export default function Informes() {
             return
         }
         
-        setGeneratingInforme(true)
+        // Verificar si hay datos para la combinación de mes y año seleccionada
+        let tieneOrdenes = false;
+        
+        if (combinacionesDisponibles.has(mes)) {
+            tieneOrdenes = combinacionesDisponibles.get(mes).has(ano);
+        }
+        
+        if (!tieneOrdenes) {
+            addNotification("No hay datos disponibles para el periodo seleccionado", "warning");
+            return;
+        }
+        
+        setGeneratingInforme(true);
         
         try {
-            // En una implementación real, aquí se haría una llamada a la API
-            // Por ahora, simularemos que obtenemos datos para el mes y año seleccionados
+            // Filtrar órdenes para el mes y año seleccionados
+            const mesIndex = meses.indexOf(mes);
+            const ordenesDelPeriodo = ordenes.filter(orden => {
+                if (!orden.Fecha) return false;
+                
+                const fecha = new Date(orden.Fecha);
+                return fecha.getMonth() === mesIndex && fecha.getFullYear().toString() === ano;
+            });
             
-            // Simular un retraso para mostrar el estado de carga
-            await new Promise(resolve => setTimeout(resolve, 1500))
+            // Calcular totales
+            const totalGastado = ordenesDelPeriodo.reduce((total, orden) => total + parseFloat(orden.Importe || 0), 0);
             
-            // Simular datos de informe
+            // Obtener datos de presupuesto e inversión mediante consultas adicionales
+            // Estos valores serían idealmente obtenidos del backend, pero para mantener la simulación:
+            const presupuestoTotal = Math.floor(Math.random() * 30000) + 20000;
+            const presupuestoGastado = Math.min(totalGastado, presupuestoTotal);
+            const inversionTotal = Math.floor(Math.random() * 20000) + 10000;
+            const inversionGastada = Math.floor(Math.random() * 15000);
+            
+            // Generar datos de informe basados en órdenes reales
             const simulatedData = {
                 titulo: `Informe de ${mes} ${ano}`,
                 departamento: departamento || "Todos",
                 fechaGeneracion: new Date().toLocaleDateString(),
-                presupuestoTotal: Math.floor(Math.random() * 50000) + 20000,
-                presupuestoGastado: Math.floor(Math.random() * 40000),
-                inversionTotal: Math.floor(Math.random() * 30000) + 10000,
-                inversionGastada: Math.floor(Math.random() * 20000),
-                ordenes: Array.from({ length: 5 }, (_, i) => ({
-                    id: i + 1,
-                    numero: `${departamento?.substring(0, 4).toUpperCase() || 'ORD'}/${String(i + 1).padStart(3, '0')}/${ano.toString().substring(2)}/1`,
-                    importe: Math.floor(Math.random() * 2000) + 500,
-                    fecha: `${Math.floor(Math.random() * 28) + 1}/${meses.indexOf(mes) + 1}/${ano}`,
-                    descripcion: `Compra de material ${i % 2 === 0 ? 'inventariable' : 'fungible'}`
+                presupuestoTotal: presupuestoTotal,
+                presupuestoGastado: presupuestoGastado,
+                inversionTotal: inversionTotal,
+                inversionGastada: inversionGastada,
+                ordenes: ordenesDelPeriodo.map((orden, i) => ({
+                    id: orden.idOrden || i + 1,
+                    numero: orden.Num_orden || `ORD/${String(i + 1).padStart(3, '0')}/${ano.toString().substring(2)}/1`,
+                    importe: parseFloat(orden.Importe) || 0,
+                    fecha: orden.Fecha ? new Date(orden.Fecha).toLocaleDateString() : `${Math.floor(Math.random() * 28) + 1}/${mesIndex + 1}/${ano}`,
+                    descripcion: orden.Descripcion || `Compra de material ${i % 2 === 0 ? 'inventariable' : 'fungible'}`
                 }))
-            }
+            };
             
-            setInformeData(simulatedData)
-            setShowInformeModal(true)
+            setInformeData(simulatedData);
+            setShowInformeModal(true);
             
         } catch (error) {
-            console.error("Error generando informe:", error)
-            addNotification("Error al generar el informe. Inténtalo de nuevo.", "error")
+            console.error("Error generando informe:", error);
+            addNotification("Error al generar el informe. Inténtalo de nuevo.", "error");
         } finally {
-            setGeneratingInforme(false)
+            setGeneratingInforme(false);
         }
-    }
+    };
     
     // Función para convertir una imagen en base64
     const getBase64Image = async (imgUrl) => {
@@ -296,23 +506,6 @@ export default function Informes() {
         }
     };
     
-    // Función para compartir el informe
-    const handleCompartirInforme = () => {
-        // Si la API web Share está disponible, usarla
-        if (navigator.share) {
-            navigator.share({
-                title: informeData?.titulo,
-                text: `Informe financiero de ${mes} ${ano} para ${informeData?.departamento}`,
-                // En una implementación real, aquí iría la URL del informe
-                // url: 'https://tu-dominio.com/informes/compartido/123',
-            })
-            .then(() => addNotification("Informe compartido correctamente", "success"))
-            .catch((error) => console.error("Error compartiendo:", error));
-        } else {
-            addNotification("La función de compartir no está disponible en este navegador", "info");
-        }
-    }
-    
     if (isDepartamentoLoading) {
         return <div className="p-6">Cargando...</div>
     }
@@ -343,62 +536,133 @@ export default function Informes() {
                     </div>
             
                     <form className="space-y-6">
-                        <div>
-                            <label htmlFor="mes" className="block text-gray-700 mb-2">
-                                Mes
-                            </label>
-                            <select
-                                id="mes"
-                                value={mes}
-                                onChange={(e) => setMes(e.target.value)}
-                                className="w-full bg-white px-4 py-3 border border-gray-300 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                            >
-                                <option value="">Selecciona un mes</option>
-                                {meses.map((mes, index) => (
-                                    <option key={index} value={mes}>
-                                        {mes}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-            
-                        <div>
-                            <label htmlFor="año" className="block text-gray-700 mb-2">
-                                Año
-                            </label>
-                            <select
-                                id="año"
-                                value={ano}
-                                onChange={(e) => setAno(e.target.value)}
-                                className="w-full bg-white px-4 py-3 border border-gray-300 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                            >
-                                <option value="">Selecciona un año</option>
-                                {años.map((año) => (
-                                    <option key={año} value={año}>
-                                        {año}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-            
-                        <button
-                            type="button"
-                            onClick={handleGenerarInforme}
-                            disabled={generatingInforme}
-                            className="w-full bg-red-600 text-white py-3 rounded-md hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
-                        >
-                            {generatingInforme ? (
-                                <div className="flex items-center justify-center">
-                                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                    Generando informe...
+                        {/* Mostrar un mensaje si no hay datos disponibles */}
+                        {!isLoadingOrdenes && !hayDatosDisponibles ? (
+                            <div className="bg-yellow-50 p-4 rounded-md border border-yellow-200">
+                                <p className="text-yellow-700 mb-2 font-semibold">No hay datos de órdenes disponibles</p>
+                                <p className="text-sm text-yellow-600 mb-4">
+                                    No se encontraron órdenes de compra para el departamento seleccionado. 
+                                    Para generar informes, primero debe haber órdenes registradas.
+                                </p>
+                                
+                                <Link href="/pages/ordenes-compra">
+                                    <button
+                                        type="button"
+                                        className="w-full bg-yellow-600 text-white py-2 rounded-md hover:bg-yellow-700 transition-colors"
+                                    >
+                                        Ir a Órdenes de Compra
+                                    </button>
+                                </Link>
+                            </div>
+                        ) : (
+                            <>
+                                <div>
+                                    <label htmlFor="mes" className="block text-gray-700 mb-2">
+                                        Mes
+                                    </label>
+                                    <select
+                                        id="mes"
+                                        value={mes}
+                                        onChange={(e) => {
+                                            setMes(e.target.value);
+                                            // Si el año seleccionado no es válido para este mes, resetearlo
+                                            if (e.target.value && ano && 
+                                                combinacionesDisponibles.has(e.target.value) && 
+                                                !combinacionesDisponibles.get(e.target.value).has(ano)) {
+                                                setAno('');
+                                            }
+                                        }}
+                                        className={`w-full bg-white px-4 py-3 border border-gray-300 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 ${isLoadingOrdenes ? 'opacity-50' : ''}`}
+                                        disabled={isLoadingOrdenes || mesesFiltrados.length === 0}
+                                    >
+                                        <option value="">Selecciona un mes</option>
+                                        {mesesFiltrados.map((mesOpcion) => (
+                                            <option key={mesOpcion} value={mesOpcion}>
+                                                {mesOpcion}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {isLoadingOrdenes && (
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            Cargando datos disponibles...
+                                        </p>
+                                    )}
+                                    {!isLoadingOrdenes && mesesFiltrados.length === 0 && (
+                                        <p className="text-xs text-red-500 mt-1">
+                                            No hay meses con datos disponibles
+                                        </p>
+                                    )}
                                 </div>
-                            ) : (
-                                "Generar informe"
-                            )}
-                        </button>
+
+                                <div>
+                                    <label htmlFor="año" className="block text-gray-700 mb-2">
+                                        Año
+                                    </label>
+                                    <select
+                                        id="año"
+                                        value={ano}
+                                        onChange={(e) => {
+                                            setAno(e.target.value);
+                                            // Si el mes seleccionado no es válido para este año, resetearlo
+                                            if (e.target.value && mes) {
+                                                let esValido = false;
+                                                
+                                                combinacionesDisponibles.forEach((anos, mesKey) => {
+                                                    if (mesKey === mes && anos.has(e.target.value)) {
+                                                        esValido = true;
+                                                    }
+                                                });
+                                                
+                                                if (!esValido) {
+                                                    setMes('');
+                                                }
+                                            }
+                                        }}
+                                        className={`w-full bg-white px-4 py-3 border border-gray-300 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 ${isLoadingOrdenes ? 'opacity-50' : ''}`}
+                                        disabled={isLoadingOrdenes || anosFiltrados.length === 0}
+                                    >
+                                        <option value="">Selecciona un año</option>
+                                        {anosFiltrados.map((anoOpcion) => (
+                                            <option key={anoOpcion} value={anoOpcion}>
+                                                {anoOpcion}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {!isLoadingOrdenes && anosFiltrados.length === 0 && (
+                                        <p className="text-xs text-red-500 mt-1">
+                                            No hay años con datos disponibles
+                                        </p>
+                                    )}
+                                </div>
+                                
+                                {/* Mensaje informativo */}
+                                {!isLoadingOrdenes && mesesDisponibles.length > 0 && (
+                                    <div className="text-xs text-gray-600 italic">
+                                        Solo se muestran periodos con datos disponibles.
+                                        Hay {mesesDisponibles.length} meses y {anosDisponibles.length} años disponibles.
+                                    </div>
+                                )}
+                        
+                                <button
+                                    type="button"
+                                    onClick={handleGenerarInforme}
+                                    disabled={generatingInforme || !mes || !ano || isLoadingOrdenes}
+                                    className="w-full bg-red-600 text-white py-3 rounded-md hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
+                                >
+                                    {generatingInforme ? (
+                                        <div className="flex items-center justify-center">
+                                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            Generando informe...
+                                        </div>
+                                    ) : (
+                                        "Generar informe"
+                                    )}
+                                </button>
+                            </>
+                        )}
                     </form>
                 </div>
             </div>
@@ -444,14 +708,7 @@ export default function Informes() {
                                     <p className="text-gray-600">Fecha generación: <span className="font-semibold">{informeData.fechaGeneracion}</span></p>
                                 </div>
                                 
-                                <div className="flex gap-3">
-                                    <button
-                                        onClick={handleCompartirInforme}
-                                        className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-                                    >
-                                        <Share2 className="w-4 h-4" />
-                                        Compartir
-                                    </button>
+                                <div className="flex justify-end">
                                     <button
                                         onClick={handleDescargarInforme}
                                         disabled={generatingPDF || !pdfLibsLoaded}
