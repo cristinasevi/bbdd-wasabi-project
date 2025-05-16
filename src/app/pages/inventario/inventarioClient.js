@@ -314,18 +314,15 @@ export default function InventarioClient({
     }
   };
 
-
-  // Limpiar el formulario
-  const limpiarFormulario = () => {
-    setFormularioItem({
-      idOrden: null,
-      descripcion: "",
-      proveedor: "",
-      departamento: "",
-      cantidad: "",
-      inventariable: "",
-    });
-    setFormError("");
+  // NUEVA: Función para limpiar todos los filtros
+  const handleClearFilters = () => {
+    setSearchTerm("");
+    setFilterDepartamento("");
+    setFilterProveedor("");
+    setFilterInventariable("");
+    
+    // Mostrar notificación opcional
+    addNotification("Filtros eliminados", "info");
   };
 
   // Manejar cambios en el formulario
@@ -337,87 +334,6 @@ export default function InventarioClient({
     });
   };
 
-  // Validar formulario
-  const validarFormulario = () => {
-    if (!formularioItem.descripcion) {
-      setFormError("Por favor, ingresa la descripción del item");
-      return false;
-    }
-    if (!formularioItem.cantidad) {
-      setFormError("Por favor, ingresa la cantidad");
-      return false;
-    }
-    if (!formularioItem.inventariable) {
-      setFormError("Por favor, indica si el item es inventariable");
-      return false;
-    }
-    if (!formularioItem.departamento) {
-      setFormError("Por favor, selecciona un departamento");
-      return false;
-    }
-    if (!formularioItem.proveedor) {
-      setFormError("Por favor, selecciona un proveedor");
-      return false;
-    }
-
-    setFormError("");
-    return true;
-  };
-
-  // Guardar item
-  const handleGuardarItem = async () => {
-    if (!validarFormulario()) return;
-
-    setIsLoading(true);
-
-    try {
-      if (modalMode === "add") {
-        const nuevoItem = {
-          idOrden: Date.now(), // ID temporal único
-          Descripcion: formularioItem.descripcion,
-          Proveedor: formularioItem.proveedor,
-          Departamento: formularioItem.departamento,
-          Cantidad: parseInt(formularioItem.cantidad),
-          Inventariable: formularioItem.inventariable === "Sí" ? 1 : 0,
-          // Crear _reactKey único para el nuevo item
-          _reactKey: `item-${Date.now()}-new-${Math.random().toString(36).substr(2, 9)}`
-        };
-        
-        setInventarios([...inventarios, nuevoItem]);
-      } else {
-        // Para edición, mantener la estructura existente pero actualizar los campos
-        setInventarios(
-          inventarios.map((item) =>
-            item._reactKey === formularioItem._reactKey
-              ? {
-                  ...item,
-                  Descripcion: formularioItem.descripcion,
-                  Proveedor: formularioItem.proveedor,
-                  Departamento: formularioItem.departamento,
-                  Cantidad: parseInt(formularioItem.cantidad),
-                  Inventariable: formularioItem.inventariable === "Sí" ? 1 : 0,
-                  // Mantener el _reactKey existente
-                  _reactKey: item._reactKey
-                }
-              : item
-          )
-        );
-      }
-
-      addNotification(
-        modalMode === "add" ? "Item añadido correctamente" : "Item actualizado correctamente",
-        "success"
-      );
-
-      handleCloseModal();
-    } catch (error) {
-      console.error("Error al guardar el item:", error);
-      addNotification(`Error al guardar el item: ${error.message}`, "error");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   // Función para formatear el estado de inventariable
   function formatInventariable(value) {
     if (value === 1 || value === "1" || value === true) return "Sí";
@@ -425,20 +341,6 @@ export default function InventarioClient({
     return value || "-";
   }
 
-  // Función para formatear fechas
-  function formatDate(dateString) {
-    if (!dateString) return "-";
-    if (dateString instanceof Date) {
-      return dateString.toLocaleDateString();
-    }
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString();
-    } catch (error) {
-      return dateString;
-    }
-  }
-  
   // Mostramos un indicador de carga si estamos esperando el departamento
   if (isDepartamentoLoading) {
     return <div className="p-6">Cargando...</div>;
@@ -465,7 +367,7 @@ export default function InventarioClient({
       </div>
 
       {/* Filtros y búsqueda */}
-      <div className="mb-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="mb-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="relative">
           <input
             type="text"
@@ -506,11 +408,9 @@ export default function InventarioClient({
             value={filterProveedor}
             onChange={(e) => setFilterProveedor(e.target.value)}
             className="w-full p-2 border border-gray-300 rounded-md appearance-none"
-            disabled={!filterDepartamento}
+            
           >
-            <option value="">
-              {filterDepartamento ? "Todos los proveedores" : "Selecciona departamento"}
-            </option>
+            <option value="">Selecciona Proveedor</option>
             {proveedoresFiltrados.map((proveedor, index) => (
               <option key={`${proveedor.idProveedor}-${index}`} value={proveedor.Nombre}>
                 {proveedor.Nombre}
@@ -536,7 +436,18 @@ export default function InventarioClient({
             <ChevronDown className="w-4 h-4 text-gray-500" />
           </div>
         </div>
+        <div className="flex justify-end">
+        <button
+          onClick={handleClearFilters}
+          className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 transition-colors flex items-center gap-2"
+        >
+          <X className="w-4 h-4" />
+          Limpiar filtros
+        </button>
+        </div>
       </div>
+      {/* NUEVA: Fila adicional con el botón de limpiar filtros */}
+      
 
       {/* Indicador de resultados */}
       <div className="mb-2 text-sm text-gray-500">
