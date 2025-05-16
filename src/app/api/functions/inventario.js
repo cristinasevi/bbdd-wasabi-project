@@ -1,6 +1,6 @@
 import { pool } from '@/app/api/lib/db';
 
-export async function getOrden() {
+export async function getInventarioConfirmado() {
   try {
     const [rows] = await pool.query(`
       SELECT
@@ -20,7 +20,8 @@ export async function getOrden() {
       JOIN Proveedor p ON p.idProveedor = o.id_ProveedorFK
       LEFT JOIN Orden_Inversion oi ON o.idOrden = oi.idOrden
       LEFT JOIN Estado_orden eo ON o.id_EstadoOrdenFK = eo.id_EstadoOrden
-      
+      WHERE eo.tipo = 'Confirmada'
+        
     `);
     return rows;
   } catch (error) {

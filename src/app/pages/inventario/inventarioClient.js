@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect, useRef } from "react"
-import { ChevronDown, Pencil, X, Search, Filter, Download, FileText } from "lucide-react"
+import { ChevronDown, X, Search, Filter, Download, FileText } from "lucide-react"
 import Button from "@/app/components/ui/button"
 import useNotifications from "@/app/hooks/useNotifications"
 import ConfirmationDialog from "@/app/components/ui/confirmation-dialog"
@@ -314,42 +314,6 @@ export default function InventarioClient({
     }
   };
 
-  // Abrir modal de añadir item
-  const handleOpenAddModal = () => {
-    limpiarFormulario();
-    
-    // Si es Jefe de Departamento, preseleccionamos su departamento
-    if (userRole === "Jefe de Departamento" && departamento) {
-      setFormularioItem(prev => ({
-        ...prev,
-        departamento: departamento
-      }));
-    }
-    
-    setModalMode("add");
-    setShowModal(true);
-  };
-
-  // Abrir modal de editar item
-  const handleOpenEditModal = (item) => {
-    setFormularioItem({
-      idOrden: item.idOrden,
-      _reactKey: item._reactKey, // Mantener el reactKey para edición
-      descripcion: item.Descripcion || "",
-      proveedor: item.Proveedor || "",
-      departamento: item.Departamento || "",
-      cantidad: item.Cantidad || "",
-      inventariable: item.Inventariable === 1 ? "Sí" : "No",
-    });
-    setModalMode("edit");
-    setShowModal(true);
-  };
-
-  // Cerrar modal
-  const handleCloseModal = () => {
-    setShowModal(false);
-    setFormError("");
-  };
 
   // Limpiar el formulario
   const limpiarFormulario = () => {
@@ -603,7 +567,7 @@ export default function InventarioClient({
                 <th className="text-left py-3 px-4 font-medium text-gray-600">Departamento</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-600">Cantidad</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-600">Inventariable</th>
-                <th className="py-3 px-4 w-10"></th>
+                
               </tr>
             </thead>
             <tbody>
@@ -634,17 +598,7 @@ export default function InventarioClient({
                     </td>
                     <td className="py-3 px-4">{item.Cantidad}</td>
                     <td className="py-3 px-4">{formatInventariable(item.Inventariable)}</td>
-                    <td className="py-3 px-4 text-center">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenEditModal(item);
-                        }}
-                        className="text-gray-500 hover:text-red-600"
-                      >
-                        <Pencil className="w-5 h-5" />
-                      </button>
-                    </td>
+                    
                   </tr>
                 ))
               ) : (
