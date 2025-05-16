@@ -91,6 +91,13 @@ export default function InventarioClient({
     fetchUserRole()
   }, [departamento])
 
+  // Efecto adicional para asegurar que el filtro se mantenga si es Jefe de Departamento
+  //useEffect(() => {
+    //if (userRole === "Jefe de Departamento" && departamento && filterDepartamento !== departamento) {
+      //setFilterDepartamento(departamento)
+    //}
+  //}, [userRole, departamento, filterDepartamento])
+  
   // Eliminamos duplicados basándose en idOrden pero manteniendo _reactKey únicos
   const uniqueInventarios = useMemo(() => {
     const seen = new Map();
@@ -317,10 +324,13 @@ export default function InventarioClient({
   // NUEVA: Función para limpiar todos los filtros
   const handleClearFilters = () => {
     setSearchTerm("");
-    setFilterDepartamento("");
     setFilterProveedor("");
     setFilterInventariable("");
     
+    // Si es Jefe de Departamento, mantener el filtro de su departamento
+    if (userRole !== "Jefe de Departamento") {
+      setFilterDepartamento("");
+    }
     // Mostrar notificación opcional
     addNotification("Filtros eliminados", "info");
   };
@@ -340,7 +350,19 @@ export default function InventarioClient({
     if (value === 0 || value === "0" || value === false) return "No";
     return value || "-";
   }
-
+  function formatDate(dateString) {
+    if (!dateString) return "-";
+    
+    if (dateString instanceof Date) {
+      return dateString.toLocaleDateString();
+    }
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString();
+    } catch (error) {
+      return "-";
+    }
+  }
   // Mostramos un indicador de carga si estamos esperando el departamento
   if (isDepartamentoLoading) {
     return <div className="p-6">Cargando...</div>;
