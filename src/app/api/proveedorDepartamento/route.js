@@ -43,7 +43,8 @@ export async function POST(request) {
     );
     
     return NextResponse.json({ 
-      message: "Relación creada correctamente" 
+      message: "Relación creada correctamente",
+      success: true
     });
     
   } catch (error) {
@@ -81,7 +82,8 @@ export async function DELETE(request) {
     }
     
     return NextResponse.json({ 
-      message: "Relación eliminada correctamente" 
+      message: "Relación eliminada correctamente",
+      success: true
     });
     
   } catch (error) {

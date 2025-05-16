@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { ChevronDown, Pencil, X, Search, Filter } from "lucide-react";
+import { ChevronDown, Pencil, X, Search, Filter, Plus, Check } from "lucide-react";
 import Button from "@/app/components/ui/button";
 import useNotifications from "@/app/hooks/useNotifications";
 import ConfirmationDialog from "@/app/components/ui/confirmation-dialog";
@@ -23,6 +23,9 @@ export default function ProveedoresClient({
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState("add"); // 'add' o 'edit'
   const [formError, setFormError] = useState("");
+  
+  // Nuevo estado para el selector de departamentos múltiples
+  const [showDepartamentosSelector, setShowDepartamentosSelector] = useState(false);
 
   // Estados para búsqueda y filtrado
   const [searchTerm, setSearchTerm] = useState("");
@@ -54,6 +57,8 @@ export default function ProveedoresClient({
   // Procesamiento para eliminar duplicados de proveedores y agrupar sus departamentos
   useEffect(() => {
     if (initialProveedores && initialProveedores.length > 0) {
+      console.log("Procesando", initialProveedores.length, "proveedores iniciales");
+      
       // Crear un mapa para agrupar proveedores por ID
       const proveedoresMap = new Map();
       
@@ -64,12 +69,12 @@ export default function ProveedoresClient({
           // Si es la primera vez que vemos este proveedor, lo añadimos con un array de departamentos
           proveedoresMap.set(id, {
             ...proveedor,
-            Departamentos: [proveedor.Departamento]
+            Departamentos: proveedor.Departamento ? [proveedor.Departamento] : []
           });
         } else {
           // Si ya existe, añadimos el departamento al array si no está ya
           const proveedorExistente = proveedoresMap.get(id);
-          if (!proveedorExistente.Departamentos.includes(proveedor.Departamento)) {
+          if (proveedor.Departamento && !proveedorExistente.Departamentos.includes(proveedor.Departamento)) {
             proveedorExistente.Departamentos.push(proveedor.Departamento);
           }
         }
@@ -77,6 +82,8 @@ export default function ProveedoresClient({
       
       // Convertir el mapa a un array de proveedores sin duplicados
       const proveedoresUnicos = Array.from(proveedoresMap.values());
+      console.log("Procesados", proveedoresUnicos.length, "proveedores únicos");
+      
       setProveedores(proveedoresUnicos);
     } else {
       setProveedores([]);
@@ -185,6 +192,7 @@ export default function ProveedoresClient({
   const handleCloseModal = () => {
     setShowModal(false);
     setFormError("");
+    setShowDepartamentosSelector(false);
   };
 
   // Limpiar el formulario
@@ -212,7 +220,12 @@ export default function ProveedoresClient({
         ...formularioProveedor,
         [name]: value,
         // En modo edición, mantenemos los departamentos existentes, en modo añadir solo el seleccionado
-        departamentos: modalMode === "add" ? [value] : [value, ...formularioProveedor.departamentos.filter(dep => dep !== value)]
+        departamentos: modalMode === "add" ? [value] : 
+          // Si el departamento ya está en la lista, lo mantenemos (no cambia nada)
+          formularioProveedor.departamentos.includes(value) ? 
+            formularioProveedor.departamentos : 
+            // Si no está, lo añadimos al inicio de la lista
+            [value, ...formularioProveedor.departamentos.filter(dep => dep !== value)]
       });
     } else {
       setFormularioProveedor({
@@ -232,13 +245,44 @@ export default function ProveedoresClient({
       setFormError("Por favor, ingresa el NIF del proveedor");
       return false;
     }
-    if (!formularioProveedor.departamento) {
-      setFormError("Por favor, selecciona un departamento");
+    if (!formularioProveedor.departamento || formularioProveedor.departamentos.length === 0) {
+      setFormError("Por favor, selecciona al menos un departamento");
       return false;
     }
 
     setFormError("");
     return true;
+  };
+
+  // Nuevo método para agregar un departamento a la lista
+  const handleAddDepartamento = (depNombre) => {
+    // Si ya está incluido, no hacemos nada
+    if (formularioProveedor.departamentos.includes(depNombre)) return;
+    
+    setFormularioProveedor(prev => ({
+      ...prev,
+      departamentos: [...prev.departamentos, depNombre]
+    }));
+    
+    // Cerrar el selector después de agregar
+    setShowDepartamentosSelector(false);
+  };
+  
+  // Nuevo método para eliminar un departamento de la lista
+  const handleRemoveDepartamento = (depNombre) => {
+    // Si es el departamento principal, mostrar un mensaje
+    if (depNombre === formularioProveedor.departamento) {
+      addNotification(
+        "No puedes eliminar el departamento principal. Selecciona otro departamento principal primero.",
+        "warning"
+      );
+      return;
+    }
+    
+    setFormularioProveedor(prev => ({
+      ...prev,
+      departamentos: prev.departamentos.filter(dep => dep !== depNombre)
+    }));
   };
 
   // Guardar proveedor
@@ -248,78 +292,223 @@ export default function ProveedoresClient({
     setIsLoading(true);
 
     try {
+      // Primero guardamos los datos básicos del proveedor con el departamento principal
       let response;
+      let proveedorId;
+      
+      // Datos del proveedor a enviar
+      const proveedorData = {
+        nombre: formularioProveedor.nombre,
+        nif: formularioProveedor.nif,
+        direccion: formularioProveedor.direccion,
+        telefono: formularioProveedor.telefono,
+        email: formularioProveedor.email,
+        departamento: formularioProveedor.departamento,
+      };
+      
       if (modalMode === "add") {
         // Lógica para añadir nuevo proveedor
-        response = await fetch("/api/getProveedores", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            nombre: formularioProveedor.nombre,
-            nif: formularioProveedor.nif,
-            direccion: formularioProveedor.direccion,
-            telefono: formularioProveedor.telefono,
-            email: formularioProveedor.email,
-            departamento: formularioProveedor.departamento,
-          }),
-        });
-      } else {
-        // Lógica para editar proveedor existente
-        response = await fetch(`/api/getProveedores/${formularioProveedor.idProveedor}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            nombre: formularioProveedor.nombre,
-            nif: formularioProveedor.nif,
-            direccion: formularioProveedor.direccion,
-            telefono: formularioProveedor.telefono,
-            email: formularioProveedor.email,
-            departamento: formularioProveedor.departamento,
-          }),
-        });
-      }
-
-      if (response?.ok) {
-        // Actualizar lista de proveedores
-        const updatedProveedores = await fetch("/api/getProveedores").then((res) => res.json());
-        
-        // Procesar los proveedores actualizados para eliminar duplicados
-        const proveedoresMap = new Map();
-        
-        updatedProveedores.forEach(proveedor => {
-          const id = proveedor.idProveedor;
+        try {
+          response = await fetch("/api/getProveedores", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(proveedorData),
+          });
           
-          if (!proveedoresMap.has(id)) {
-            proveedoresMap.set(id, {
-              ...proveedor,
-              Departamentos: [proveedor.Departamento]
-            });
-          } else {
-            const proveedorExistente = proveedoresMap.get(id);
-            if (!proveedorExistente.Departamentos.includes(proveedor.Departamento)) {
-              proveedorExistente.Departamentos.push(proveedor.Departamento);
+          // Verificar si la respuesta es correcta
+          if (!response.ok) {
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+              const errorData = await response.json();
+              throw new Error(errorData.error || `Error del servidor: ${response.status}`);
+            } else {
+              throw new Error(`Error del servidor: ${response.status} ${response.statusText}`);
             }
           }
-        });
-        
-        setProveedores(Array.from(proveedoresMap.values()));
-
-        addNotification(
-          modalMode === "add"
-            ? "Proveedor creado correctamente"
-            : "Proveedor actualizado correctamente",
-          "success"
-        );
-
-        handleCloseModal();
+          
+          // Procesar la respuesta exitosa
+          const respText = await response.text();
+          const data = respText ? JSON.parse(respText) : {};
+          proveedorId = data.id;
+          
+          if (!proveedorId) {
+            throw new Error("No se recibió el ID del proveedor creado");
+          }
+          
+        } catch (fetchError) {
+          console.error("Error en la solicitud de creación:", fetchError);
+          throw new Error(`Error al crear el proveedor: ${fetchError.message}`);
+        }
       } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Error al guardar el proveedor");
+        // Lógica para editar proveedor existente
+        proveedorId = formularioProveedor.idProveedor;
+        
+        try {
+          response = await fetch(`/api/getProveedores/${proveedorId}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(proveedorData),
+          });
+          
+          // Verificar si la respuesta es correcta
+          if (!response.ok) {
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+              const errorData = await response.json();
+              throw new Error(errorData.error || `Error del servidor: ${response.status}`);
+            } else {
+              throw new Error(`Error del servidor: ${response.status} ${response.statusText}`);
+            }
+          }
+          
+          // Leer la respuesta como texto para evitar errores de parsing JSON
+          await response.text();
+        } catch (fetchError) {
+          console.error("Error en la solicitud de actualización:", fetchError);
+          throw new Error(`Error al actualizar el proveedor: ${fetchError.message}`);
+        }
       }
+      
+      
+      // Ahora vamos a añadir el resto de departamentos (si hay más de uno)
+      // Excluimos el departamento principal que ya se guardó
+      const departamentosAdicionales = formularioProveedor.departamentos.filter(
+        dep => dep !== formularioProveedor.departamento
+      );
+      
+      // Si hay departamentos adicionales, los añadimos uno por uno
+      if (departamentosAdicionales.length > 0) {
+        console.log("Añadiendo departamentos adicionales:", departamentosAdicionales);
+        
+        for (const depNombre of departamentosAdicionales) {
+          // Buscar el ID del departamento
+          const depInfo = departamentos.find(d => d.Nombre === depNombre);
+          if (!depInfo) {
+            console.warn(`No se encontró el departamento ${depNombre} en la lista`);
+            continue;
+          }
+          
+          try {
+            const depResponse = await fetch("/api/proveedorDepartamento", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                proveedorId,
+                departamentoId: depInfo.id_Departamento,
+                propio: 1
+              }),
+            });
+            
+            if (!depResponse.ok) {
+              console.warn(`No se pudo añadir el departamento ${depNombre}:`, 
+                depResponse.status, depResponse.statusText);
+            } else {
+              console.log(`Departamento ${depNombre} añadido correctamente`);
+            }
+          } catch (depError) {
+            console.warn(`Error al añadir el departamento ${depNombre}:`, depError);
+          }
+        }
+      }
+      
+      // Actualizar lista de proveedores
+      try {
+        const updatedResponse = await fetch("/api/getProveedores");
+        if (updatedResponse.ok) {
+          const updatedProveedores = await updatedResponse.json();
+          
+          // Procesar los proveedores actualizados para eliminar duplicados
+          const proveedoresMap = new Map();
+          
+          updatedProveedores.forEach(proveedor => {
+            const id = proveedor.idProveedor;
+            
+            if (!proveedoresMap.has(id)) {
+              proveedoresMap.set(id, {
+                ...proveedor,
+                Departamentos: [proveedor.Departamento]
+              });
+            } else {
+              const proveedorExistente = proveedoresMap.get(id);
+              if (!proveedorExistente.Departamentos.includes(proveedor.Departamento)) {
+                proveedorExistente.Departamentos.push(proveedor.Departamento);
+              }
+            }
+          });
+          
+          // Actualizar el estado local con los proveedores actualizados
+          const proveedoresActualizados = Array.from(proveedoresMap.values());
+          setProveedores(proveedoresActualizados);
+          
+          // Si estamos en modo edición, también actualizar el estado seleccionado (si existe)
+          if (modalMode === "edit" && formularioProveedor.idProveedor) {
+            // Verificar si el proveedor editado está seleccionado actualmente
+            if (selectedProveedores.includes(formularioProveedor.idProveedor)) {
+              // Actualizar la selección para mantenerla si está seleccionado
+              setSelectedProveedores([...selectedProveedores]);
+            }
+          }
+          
+          console.log("Lista de proveedores actualizada correctamente con", proveedoresActualizados.length, "proveedores");
+        } else {
+          console.warn("No se pudo actualizar la lista de proveedores:", 
+            updatedResponse.status, updatedResponse.statusText);
+          
+          // Actualización manual como respaldo si falla la obtención de datos
+          if (modalMode === "edit") {
+            // Crear un proveedor actualizado con la información del formulario
+            const proveedorActualizado = {
+              ...proveedores.find(p => p.idProveedor === formularioProveedor.idProveedor),
+              Nombre: formularioProveedor.nombre,
+              NIF: formularioProveedor.nif,
+              Direccion: formularioProveedor.direccion,
+              Telefono: formularioProveedor.telefono,
+              Email: formularioProveedor.email,
+              Departamentos: formularioProveedor.departamentos
+            };
+            
+            // Actualizar el estado local
+            setProveedores(
+              proveedores.map(p => p.idProveedor === formularioProveedor.idProveedor ? proveedorActualizado : p)
+            );
+          }
+        }
+      } catch (listError) {
+        console.error("Error al actualizar la lista de proveedores:", listError);
+        
+        // Actualización manual como respaldo si falla la obtención de datos
+        if (modalMode === "edit") {
+          // Actualizar localmente el proveedor editado
+          const proveedorActualizado = {
+            ...proveedores.find(p => p.idProveedor === formularioProveedor.idProveedor),
+            Nombre: formularioProveedor.nombre,
+            NIF: formularioProveedor.nif,
+            Direccion: formularioProveedor.direccion,
+            Telefono: formularioProveedor.telefono,
+            Email: formularioProveedor.email,
+            Departamentos: formularioProveedor.departamentos
+          };
+          
+          setProveedores(
+            proveedores.map(p => p.idProveedor === formularioProveedor.idProveedor ? proveedorActualizado : p)
+          );
+        }
+      }
+
+      addNotification(
+        modalMode === "add"
+          ? "Proveedor creado correctamente"
+          : "Proveedor actualizado correctamente",
+        "success"
+      );
+
+      handleCloseModal();
     } catch (error) {
       console.error("Error al guardar el proveedor:", error);
       addNotification(`Error al guardar el proveedor: ${error.message}`, "error");
@@ -654,24 +843,80 @@ export default function ProveedoresClient({
                 </div>
               </div>
               
-              {/* Si estamos en modo edición, mostramos los departamentos asociados */}
-              {modalMode === "edit" && (
-                <div className="md:col-span-2">
-                  <label className="block text-gray-700 mb-1">Departamentos Asociados</label>
-                  <div className="p-3 bg-gray-50 rounded border border-gray-200">
+              {/* Sección de departamentos adicionales */}
+              <div className="md:col-span-2">
+                <div className="flex justify-between items-center mb-2">
+                  <label className="block text-gray-700">Departamentos Asociados</label>
+                  {/* Botón para mostrar el selector de departamentos adicionales */}
+                  <button
+                    type="button"
+                    onClick={() => setShowDepartamentosSelector(!showDepartamentosSelector)}
+                    className="text-blue-600 hover:text-blue-800 text-sm flex items-center"
+                    disabled={userRole === "Jefe de Departamento"} // Deshabilitar si es jefe de departamento
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Añadir departamento
+                  </button>
+                </div>
+                
+                {/* Lista de departamentos seleccionados */}
+                <div className="p-3 bg-gray-50 rounded border border-gray-200 min-h-[80px]">
+                  {formularioProveedor.departamentos && formularioProveedor.departamentos.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
-                      {formularioProveedor.departamentos && formularioProveedor.departamentos.map((dep, i) => (
-                        <span key={`dep-${i}`} className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-sm">
-                          {dep}
-                        </span>
+                      {formularioProveedor.departamentos.map((dep, i) => (
+                        <div key={`dep-${i}`} className="flex items-center bg-white border border-gray-200 px-2 py-1 rounded-md">
+                          <span className="text-sm mr-2">{dep}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveDepartamento(dep)}
+                            className="text-gray-500 hover:text-red-600"
+                            disabled={userRole === "Jefe de Departamento" || dep === formularioProveedor.departamento}
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
                       ))}
                     </div>
-                    <p className="text-xs text-gray-500 mt-2">
-                      Nota: Para editar la relación principal, seleccione otro departamento en el campo anterior.
-                    </p>
-                  </div>
+                  ) : (
+                    <p className="text-gray-500 text-sm">No hay departamentos asociados</p>
+                  )}
+                  
+                  {/* Mensaje explicativo */}
+                  <p className="text-xs text-gray-500 mt-2">
+                    {userRole === "Jefe de Departamento" 
+                      ? "Como Jefe de Departamento, solo puedes asignar tu propio departamento."
+                      : "El primer departamento será el principal. Puedes añadir departamentos adicionales."}
+                  </p>
                 </div>
-              )}
+                
+                {/* Selector de departamentos adicionales */}
+                {showDepartamentosSelector && (
+                  <div className="mt-2 p-2 bg-white border border-gray-200 rounded-md shadow-sm">
+                    <div className="text-sm font-medium mb-2">Selecciona departamentos adicionales:</div>
+                    <div className="max-h-[150px] overflow-y-auto">
+                      <ul className="space-y-1">
+                        {departamentos
+                          .filter(dep => !formularioProveedor.departamentos.includes(dep.Nombre))
+                          .map(dep => (
+                            <li key={`select-${dep.id_Departamento}`} className="flex items-center">
+                              <button
+                                type="button"
+                                onClick={() => handleAddDepartamento(dep.Nombre)}
+                                className="w-full text-left px-2 py-1 rounded hover:bg-gray-100 text-sm flex items-center"
+                              >
+                                <Plus className="w-4 h-4 mr-2 text-green-600" />
+                                {dep.Nombre}
+                              </button>
+                            </li>
+                          ))}
+                      </ul>
+                    </div>
+                    {departamentos.filter(dep => !formularioProveedor.departamentos.includes(dep.Nombre)).length === 0 && (
+                      <p className="text-center text-gray-500 text-sm py-2">Todos los departamentos ya están asociados</p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Botones del formulario */}
