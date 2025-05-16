@@ -35,17 +35,28 @@ export default function PresupuestoClient({
           setUserRole(data.usuario?.rol || '')
           
           const userDep = data.usuario?.departamento || ''
+              // Establecer departamento inicial
+      if (data.usuario?.rol === "Jefe de Departamento") {
+        setDepartamento(userDep)
+      } else if (data.usuario?.rol === "Administrador") {
+        // Siempre establece Informática para el administrador
+        setDepartamento("Informática")
+      } else if (data.usuario?.rol === "Contable") {
+        // Para contable, verifica si hay un departamento guardado, si no, establece Informática
+        if (typeof window !== 'undefined' && window.selectedDepartamento) {
+          setDepartamento(window.selectedDepartamento)
+        } else {
+          setDepartamento("Informática")
+        }
+      } else {
+        // Para cualquier otro rol, considera el departamento guardado o el primero
+        if (typeof window !== 'undefined' && window.selectedDepartamento) {
+          setDepartamento(window.selectedDepartamento)
+        } else if (initialDepartamentos.length > 0) {
+          setDepartamento(initialDepartamentos[0].Nombre)
+        }
+      } 
           
-          // Establecer departamento inicial
-          if (data.usuario?.rol === "Jefe de Departamento") {
-            setDepartamento(userDep)
-          } else {
-            if (typeof window !== 'undefined' && window.selectedDepartamento) {
-              setDepartamento(window.selectedDepartamento)
-            } else if (initialDepartamentos.length > 0) {
-              setDepartamento(initialDepartamentos[0].Nombre)
-            }
-          }
         }
       } catch (error) {
         console.error("Error obteniendo información del usuario:", error)
@@ -294,7 +305,6 @@ const presupuestoMensualDisponible = useMemo(() => {
                 onChange={(e) => handleChangeDepartamento(e.target.value)}
                 className="appearance-none bg-gray-100 border border-gray-200 rounded-md px-4 py-2 pr-8"
               >
-                <option value="">Seleccionar departamento</option>
                 {initialDepartamentos.map((dep) => (
                   <option key={dep.id_Departamento} value={dep.Nombre}>
                     {dep.Nombre}
