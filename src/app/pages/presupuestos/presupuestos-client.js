@@ -350,7 +350,9 @@ export default function PresupuestoClient({
                 Gasto en {selectedMes} {selectedAño}
               </h3>
               <div className="text-right">
-                <div className="text-5xl font-bold text-red-500">{formatCurrency(gastoDelMes)}</div>
+                <div className={`text-5xl font-bold ${gastoDelMes > 0 ? "text-red-500" : "text-gray-900"}`}>
+                  {formatCurrency(gastoDelMes)}
+                </div>
               </div>
             </div>
           </div>
