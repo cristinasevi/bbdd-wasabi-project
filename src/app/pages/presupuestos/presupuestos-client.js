@@ -149,10 +149,18 @@ export default function PresupuestoClient({
     return filteredOrdenes.reduce((sum, orden) => sum + (parseFloat(orden.Importe) || 0), 0);
   }, [filteredOrdenes]);
   
-  // Calcular gasto total acumulado (total de todas las órdenes de presupuesto)
-  const gastoTotalAcumulado = useMemo(() => {
-    return allDepartmentOrders.reduce((sum, orden) => sum + (parseFloat(orden.Importe) || 0), 0);
-  }, [allDepartmentOrders]);
+// Calcular gasto total acumulado (total de todas las órdenes de presupuesto)
+const gastoTotalAcumulado = useMemo(() => {
+  // Solo considerar órdenes del año seleccionado
+  const ordenesDelAño = allDepartmentOrders.filter(orden => {
+    if (!orden.Fecha) return false;
+    const ordenDate = new Date(orden.Fecha);
+    const ordenAño = ordenDate.getFullYear().toString();
+    return ordenAño === selectedAño;
+  });
+  
+  return ordenesDelAño.reduce((sum, orden) => sum + (parseFloat(orden.Importe) || 0), 0);
+}, [allDepartmentOrders, selectedAño]);
   
   // Cargar datos cuando cambie el departamento
   useEffect(() => {
@@ -170,20 +178,49 @@ export default function PresupuestoClient({
     }
   }, [departamentoId, presupuestosPorDepartamento]);
   
-  // Calcular presupuesto anual (12 veces el presupuesto mensual)
-  const presupuestoAnual = useMemo(() => {
+// Calcular presupuesto anual para el año seleccionado
+const presupuestoAnual = useMemo(() => {
+  // Si no hay datos de presupuesto mensual, retornar 0
+  if (!presupuestoMensual) return 0;
+  
+  // Si el año seleccionado es diferente al año actual, ajustar según la fecha del presupuesto
+  const presupuestoData = departamentoId ? presupuestosPorDepartamento[departamentoId] || [] : [];
+  const fechaInicio = presupuestoData[0]?.fecha_inicio ? new Date(presupuestoData[0]?.fecha_inicio) : null;
+  const fechaFinal = presupuestoData[0]?.fecha_final ? new Date(presupuestoData[0]?.fecha_final) : null;
+  
+  // Si no hay fechas o el presupuesto incluye el año seleccionado, usar valor completo
+  if (!fechaInicio || !fechaFinal || 
+      (fechaInicio.getFullYear() <= parseInt(selectedAño) && 
+       fechaFinal.getFullYear() >= parseInt(selectedAño))) {
     return presupuestoMensual * 12;
-  }, [presupuestoMensual]);
+  }
+  
+  // Si no coincide el año, retornar 0
+  return 0;
+}, [presupuestoMensual, departamentoId, presupuestosPorDepartamento, selectedAño]);
   
   // Calcular saldo actual en tiempo real (presupuesto anual - gasto acumulado)
   const saldoActual = useMemo(() => {
     return presupuestoAnual - gastoTotalAcumulado;
   }, [presupuestoAnual, gastoTotalAcumulado]);
   
-  // Calcular presupuesto mensual disponible
-  const presupuestoMensualDisponible = useMemo(() => {
+// Calcular presupuesto mensual disponible para el mes y año seleccionados
+const presupuestoMensualDisponible = useMemo(() => {
+  // Si el año seleccionado es diferente al año del presupuesto, no hay disponible
+  const presupuestoData = departamentoId ? presupuestosPorDepartamento[departamentoId] || [] : [];
+  const fechaInicio = presupuestoData[0]?.fecha_inicio ? new Date(presupuestoData[0]?.fecha_inicio) : null;
+  const fechaFinal = presupuestoData[0]?.fecha_final ? new Date(presupuestoData[0]?.fecha_final) : null;
+  
+  // Si no hay fechas o el presupuesto incluye el año y mes seleccionados, calcular disponible
+  if (!fechaInicio || !fechaFinal || 
+      (fechaInicio.getFullYear() <= parseInt(selectedAño) && 
+       fechaFinal.getFullYear() >= parseInt(selectedAño))) {
     return presupuestoMensual - gastoDelMes;
-  }, [presupuestoMensual, gastoDelMes]);
+  }
+  
+  // Si no coincide el año, no hay disponible
+  return 0;
+}, [presupuestoMensual, gastoDelMes, departamentoId, presupuestosPorDepartamento, selectedAño]);
   
   // Función para cambiar el departamento (solo para admin/contable)
   const handleChangeDepartamento = (newDepartamento) => {
@@ -387,9 +424,11 @@ export default function PresupuestoClient({
                   ) : (
                     <tr>
                       <td colSpan="2" className="py-4 text-center text-gray-400">
-                        {selectedMes && selectedAño 
-                          ? `No hay órdenes para ${selectedMes} ${selectedAño}`
-                          : "No hay órdenes registradas"}
+                        {filteredOrdenes.length === 0 && allDepartmentOrders.length > 0
+                            ? `No hay órdenes para ${selectedMes} ${selectedAño}`
+                            : allDepartmentOrders.length === 0
+                              ? "No hay órdenes registradas para este departamento"
+                              : "No hay órdenes que cumplan con los filtros seleccionados"}
                       </td>
                     </tr>
                   )}
