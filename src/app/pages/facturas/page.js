@@ -5,6 +5,7 @@ import { ChevronDown, ArrowUpDown, Search, Filter, Upload, X, Pencil, Calendar, 
 import Link from "next/link"
 import useUserDepartamento from "@/app/hooks/useUserDepartamento"
 import useNotifications from "@/app/hooks/useNotifications"
+import PdfViewer from "@/app/components/facturas/PdfViewer";
 
 export default function Facturas() {
     const { departamento, isLoading: isDepartamentoLoading } = useUserDepartamento()
@@ -22,7 +23,20 @@ export default function Facturas() {
     const [filterImporte, setFilterImporte] = useState("")
     const [filterEstado, setFilterEstado] = useState("")
     const [filterProveedor, setFilterProveedor] = useState("")
+
+    const [showPdfViewer, setShowPdfViewer] = useState(false);
+    const [selectedPdfUrl, setSelectedPdfUrl] = useState("");
+    const [selectedPdfName, setSelectedPdfName] = useState("");
     
+    // Función para abrir el visor de PDF
+    const handleViewPdf = (facturaId, numFactura) => {
+        const pdfUrl = `/api/facturas/viewPdf?id=${facturaId}`;
+        const pdfName = `Factura ${numFactura}`;
+        setSelectedPdfUrl(pdfUrl);
+        setSelectedPdfName(pdfName);
+        setShowPdfViewer(true);
+    };
+
     // Lista de proveedores y departamentos únicos para filtros
     const [departamentosList, setDepartamentosList] = useState([])
     const [proveedoresList, setProveedoresList] = useState([])
@@ -250,30 +264,94 @@ export default function Facturas() {
     }
     
     // Función para descargar facturas seleccionadas
-    const handleDescargarSeleccionadas = () => {
+    const handleDescargarSeleccionadas = async () => {
         if (selectedFacturas.length === 0) {
-            addNotification("Por favor, selecciona al menos una factura", "warning")
-            return
+            addNotification("Por favor, selecciona al menos una factura", "warning");
+            return;
         }
         
-        // En una implementación real, esto podría manejar descargas múltiples o crear un zip
-        if (selectedFacturas.length === 1) {
-            // Descargar la única factura seleccionada
-            const facturaId = selectedFacturas[0]
-            window.open(`/api/facturas/descargar?id=${facturaId}`, '_blank')
-        } else {
-            // Para múltiples facturas en producción deberías crear un endpoint que agrupe los PDFs
-            addNotification("Descargando " + selectedFacturas.length + " facturas...", "info")
-            
-            // Descargar cada factura individualmente (solución temporal)
-            selectedFacturas.forEach(facturaId => {
-                setTimeout(() => {
-                    window.open(`/api/facturas/descargar?id=${facturaId}`, '_blank')
-                }, 500) // Pequeño retraso para evitar bloqueo de popups
-            })
+        // Verificar si hay facturas con PDF disponibles
+        const facturasConPdf = filteredFacturas.filter(
+            f => selectedFacturas.includes(f.idFactura) && f.Ruta_pdf
+        );
+        
+        if (facturasConPdf.length === 0) {
+            addNotification("Ninguna de las facturas seleccionadas tiene un PDF asociado", "warning");
+            return;
         }
-    }
-    
+        
+        if (facturasConPdf.length < selectedFacturas.length) {
+            addNotification(
+            `Solo se descargarán ${facturasConPdf.length} de ${selectedFacturas.length} facturas seleccionadas porque el resto no tiene PDF asociado`,
+            "info"
+            );
+        }
+        
+        try {
+            // Si es solo una factura, descargarla directamente
+            if (facturasConPdf.length === 1) {
+            const facturaId = facturasConPdf[0].idFactura;
+            window.open(`/api/facturas/descargar?id=${facturaId}`, '_blank');
+            return;
+            }
+            
+            // Si son múltiples facturas, usar la API de descarga masiva (ZIP)
+            setIsLoading(true);
+            addNotification(`Preparando ${facturasConPdf.length} facturas para descarga...`, "info");
+            
+            // Llamar a la API de descarga masiva
+            const response = await fetch('/api/facturas/bulkDownload', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                facturaIds: facturasConPdf.map(f => f.idFactura) 
+            }),
+            });
+            
+            if (!response.ok) {
+            // Si hay un error, intentar obtener los detalles
+            let errorMessage = "Error al descargar las facturas";
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorMessage;
+            } catch (e) {
+                // Si no podemos parsear el error, usamos el mensaje genérico
+            }
+            
+            throw new Error(errorMessage);
+            }
+            
+            // Obtener el blob de la respuesta
+            const blob = await response.blob();
+            
+            // Crear una URL para el blob
+            const url = window.URL.createObjectURL(blob);
+            
+            // Crear un enlace para descargar el archivo
+            const a = document.createElement('a');
+            const fechaActual = new Date().toISOString().split('T')[0];
+            a.href = url;
+            a.download = `Facturas_${fechaActual}.zip`;
+            
+            // Añadir el enlace al documento y hacer clic en él
+            document.body.appendChild(a);
+            a.click();
+            
+            // Limpiar
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            addNotification("Descarga iniciada correctamente", "success");
+        } catch (error) {
+            console.error("Error al descargar facturas:", error);
+            addNotification(`Error: ${error.message}`, "error");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     // Función para manejar el click en "Insertar Factura"
     const handleInsertarFactura = (facturaId) => {
         setSelectedFacturaId(facturaId);
@@ -791,33 +869,46 @@ export default function Facturas() {
                                     {factura.Departamento}
                                 </span>
                                 </td>
-                                <td className="py-3 px-4 text-center">
-                                <div className="flex justify-center gap-2 items-center">
-                                    {/* Botón de editar */}
-                                    <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleEditFactura(factura);
-                                    }}
-                                    className="text-gray-500 hover:text-red-600"
-                                    title="Editar factura"
-                                    >
-                                    <Pencil className="w-5 h-5" />
-                                    </button>
-                                    
-                                    {/* Botón de insertar factura cuando no hay PDF */}
-                                    {!factura.Ruta_pdf && (
-                                    <button
+                                <td className="py-3 px-3 text-center">
+                                    <div className="flex justify-center gap-2 items-center">
+                                        {/* Botón de editar */}
+                                        <button
                                         onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleInsertarFactura(factura.idFactura);
+                                            e.stopPropagation();
+                                            handleEditFactura(factura);
                                         }}
-                                        className="bg-green-600 text-white text-sm px-3 py-1 rounded hover:bg-green-700"
-                                    >
-                                        Insertar Factura
-                                    </button>
-                                    )}
-                                </div>
+                                        className="text-gray-500 hover:text-red-600"
+                                        title="Editar factura"
+                                        >
+                                        <Pencil className="w-5 h-5" />
+                                        </button>
+                                        
+                                        {/* Botón de insertar factura cuando no hay PDF */}
+                                        {!factura.Ruta_pdf && (
+                                        <button
+                                            onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleInsertarFactura(factura.idFactura);
+                                            }}
+                                            className="bg-green-600 text-white text-sm px-3 py-1 rounded hover:bg-green-700"
+                                        >
+                                            Insertar Factura
+                                        </button>
+                                        )}
+                                        
+                                        {/* Botón para visualizar PDF cuando existe */}
+                                        {factura.Ruta_pdf && (
+                                        <button
+                                            onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleViewPdf(factura.idFactura, factura.Num_factura);
+                                            }}
+                                            className="bg-blue-600 text-white text-sm px-3 py-1 rounded hover:bg-blue-700"
+                                        >
+                                            Ver PDF
+                                        </button>
+                                        )}
+                                    </div>
                                 </td>
                             </tr>
                             ))
@@ -1139,6 +1230,15 @@ export default function Facturas() {
                            >
                                {isUploading ? "Guardando..." : "Guardar Cambios"}
                            </button>
+
+                           {/* Visor de PDF */}
+                            {showPdfViewer && (
+                            <PdfViewer
+                                pdfUrl={selectedPdfUrl}
+                                fileName={selectedPdfName}
+                                onClose={() => setShowPdfViewer(false)}
+                            />
+                            )}
                        </div>
                    </div>
                </div>

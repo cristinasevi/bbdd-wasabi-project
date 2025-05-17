@@ -60,9 +60,6 @@ export async function POST(request) {
       );
     }
 
-    // En un entorno real, aquí moveríamos el archivo a un directorio permanente
-    // y actualizaríamos la ruta en la base de datos
-    
     // Generar una ruta para el PDF
     const fecha = new Date();
     const año = fecha.getFullYear();
@@ -91,8 +88,22 @@ export async function POST(request) {
     // Generar nombre del archivo
     const proveedorCod = factura.Proveedor.substring(0, 3).toLowerCase();
     const departamentoCod = factura.Departamento.substring(0, 4).toLowerCase();
-    const nombreArchivo = `fac-${proveedorCod}-${factura.Num_factura.toLowerCase()}.pdf`;
-    const rutaPdf = `/facturas/${año}/${departamentoCod}/${nombreArchivo}`;
+    const nombreArchivo = `fac-${proveedorCod}-${factura.Num_factura.toLowerCase().replace(/\s+/g, "")}.pdf`;
+    
+    // MODIFICACIÓN: Crear la estructura de directorios sin el prefijo '/public'
+    const directorioDestino = `facturas/${año}/${departamentoCod}`;
+    const rutaPdf = `/${directorioDestino}/${nombreArchivo}`;
+    
+    // Crear la estructura de directorios necesaria
+    const directorioCompleto = path.join(process.cwd(), "public", directorioDestino);
+    await fs.mkdir(directorioCompleto, { recursive: true });
+    
+    // Copiar el archivo a su ubicación final
+    const destinoArchivo = path.join(directorioCompleto, nombreArchivo);
+    await fs.copyFile(file.filepath, destinoArchivo);
+    
+    // Eliminar el archivo temporal
+    await fs.unlink(file.filepath);
     
     // Actualizar la ruta del PDF en la base de datos
     await pool.query(
@@ -100,13 +111,11 @@ export async function POST(request) {
       [rutaPdf, facturaId]
     );
 
-    // Limpiar el archivo temporal (en producción lo moveríamos a otra ubicación)
-    await fs.unlink(file.filepath);
-
     return NextResponse.json({
       success: true,
       message: "Factura subida correctamente",
-      ruta: rutaPdf
+      ruta: rutaPdf,
+      ruta_completa: destinoArchivo
     });
   } catch (error) {
     console.error("Error en la API de carga de facturas:", error);

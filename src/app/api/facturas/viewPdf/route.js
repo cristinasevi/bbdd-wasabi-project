@@ -76,15 +76,11 @@ export async function GET(request) {
       // Leer el archivo PDF
       const fileBuffer = fs.readFileSync(rutaCompleta);
       
-      // Crear un nombre de archivo para la descarga basado en los datos de la factura
-      const fileName = `Factura_${factura.Num_factura}_${factura.NombreProveedor?.replace(/\s+/g, "_") || "SinProveedor"}.pdf`;
-
-      // Devolver el archivo como una respuesta binaria
+      // Devolver el archivo para visualización en el navegador
       return new NextResponse(fileBuffer, {
         status: 200,
         headers: {
           "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="${fileName}"`,
           "Content-Length": fileBuffer.length.toString()
         },
       });
@@ -96,7 +92,7 @@ export async function GET(request) {
       );
     }
   } catch (error) {
-    console.error("Error en la API de descarga de facturas:", error);
+    console.error("Error en la API de visualización de facturas:", error);
     return NextResponse.json(
       { error: "Error al procesar la solicitud: " + error.message },
       { status: 500 }
