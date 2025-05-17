@@ -1,246 +1,250 @@
-import PDFDocument from 'pdfkit';
-import fs from 'fs';
-import path from 'path';
+const fs = require('fs');
+const path = require('path');
+const PDFDocument = require('pdfkit');
 
 /**
- * Genera un PDF de factura basado en datos de la base de datos
+ * Función para generar un PDF de factura con formato mejorado
  * @param {Object} facturaData - Datos de la factura
- * @param {string} outputPath - Ruta donde guardar el PDF
- * @returns {Promise<boolean>} - Resultado de la operación
+ * @param {string} outputPath - Ruta completa donde guardar el PDF
+ * @returns {Promise<boolean>} - true si se generó correctamente
  */
 export async function generateInvoicePDF(facturaData, outputPath) {
-  try {
-    // Asegurar que el directorio existe
-    const dir = path.dirname(outputPath);
-    await fs.promises.mkdir(dir, { recursive: true });
-    
-    // Crear el documento PDF
-    const doc = new PDFDocument({ margin: 50 });
-    
-    // Crear stream de escritura
-    const writeStream = fs.createWriteStream(outputPath);
-    
-    // Configurar eventos
-    return new Promise((resolve, reject) => {
-      // Manejar eventos de stream
+  return new Promise((resolve, reject) => {
+    try {
+      // Crear directorio si no existe
+      const dir = path.dirname(outputPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      
+      // Crear PDF con opciones mejoradas
+      const doc = new PDFDocument({
+        margin: 50,
+        size: 'A4',
+        info: {
+          Title: `Factura ${facturaData.Num_factura}`,
+          Author: 'Salesianos Zaragoza',
+          Subject: 'Factura'
+        }
+      });
+      
+      const writeStream = fs.createWriteStream(outputPath);
+      
+      // Configurar eventos
       writeStream.on('finish', () => resolve(true));
       writeStream.on('error', reject);
       
       // Pipe del PDF al stream de escritura
       doc.pipe(writeStream);
       
-      // Añadir encabezado
+      // CABECERA
+      // Logo (si existe, descomentar y poner la ruta correcta)
+      try {
+        const logoPath = path.join(process.cwd(), 'public', 'images', 'logo.jpg');
+        if (fs.existsSync(logoPath)) {
+          doc.image(logoPath, 50, 45, { width: 50 });
+        }
+      } catch (error) {
+        console.log('Logo no encontrado, continuando sin él...');
+      }
+      
+      // Título y Número de Factura
       doc.fontSize(25)
-         .text('FACTURA', { align: 'center' })
+         .fillColor('#E02D39')
+         .text('FACTURA', 50, 50, { align: 'left' })
          .moveDown(0.5);
       
-      // Línea separadora
-      drawHorizontalLine(doc, 50);
-      
-      // Información de la factura
       doc.fontSize(12)
+         .fillColor('#000000')
+         .font('Helvetica-Bold')
          .text(`Factura Nº: ${facturaData.Num_factura}`, { continued: true })
-         .text(`Fecha: ${formatDate(facturaData.Fecha_emision)}`, { align: 'right' })
+         .font('Helvetica')
+         .text(`                             Fecha: ${formatDate(facturaData.Fecha_emision)}`, { align: 'left' })
          .moveDown(0.5);
       
-      // Información de proveedor y departamento
+      // INFORMACIÓN DE CABECERA
+      // Añadir un rectángulo gris claro para el área de información
+      doc.rect(50, doc.y, doc.page.width - 100, 80)
+         .fillAndStroke('#f6f6f6', '#cccccc');
+      
+      // Contenido dentro del rectángulo
+      doc.fillColor('#000000')
+         .fontSize(10)
+         .text('INFORMACIÓN', 60, doc.y - 70, { underline: true })
+         .moveDown(0.5);
+         
+      doc.font('Helvetica')
+         .text(`ID Factura: ${facturaData.idFactura}`, 60, doc.y)
+         .text(`Departamento: ${facturaData.Departamento}`, 60, doc.y + 15)
+         .text(`Orden de Compra: ${facturaData.Num_orden}`, 60, doc.y + 30)
+         .moveDown(2);
+      
+      // INFORMACIÓN DE PROVEEDOR
       doc.fontSize(14)
-         .text('DATOS DE FACTURA', { underline: true })
+         .font('Helvetica-Bold')
+         .text('Datos del Proveedor', 50, doc.y)
          .moveDown(0.5);
       
-      // Tabla con la información principal
-      const tableTop = doc.y + 10;
-      const colWidths = {
-        property: 140,
-        value: 350
-      };
-      
-      // Primera columna: Propiedades
-      doc.fontSize(10);
-      
-      // Datos en formato de tabla
-      const tableData = [
-        { property: 'Proveedor:', value: facturaData.Proveedor },
-        { property: 'NIF Proveedor:', value: facturaData.NIF || 'No disponible' },
-        { property: 'Departamento:', value: facturaData.Departamento },
-        { property: 'Orden de Compra:', value: facturaData.Num_orden },
-        { property: 'Estado:', value: facturaData.Estado },
-        { property: 'Inventariable:', value: facturaData.Inventariable ? 'Sí' : 'No' },
-        { property: 'Cantidad:', value: facturaData.Cantidad || '1' }
-      ];
-      
-      // Dibujar tabla de información
-      let yPosition = tableTop;
-      let rowHeight = 20;
-      
-      tableData.forEach((row, i) => {
-        const evenRow = i % 2 === 0;
-        
-        // Fondo alterno para filas
-        if (evenRow) {
-          doc.rect(50, yPosition, doc.page.width - 100, rowHeight).fill('#f5f5f5');
-        }
-        
-        doc.fillColor('#000')
-           .text(row.property, 60, yPosition + 5, { width: colWidths.property, align: 'left' })
-           .text(row.value, 200, yPosition + 5, { width: colWidths.value, align: 'left' });
-        
-        yPosition += rowHeight;
-      });
-      
-      // Añadir descripción de la orden
-      yPosition += 20;
-      doc.fontSize(14)
-         .text('DESCRIPCIÓN', 50, yPosition, { underline: true })
-         .moveDown(0.5);
-      
-      yPosition = doc.y;
-      
-      // Área de descripción con borde
-      doc.rect(50, yPosition, doc.page.width - 100, 60).stroke('#cccccc');
       doc.fontSize(10)
-         .text(facturaData.Descripcion || 'Sin descripción disponible', 60, yPosition + 10, { 
-           width: doc.page.width - 120,
-           align: 'left'
-         });
+         .font('Helvetica')
+         .text(`Proveedor: ${facturaData.Proveedor || 'Información no disponible'}`, 50, doc.y);
       
-      // Avanzar el cursor
-      doc.y = yPosition + 80;
+      // Intentamos obtener más información del proveedor si no está ya incluida
+      if (!facturaData.NIF || !facturaData.Direccion || !facturaData.Telefono) {
+        doc.text(`NIF: Información no disponible`, 50, doc.y + 15)
+           .text(`Dirección: Información no disponible`, 50, doc.y + 30)
+           .text(`Teléfono: Información no disponible`, 50, doc.y + 45);
+      } else {
+        doc.text(`NIF: ${facturaData.NIF}`, 50, doc.y + 15)
+           .text(`Dirección: ${facturaData.Direccion}`, 50, doc.y + 30)
+           .text(`Teléfono: ${facturaData.Telefono}`, 50, doc.y + 45);
+      }
+      doc.moveDown(1.5);
       
-      // Resumen económico
+      // DESCRIPCIÓN DE LA ORDEN DE COMPRA
       doc.fontSize(14)
-         .text('RESUMEN ECONÓMICO', { underline: true })
+         .font('Helvetica-Bold')
+         .text('Descripción de la Orden de Compra', 50, doc.y)
          .moveDown(0.5);
       
-      // Tabla de importes
-      const summaryTable = [
-        { concept: 'Importe Base', amount: facturaData.Importe || 0 },
-        { concept: 'IVA (21%)', amount: (facturaData.Importe * 0.21) || 0 },
-        { concept: 'TOTAL', amount: (facturaData.Importe * 1.21) || 0 }
+      // Tabla de descripción
+      const tableTop = doc.y;
+      const tableHeaders = ['Descripción', 'Cantidad', 'Importe Unitario', 'Importe Total'];
+      
+      // Determinar los valores a mostrar
+      const cantidad = facturaData.Cantidad || 1;
+      const importeTotal = facturaData.Importe || 0;
+      const importeUnitario = importeTotal / cantidad;
+      
+      const tableData = [
+        [
+          facturaData.Descripcion || 'Orden de compra estándar',
+          cantidad.toString(),
+          `${importeUnitario.toFixed(2)}€`,
+          `${importeTotal.toFixed(2)}€`
+        ]
       ];
       
-      // Dibujar tabla de resumen económico
-      yPosition = doc.y + 10;
+      // Dibujar la cabecera de la tabla
+      doc.fontSize(10)
+         .font('Helvetica-Bold');
       
-      doc.fontSize(10);
+      // Definir ancho de las columnas
+      const columnWidth = (doc.page.width - 100) / tableHeaders.length;
       
-      // Cabecera de la tabla económica
-      doc.rect(50, yPosition, doc.page.width - 100, rowHeight).fill('#e6e6e6');
-      doc.fillColor('#000')
-         .text('CONCEPTO', 60, yPosition + 5, { width: 300, align: 'left' })
-         .text('IMPORTE', doc.page.width - 160, yPosition + 5, { width: 100, align: 'right' });
+      // Dibujar fondo de la cabecera
+      doc.rect(50, tableTop, doc.page.width - 100, 20)
+         .fill('#E02D39');
       
-      yPosition += rowHeight;
-      
-      // Filas de la tabla económica
-      summaryTable.forEach((row, i) => {
-        const isTotal = i === summaryTable.length - 1;
-        
-        if (isTotal) {
-          // Para la fila de total, añadimos una línea separadora y negrita
-          doc.moveTo(50, yPosition).lineTo(doc.page.width - 50, yPosition).stroke('#cccccc');
-          yPosition += 5;
-          doc.font('Helvetica-Bold');
-        } else {
-          doc.font('Helvetica');
-        }
-        
-        doc.text(row.concept, 60, yPosition + 5, { width: 300, align: 'left' })
-           .text(formatCurrency(row.amount), doc.page.width - 160, yPosition + 5, { width: 100, align: 'right' });
-        
-        yPosition += rowHeight;
+      // Dibujar texto de la cabecera
+      doc.fillColor('#FFFFFF');
+      tableHeaders.forEach((header, i) => {
+        doc.text(header, 50 + (i * columnWidth), tableTop + 5, { 
+          width: columnWidth, 
+          align: 'center'
+        });
       });
       
-      // Volver a la fuente normal
-      doc.font('Helvetica');
+      // Dibujar datos de la tabla
+      doc.fillColor('#000000')
+         .font('Helvetica');
       
-      // Comentarios y condiciones
-      const bottomPosition = doc.page.height - 120;
-      doc.fontSize(9)
-         .text('Notas y condiciones:', 50, bottomPosition, { underline: true })
-         .moveDown(0.5)
-         .text('- Esta factura ha sido generada automáticamente por el sistema de gestión WASABI.')
-         .text('- El pago debe realizarse en un plazo de 30 días desde la fecha de emisión.')
-         .text('- Para cualquier consulta, contacte con el departamento financiero.')
+      tableData.forEach((row, rowIndex) => {
+        const rowY = tableTop + 20 + (rowIndex * 20);
+        
+        // Alternar colores de fondo para las filas
+        doc.rect(50, rowY, doc.page.width - 100, 20)
+           .fill(rowIndex % 2 === 0 ? '#f6f6f6' : '#FFFFFF');
+        
+        row.forEach((cell, cellIndex) => {
+          doc.fillColor('#000000')
+             .text(cell, 50 + (cellIndex * columnWidth), rowY + 5, { 
+               width: columnWidth, 
+               align: cellIndex === 0 ? 'left' : 'center' 
+             });
+        });
+      });
+      
+      doc.moveDown(3);
+      
+      // RESUMEN DE IMPORTES
+      const summaryY = doc.y;
+      doc.fontSize(12)
+         .font('Helvetica-Bold')
+         .text('Resumen', 50, summaryY)
          .moveDown(0.5);
       
-      // Pie de página
-      drawHorizontalLine(doc, doc.page.height - 50);
+      // Línea de subtotal
+      const subtotal = importeTotal;
+      doc.fontSize(10)
+         .font('Helvetica')
+         .text('Subtotal:', 350, doc.y, { width: 100, align: 'right' })
+         .text(`${subtotal.toFixed(2)}€`, 450, doc.y, { align: 'right' });
       
+      // Línea de IVA (simulado)
+      const iva = subtotal * 0.21;
+      doc.text('IVA (21%):', 350, doc.y + 15, { width: 100, align: 'right' })
+         .text(`${iva.toFixed(2)}€`, 450, doc.y, { align: 'right' });
+      
+      // Línea para separar
+      doc.moveTo(350, doc.y + 10)
+         .lineTo(500, doc.y + 10)
+         .stroke();
+      
+      // Línea de total
+      const total = subtotal * 1.21;
+      doc.font('Helvetica-Bold')
+         .text('TOTAL:', 350, doc.y + 15, { width: 100, align: 'right' })
+         .text(`${total.toFixed(2)}€`, 450, doc.y, { align: 'right' });
+      
+      // Estado de la factura
+      doc.moveDown();
+      doc.fontSize(12)
+         .fillColor(
+           facturaData.Estado === 'Pagada' ? '#008000' : 
+           facturaData.Estado === 'Pendiente' ? '#FFA500' : '#FF0000'
+         )
+         .text(`Estado: ${facturaData.Estado}`, 350, doc.y, { align: 'right' });
+      
+      // PIE DE PÁGINA
+      const pageHeight = doc.page.height;
+      
+      // Línea divisoria
+      doc.moveTo(50, pageHeight - 100)
+         .lineTo(doc.page.width - 50, pageHeight - 100)
+         .stroke('#cccccc');
+      
+      // Texto del pie
+      doc.fontSize(9)
+         .fillColor('#666666')
+         .text('Esta factura fue generada automáticamente por el sistema.', 50, pageHeight - 90)
+         .text('Sin el sello y la firma correspondiente, este documento carece de valor contable.', 50, pageHeight - 75);
+      
+      // Texto de copyright
       doc.fontSize(8)
-         .text(`© ${new Date().getFullYear()} Salesianos Zaragoza - Todos los derechos reservados`, { 
-           align: 'center',
-           width: doc.page.width - 100,
-           x: 50
-         })
-         .text(`Documento generado el ${formatDateTimeNow()}`, { 
-           align: 'center',
-           width: doc.page.width - 100,
-           x: 50
-         });
+         .text('© 2025 Salesianos Zaragoza', 0, pageHeight - 50, { align: 'center' });
       
       // Finalizar el documento
       doc.end();
-    });
-  } catch (error) {
-    console.error('Error generando PDF:', error);
-    return false;
-  }
+    } catch (error) {
+      console.error('Error generando PDF:', error);
+      reject(error);
+    }
+  });
 }
 
 /**
- * Dibuja una línea horizontal en el documento
- * @param {PDFDocument} doc - Documento PDF
- * @param {number} y - Posición Y donde dibujar la línea
- */
-function drawHorizontalLine(doc, y) {
-  doc.moveTo(50, y)
-     .lineTo(doc.page.width - 50, y)
-     .stroke('#cccccc');
-}
-
-/**
- * Formatea una fecha para mostrar
- * @param {string|Date} dateString 
- * @returns {string}
+ * Formatea una fecha para mostrar en formato local
+ * @param {string|Date} dateString - Fecha a formatear
+ * @returns {string} - Fecha formateada
  */
 function formatDate(dateString) {
-  if (!dateString) return '-';
+  if (!dateString) return new Date().toLocaleDateString('es-ES');
   
   try {
     const date = new Date(dateString);
-    return date.toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
+    return date.toLocaleDateString('es-ES');
   } catch (error) {
-    return dateString;
+    return new Date().toLocaleDateString('es-ES');
   }
-}
-
-/**
- * Formatea un valor monetario
- * @param {number} amount 
- * @returns {string}
- */
-function formatCurrency(amount) {
-  return amount.toLocaleString('es-ES', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }) + ' €';
-}
-
-/**
- * Devuelve la fecha y hora actual formateada
- * @returns {string}
- */
-function formatDateTimeNow() {
-  return new Date().toLocaleString('es-ES', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
 }

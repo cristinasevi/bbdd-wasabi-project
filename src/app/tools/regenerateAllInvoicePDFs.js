@@ -1,25 +1,34 @@
-import { NextResponse } from "next/server";
-import { pool } from "@/app/api/lib/db";
-import path from "path";
-import fs from "fs";
-import PDFDocument from "pdfkit";
+const fs = require('fs');
+const path = require('path');
+const PDFDocument = require('pdfkit');
+const mysql = require('mysql2/promise');
+require('dotenv').config();
 
-export async function GET(request) {
+// Configuración de la base de datos desde variables de entorno
+const dbConfig = {
+  host: process.env.MYSQL_HOST || 'localhost',
+  user: process.env.MYSQL_USER || 'root',
+  password: process.env.MYSQL_PASSWORD || 'password',
+  database: process.env.MYSQL_DATABASE || 'Proyecto_WASABI',
+};
+
+/**
+ * Función principal que regenera todos los PDFs de facturas
+ */
+async function regenerateAllInvoicePDFs() {
+  console.log('🚀 Iniciando proceso de regeneración de PDFs de facturas...');
+  console.log('📊 Conectando a la base de datos...');
+  
+  let connection;
   try {
-    // Obtener ID de la factura de los parámetros de consulta
-    const { searchParams } = new URL(request.url);
-    const facturaId = searchParams.get("id");
-
-    if (!facturaId) {
-      return NextResponse.json(
-        { error: "ID de factura no proporcionado" },
-        { status: 400 }
-      );
-    }
-
-    // Buscar la factura en la base de datos, ahora incluyendo más información
-    const [facturas] = await pool.query(
-      `SELECT 
+    // Conectar a la base de datos
+    connection = await mysql.createConnection(dbConfig);
+    console.log('✅ Conexión establecida correctamente.');
+    
+    // Obtener todas las facturas con sus datos completos
+    console.log('🔍 Buscando facturas en la base de datos...');
+    const [facturas] = await connection.query(`
+      SELECT 
         f.idFactura,
         f.Num_factura,
         f.Fecha_emision,
@@ -40,74 +49,79 @@ export async function GET(request) {
       JOIN Proveedor p ON o.id_ProveedorFK = p.idProveedor
       JOIN Departamento d ON o.id_DepartamentoFK = d.id_Departamento
       JOIN Estado e ON f.idEstadoFK = e.idEstado
-      WHERE f.idFactura = ?`,
-      [facturaId]
-    );
-
+      WHERE f.Ruta_pdf IS NOT NULL
+    `);
+    
     if (facturas.length === 0) {
-      return NextResponse.json(
-        { error: "Factura no encontrada" },
-        { status: 404 }
-      );
-    }
-
-    const factura = facturas[0];
-
-    // Verificar si hay una ruta de PDF definida
-    if (!factura.Ruta_pdf) {
-      return NextResponse.json(
-        { error: "No hay ruta de PDF definida para esta factura" },
-        { status: 400 }
-      );
-    }
-
-    // Normalizar la ruta
-    let rutaRelativa = factura.Ruta_pdf;
-    if (rutaRelativa.startsWith('/')) {
-      rutaRelativa = rutaRelativa.substring(1);
+      console.log('⚠️ No se encontraron facturas con rutas de PDF definidas.');
+      return;
     }
     
-    // Construir la ruta completa
-    const rutaCompleta = path.join(process.cwd(), "public", rutaRelativa);
+    console.log(`📋 Se encontraron ${facturas.length} facturas para regenerar PDFs.`);
     
-    // Asegurarse de que el directorio existe
-    const directorio = path.dirname(rutaCompleta);
-    if (!fs.existsSync(directorio)) {
-      fs.mkdirSync(directorio, { recursive: true });
+    // Procesar cada factura
+    let successCount = 0;
+    for (let i = 0; i < facturas.length; i++) {
+      const factura = facturas[i];
+      console.log(`\n🔄 Procesando factura ${i+1}/${facturas.length}: ${factura.Num_factura}`);
+      
+      try {
+        // Normalizar la ruta del PDF
+        let rutaRelativa = factura.Ruta_pdf;
+        
+        // Limpiar la ruta para eliminar '/public/' si existe
+        if (rutaRelativa.startsWith('/public/')) {
+          rutaRelativa = rutaRelativa.substring(7); // Quitar '/public/'
+        } else if (rutaRelativa.startsWith('public/')) {
+          rutaRelativa = rutaRelativa.substring(6); // Quitar 'public/'
+        } else if (rutaRelativa.startsWith('/')) {
+          rutaRelativa = rutaRelativa.substring(1); // Quitar solo '/'
+        }
+        
+        // Construir la ruta completa
+        const rutaCompleta = path.join(process.cwd(), "public", rutaRelativa);
+        console.log(`📁 Ruta del PDF: ${rutaCompleta}`);
+        
+        // Obtener el directorio
+        const directorioCompleto = path.dirname(rutaCompleta);
+        
+        // Crear los directorios necesarios
+        if (!fs.existsSync(directorioCompleto)) {
+          console.log(`📂 Creando directorio: ${directorioCompleto}`);
+          fs.mkdirSync(directorioCompleto, { recursive: true });
+        }
+        
+        // Generar el PDF mejorado
+        console.log(`📄 Generando PDF para factura ${factura.Num_factura}...`);
+        await generateEnhancedInvoicePDF(factura, rutaCompleta);
+        
+        console.log(`✅ PDF generado correctamente: ${factura.Num_factura}`);
+        successCount++;
+      } catch (error) {
+        console.error(`❌ Error generando PDF para factura ${factura.idFactura} (${factura.Num_factura}):`, error.message);
+      }
     }
     
-    // Generar el PDF mejorado
-    const success = await generateInvoicePDF(factura, rutaCompleta);
+    console.log(`\n📊 Resumen: ${successCount}/${facturas.length} PDFs generados correctamente.`);
     
-    if (!success) {
-      return NextResponse.json(
-        { error: "Error al generar el PDF" },
-        { status: 500 }
-      );
-    }
-    
-    return NextResponse.json({
-      success: true,
-      message: "PDF generado correctamente",
-      ruta: factura.Ruta_pdf,
-      factura: factura.Num_factura
-    });
   } catch (error) {
-    console.error("Error en la API de generación de PDF:", error);
-    return NextResponse.json(
-      { error: "Error al procesar la solicitud: " + error.message },
-      { status: 500 }
-    );
+    console.error('❌ Error en el proceso de regeneración de PDFs:', error);
+  } finally {
+    // Cerrar la conexión a la base de datos
+    if (connection) {
+      await connection.end();
+      console.log('🔒 Conexión a la base de datos cerrada.');
+    }
   }
 }
 
 /**
- * Función mejorada para generar un PDF de factura
+ * Función para generar un PDF de factura con formato mejorado
  * @param {Object} facturaData - Datos de la factura
  * @param {string} outputPath - Ruta completa donde guardar el PDF
  * @returns {Promise<boolean>} - true si se generó correctamente
  */
-async function generateInvoicePDF(facturaData, outputPath) {
+async function generateEnhancedInvoicePDF(facturaData, outputPath) {
   return new Promise((resolve, reject) => {
     try {
       // Crear directorio si no existe
@@ -345,3 +359,14 @@ function formatDate(dateString) {
     return new Date().toLocaleDateString('es-ES');
   }
 }
+
+// Ejecutar la función principal
+regenerateAllInvoicePDFs()
+  .then(() => {
+    console.log('\n🎉 Proceso de regeneración de PDFs completado.');
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error('\n❌ Error en el proceso principal:', error);
+    process.exit(1);
+  });
