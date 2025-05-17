@@ -46,7 +46,6 @@ export default function OrdenesCompraClient({
   const [filterInventariable, setFilterInventariable] = useState("");
   
   // Estados para los filtros de fecha
-  const [filterDia, setFilterDia] = useState("");
   const [filterMes, setFilterMes] = useState("");
   const [filterAño, setFilterAño] = useState("");
 
@@ -103,18 +102,30 @@ export default function OrdenesCompraClient({
     }
   }, [showExportModal, addNotification]);
   
-  // Efecto para obtener el rol del usuario
+  // 3. Asegurarnos que el useEffect para establecer el departamento del Jefe funciona correctamente
   useEffect(() => {
     async function fetchUserRole() {
       try {
         const response = await fetch('/api/getSessionUser');
         if (response.ok) {
           const data = await response.json();
-          setUserRole(data.usuario?.rol || '');
+          const userRol = data.usuario?.rol || '';
+          setUserRole(userRol);
           
           // Si es Jefe de Departamento, establecer el filtro automáticamente
-          if (data.usuario?.rol === "Jefe de Departamento" && departamento) {
+          if (userRol === "Jefe de Departamento" && departamento) {
             setFilterDepartamento(departamento);
+            
+            // También hay que asegurar que se mantenga esta selección
+            // Esto es importante por si la app se reinicia o cambia de estado
+            const handleBeforeUnload = () => {
+              localStorage.setItem('selectedDepartamento', departamento);
+            };
+            
+            window.addEventListener('beforeunload', handleBeforeUnload);
+            return () => {
+              window.removeEventListener('beforeunload', handleBeforeUnload);
+            };
           }
         }
       } catch (error) {
@@ -233,18 +244,18 @@ export default function OrdenesCompraClient({
     }
   }
 
-  // Función para extraer día, mes y año de una fecha
+  // Función para extraer mes y año de una fecha
   function getDateParts(dateString) {
-    if (!dateString) return { dia: '', mes: '', año: '' };
+    if (!dateString) return { mes: '', año: '' };
     try {
       const date = new Date(dateString);
       return {
-        dia: date.getDate().toString(),
         mes: (date.getMonth() + 1).toString(), // JavaScript cuenta meses desde 0
         año: date.getFullYear().toString()
       };
     } catch (error) {
-      return { dia: '', mes: '', año: '' };
+      return {mes: '', año: ''};
+      
     }
   }
 
@@ -257,21 +268,18 @@ export default function OrdenesCompraClient({
 
   // Obtener todas las fechas disponibles de las órdenes
   const fechasDisponibles = useMemo(() => {
-    const dias = new Set();
     const meses = new Set();
     const años = new Set();
     
     ordenes.forEach(orden => {
       if (orden.Fecha) {
-        const { dia, mes, año } = getDateParts(orden.Fecha);
-        dias.add(dia);
+        const { mes, año } = getDateParts(orden.Fecha);
         meses.add(mes);
         años.add(año);
       }
     });
     
     return {
-      dias: Array.from(dias).sort((a, b) => parseInt(a) - parseInt(b)),
       meses: Array.from(meses).sort((a, b) => parseInt(a) - parseInt(b)),
       años: Array.from(años).sort((a, b) => parseInt(a) - parseInt(b))
     };
@@ -283,49 +291,65 @@ export default function OrdenesCompraClient({
     const ordenesFiltradas = ordenes.filter(orden => {
       if (!orden.Fecha) return false;
       
-      const { dia, mes, año } = getDateParts(orden.Fecha);
-      
-      if (filterDia && dia !== filterDia) return false;
+      const { mes, año } = getDateParts(orden.Fecha);
+        
       if (filterMes && mes !== filterMes) return false;
       if (filterAño && año !== filterAño) return false;
       
       return true;
     });
     
-    // Extraer días, meses y años disponibles de las órdenes filtradas
-    const dias = new Set();
+    // Extraer meses y años disponibles de las órdenes filtradas
     const meses = new Set();
     const años = new Set();
     
     ordenesFiltradas.forEach(orden => {
-      const { dia, mes, año } = getDateParts(orden.Fecha);
-      dias.add(dia);
+      const { mes, año } = getDateParts(orden.Fecha);
       meses.add(mes);
       años.add(año);
     });
     
     return {
-      dias: Array.from(dias).sort((a, b) => parseInt(a) - parseInt(b)),
       meses: Array.from(meses).sort((a, b) => parseInt(a) - parseInt(b)),
       años: Array.from(años).sort((a, b) => parseInt(a) - parseInt(b))
     };
-  }, [ordenes, filterDia, filterMes, filterAño]);
+  }, [ordenes, filterMes, filterAño]); 
 
   // Obtener proveedores filtrados por departamento
   const proveedoresFiltrados = useMemo(() => {
-    if (!filterDepartamento) return proveedores;
+    // Para todos los roles, mostrar solo proveedores que estén en órdenes
+    let proveedoresDisponibles = [];
     
-    return proveedores.filter(proveedor => {
-      return initialOrdenes.some(orden => 
-        orden.Proveedor === proveedor.Nombre && orden.Departamento === filterDepartamento
+    // Si hay departamento seleccionado, mostrar solo proveedores de ese departamento
+    if (filterDepartamento) {
+      proveedoresDisponibles = proveedores.filter(proveedor => {
+        return initialOrdenes.some(orden => 
+          orden.Proveedor === proveedor.Nombre && orden.Departamento === filterDepartamento
+        );
+      });
+    } else {
+      // Si no hay departamento seleccionado, mostrar todos los proveedores que aparecen en órdenes
+      // Esto es para Admin/Contable cuando no filtran por departamento
+      const proveedoresEnOrdenes = new Set();
+      initialOrdenes.forEach(orden => {
+        proveedoresEnOrdenes.add(orden.Proveedor);
+      });
+      
+      proveedoresDisponibles = proveedores.filter(proveedor => 
+        proveedoresEnOrdenes.has(proveedor.Nombre)
       );
-    });
+    }
+    
+    return proveedoresDisponibles;
   }, [filterDepartamento, proveedores, initialOrdenes]);
 
   // Reset proveedor cuando cambia departamento
   useMemo(() => {
-    setFilterProveedor("");
-  }, [filterDepartamento]);
+    // Solo resetear el proveedor para el rol Jefe de Departamento
+    if (userRole === "Jefe de Departamento") {
+      setFilterProveedor("");
+    }
+  }, [filterDepartamento, userRole]);
 
   // Filtrar órdenes según los criterios de búsqueda y filtrado
   const filteredOrdenes = useMemo(() => {
@@ -352,19 +376,18 @@ export default function OrdenesCompraClient({
       
       // Filtro por fecha
       let matchesFecha = true;
-      if (filterDia || filterMes || filterAño) {
+      if (filterMes || filterAño) {
         if (!orden.Fecha) return false;
         
-        const { dia, mes, año } = getDateParts(orden.Fecha);
+        const { mes, año } = getDateParts(orden.Fecha);
         
-        if (filterDia && dia !== filterDia) matchesFecha = false;
         if (filterMes && mes !== filterMes) matchesFecha = false;
         if (filterAño && año !== filterAño) matchesFecha = false;
       }
 
       return matchesSearch && matchesDepartamento && matchesProveedor && matchesInventariable && matchesFecha;
     });
-  }, [ordenes, searchTerm, filterDepartamento, filterProveedor, filterInventariable, filterDia, filterMes, filterAño]);
+  }, [ordenes, searchTerm, filterDepartamento, filterProveedor, filterInventariable, filterMes, filterAño]);
 
   // NUEVO: Preparar datos para Excel según órdenes seleccionadas
   const prepareExportData = () => {
@@ -503,10 +526,17 @@ export default function OrdenesCompraClient({
   };
 
   // Función para limpiar los filtros de fecha
-  const limpiarFiltrosFecha = () => {
-    setFilterDia("");
+  const limpiarFiltros = () => {
     setFilterMes("");
     setFilterAño("");
+    setFilterProveedor("");
+    if (userRole !== "Jefe de Departamento") {
+      setFilterDepartamento("");
+    }
+    setSearchTerm("");
+    setSelectedOrdenes([]);
+    setFilterInventariable("");
+
   };
 
   // Abrir modal de añadir orden
@@ -887,30 +917,17 @@ export default function OrdenesCompraClient({
       setIsLoading(false);
     }
   };
-
-  // Manejar cambio en filtro de día
-  const handleDiaChange = (e) => {
-    const nuevoDia = e.target.value;
-    setFilterDia(nuevoDia);
-    
-    // Si hay un día seleccionado, filtrar meses y años disponibles para ese día
-    if (nuevoDia) {
-      // No reseteamos los otros filtros para permitir refinamiento
-    } else {
-      // Si se limpia el día, mantener los filtros de mes y año
-    }
-  };
   
   // Manejar cambio en filtro de mes
   const handleMesChange = (e) => {
     const nuevoMes = e.target.value;
     setFilterMes(nuevoMes);
     
-    // Si hay un mes seleccionado, filtrar días y años disponibles para ese mes
+    // Si hay un mes seleccionado, filtrar años disponibles para ese mes
     if (nuevoMes) {
       // No reseteamos los otros filtros para permitir refinamiento
     } else {
-      // Si se limpia el mes, mantener los filtros de día y año
+      // Si se limpia el mes, mantener los filtros de año
     }
   };
   
@@ -919,11 +936,11 @@ export default function OrdenesCompraClient({
     const nuevoAño = e.target.value;
     setFilterAño(nuevoAño);
     
-    // Si hay un año seleccionado, filtrar días y meses disponibles para ese año
+    // Si hay un año seleccionado, filtrar meses disponibles para ese año
     if (nuevoAño) {
       // No reseteamos los otros filtros para permitir refinamiento
     } else {
-      // Si se limpia el año, mantener los filtros de día y mes
+      // Si se limpia el año, mantener los filtros de mes
     }
   };
 
@@ -964,30 +981,6 @@ export default function OrdenesCompraClient({
 
       {/* Filtros de fecha - NUEVO */}
       <div className="mb-4 grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="relative">
-          <label className="block text-gray-700 text-sm mb-1">Día</label>
-          <div className="relative">
-            <select
-              value={filterDia}
-              onChange={handleDiaChange}
-              className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10"
-            >
-              <option value="">Todos los días</option>
-              {fechasFiltradas.dias.map((dia) => (
-                <option key={`dia-${dia}`} value={dia}>
-                  {dia}
-                </option>
-              ))}
-            </select>
-            <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-              <Calendar className="h-5 w-5 text-gray-400" />
-            </div>
-            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-              <ChevronDown className="w-4 h-4 text-gray-500" />
-            </div>
-          </div>
-        </div>
-
         <div className="relative">
           <label className="block text-gray-700 text-sm mb-1">Mes</label>
           <div className="relative">
@@ -1038,10 +1031,10 @@ export default function OrdenesCompraClient({
 
         <div className="flex items-end">
           <button
-            onClick={limpiarFiltrosFecha}
-            className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 w-full"
+            onClick={limpiarFiltros}
+            className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 w-full cursor-pointer"
           >
-            Limpiar filtros de fecha
+            Limpiar Filtros
           </button>
         </div>
       </div>
@@ -1068,12 +1061,19 @@ export default function OrdenesCompraClient({
             className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10"
             disabled={userRole === "Jefe de Departamento"} // Deshabilitar si es jefe de departamento
           >
-            <option value="">Todos los departamentos</option>
-            {Array.isArray(departamentos) && departamentos.map(dep => (
-              <option key={dep.id_Departamento || dep.id || dep._id} value={dep.Nombre}>
-                {dep.Nombre}
-              </option>
-            ))}
+            {/* Si es Jefe, mostrar solo su departamento, si no mostrar todos */}
+            {userRole === "Jefe de Departamento" ? (
+              <option value={departamento}>{departamento}</option>
+            ) : (
+              <>
+                <option value="">Todos los departamentos</option>
+                {Array.isArray(departamentos) && departamentos.map(dep => (
+                  <option key={dep.id_Departamento || dep.id || dep._id} value={dep.Nombre}>
+                    {dep.Nombre}
+                  </option>
+                ))}
+              </>
+            )}
           </select>
           <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
             <Filter className="h-5 w-5 text-gray-400" />
@@ -1088,16 +1088,14 @@ export default function OrdenesCompraClient({
             value={filterProveedor}
             onChange={(e) => setFilterProveedor(e.target.value)}
             className="w-full p-2 border border-gray-300 rounded-md appearance-none"
-            disabled={!filterDepartamento}
           >
-            <option value="">
-              {filterDepartamento ? "Todos los proveedores" : "Selecciona departamento"}
-            </option>
+            <option value="">Todos los proveedores</option>
+            {/* Siempre usamos los proveedores filtrados según la lógica corregida arriba */}
             {proveedoresFiltrados.map((proveedor, index) => (
-            <option key={`${proveedor.idProveedor}-${index}`} value={proveedor.Nombre}>
-              {proveedor.Nombre}
-            </option>
-          ))}
+              <option key={`${proveedor.idProveedor}-${index}`} value={proveedor.Nombre}>
+                {proveedor.Nombre}
+              </option>
+            ))}
           </select>
           <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
             <ChevronDown className="w-4 h-4 text-gray-500" />
@@ -1263,7 +1261,7 @@ export default function OrdenesCompraClient({
                           e.stopPropagation();
                           handleOpenEditModal(orden);
                         }}
-                        className="text-gray-500 hover:text-red-600 p-1"
+                        className="text-gray-500 hover:text-red-600 p-1 cursor-pointer"
                       >
                         <Pencil className="w-5 h-5" />
                       </button>
@@ -1274,7 +1272,7 @@ export default function OrdenesCompraClient({
                 <tr>
                   <td colSpan="10" className="py-8 text-center text-gray-500">
                     No se encontraron órdenes{" "}
-                    {searchTerm || filterDepartamento || filterProveedor || filterInventariable || filterDia || filterMes || filterAño
+                    {searchTerm || filterDepartamento || filterProveedor || filterInventariable || filterMes || filterAño
                       ? "con los criterios de búsqueda actuales"
                       : ""}
                   </td>
