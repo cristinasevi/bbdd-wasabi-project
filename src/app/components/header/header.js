@@ -1,14 +1,22 @@
 "use client"
 
 import { User, LogOut } from "lucide-react"
-import { useSession, signOut } from "next-auth/react"
+import { useSession } from "next-auth/react"
 import Image from "next/image"
+import useSecureLogout from "@/app/hooks/useSecureLogout"
 
 export default function Header() {
   const { data: session, status } = useSession()
+  const { secureLogout } = useSecureLogout()
 
-  const handleLogout = async () => {
-    await signOut({ callbackUrl: "/" })
+  const handleLogout = async (e) => {
+    e.preventDefault()
+    
+    // Mostrar confirmación opcional
+    const confirmLogout = window.confirm('¿Estás seguro de que quieres cerrar sesión?')
+    if (confirmLogout) {
+      await secureLogout()
+    }
   }
 
   return (
@@ -28,7 +36,12 @@ export default function Header() {
         )}
         <span>{session?.user?.name || session?.user?.email || "user"}</span>
       </div>
-      <button onClick={handleLogout} className="ml-6 mr-2 cursor-pointer" aria-label="Cerrar sesión">
+      <button 
+        onClick={handleLogout} 
+        className="ml-6 mr-2 cursor-pointer hover:text-red-600 transition-colors" 
+        aria-label="Cerrar sesión"
+        title="Cerrar sesión"
+      >
         <LogOut className="w-4 h-4" />
       </button>
     </header>

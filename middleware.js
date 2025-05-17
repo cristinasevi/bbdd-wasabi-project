@@ -2,60 +2,65 @@ import { NextResponse } from "next/server"
 import { getToken } from "next-auth/jwt"
 
 export async function middleware(request) {
-  // Obtener el token de autenticación
   const token = await getToken({
     req: request,
     secret: process.env.NEXTAUTH_SECRET,
   })
 
   const isLoginPage = request.nextUrl.pathname === "/"
-  const isHomePage = request.nextUrl.pathname === "/pages/home"
-  const isUsersPage = request.nextUrl.pathname === "/pages/usuarios" || 
-                      request.nextUrl.pathname.startsWith("/pages/usuarios/")
+  const isApiRoute = request.nextUrl.pathname.startsWith('/api/')
+  
+  // No aplicar middleware a rutas de API
+  if (isApiRoute) {
+    return NextResponse.next()
+  }
 
-  // Si el usuario no está autenticado y no está en la página de login, redirigir a login
+  // Si no hay token y no es la página de login, redirigir
   if (!token && !isLoginPage) {
-    return NextResponse.redirect(new URL("/", request.url))
+    const loginUrl = new URL("/", request.url)
+    loginUrl.searchParams.set("message", "session_expired")
+    return NextResponse.redirect(loginUrl)
   }
 
-  // Si el usuario está autenticado y está en la página de login, redirigir a la página principal
+  // Si hay token y está en la página de login, redirigir según su rol
   if (token && isLoginPage) {
-    return NextResponse.redirect(new URL("/pages/home", request.url))
-  }
-
-  // Verificar el rol para la página de usuarios
-  if (token && isUsersPage) {
     try {
-      // Hacer una petición a la API para obtener información del usuario
+      // Verificar si fue un logout explícito
+      const logoutHeader = request.headers.get('x-logout-explicit')
+      if (logoutHeader === 'true') {
+        return NextResponse.next()
+      }
+
+      // Obtener información del usuario para redirección inteligente
       const userResponse = await fetch(new URL(`/api/getUsuarios/${token.id}`, request.url).toString())
       
       if (userResponse.ok) {
         const userData = await userResponse.json()
         
-        // Si no es Administrador, redirigir a la página principal
-        if (userData.Rol !== "Administrador") {
+        if (userData.Rol === "Jefe de Departamento" && userData.Departamento) {
+          return NextResponse.redirect(new URL(`/pages/resumen/${userData.Departamento}`, request.url))
+        } else {
           return NextResponse.redirect(new URL(`/pages/home`, request.url))
         }
       }
     } catch (error) {
-      console.error("Error verificando rol de usuario:", error)
+      console.error("Error in middleware:", error)
     }
+    
+    return NextResponse.redirect(new URL("/pages/home", request.url))
   }
 
-  // Si es la página de inicio, verificar el rol del usuario
-  if (token && isHomePage) {
+  // Verificación de rol para páginas protegidas (usuarios)
+  if (token && (request.nextUrl.pathname === "/pages/usuarios" || 
+                request.nextUrl.pathname.startsWith("/pages/usuarios/"))) {
     try {
-      // Hacer una petición a la API para obtener información del usuario
       const userResponse = await fetch(new URL(`/api/getUsuarios/${token.id}`, request.url).toString())
       
       if (userResponse.ok) {
         const userData = await userResponse.json()
         
-        // Si es Jefe de Departamento, redirigir al resumen de su departamento
-        if (userData.Rol === "Jefe de Departamento" && userData.Departamento) {
-          return NextResponse.redirect(
-            new URL(`/pages/resumen/${userData.Departamento}`, request.url)
-          )
+        if (userData.Rol !== "Administrador") {
+          return NextResponse.redirect(new URL(`/pages/home`, request.url))
         }
       }
     } catch (error) {

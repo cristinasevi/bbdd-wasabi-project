@@ -5,7 +5,8 @@ import "./globals.css"
 import { useEffect, useState } from "react"
 import Image from "next/image"
 import { signIn, useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import SessionWarning from "./components/ui/session-warning"
 
 const inter = Inter({
   variable: "--font-inter",
@@ -17,8 +18,28 @@ export default function Login() {
   const [contraseña, setContraseña] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [showLogoutSuccess, setShowLogoutSuccess] = useState(false)
   const { data: session } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Verificar si vienen de un logout exitoso
+  useEffect(() => {
+    const loggedOut = searchParams.get('logged_out')
+    const wasExplicitLogout = typeof window !== 'undefined' ? 
+      localStorage.getItem('wasabi_explicit_logout') === 'true' : false
+
+    if (loggedOut === 'true' && wasExplicitLogout) {
+      setShowLogoutSuccess(true)
+      // Limpiar el flag DESPUÉS de mostrar el mensaje
+      setTimeout(() => {
+        localStorage.removeItem('wasabi_explicit_logout')
+      }, 500) // Pequeño delay para asegurar que se ve el mensaje
+      
+      // Ocultar mensaje después de 5 segundos
+      setTimeout(() => setShowLogoutSuccess(false), 5000)
+    }
+  }, [searchParams])
 
   // Redirigir si ya está autenticado, comprobando el rol
   useEffect(() => {
@@ -79,6 +100,7 @@ export default function Login() {
     }
   }, [])
 
+  // Limpiar el flag de logout explícito al iniciar sesión
   const handleLogin = async (e) => {
     e.preventDefault()
 
@@ -91,6 +113,11 @@ export default function Login() {
     setError("")
 
     try {
+      // Limpiar cualquier flag de logout explícito antes del login
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('wasabi_explicit_logout');
+      }
+
       // Usar NextAuth.js para autenticación con credenciales
       const result = await signIn("credentials", {
         redirect: false,
@@ -113,6 +140,11 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     setIsLoading(true)
     try {
+      // Limpiar cualquier flag de logout explícito antes del login
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('wasabi_explicit_logout');
+      }
+
       // Usar NextAuth.js para autenticación con Google
       // No especificamos callbackUrl para que el useEffect maneje la redirección
       await signIn("google", { callbackUrl: undefined })
@@ -124,6 +156,23 @@ export default function Login() {
 
   return (
     <div className="fixed inset-0 flex items-center justify-center">
+      {/* Mostrar advertencia de sesión si es necesario */}
+      <SessionWarning />
+      
+      {/* Mostrar mensaje de logout exitoso */}
+      {showLogoutSuccess && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 max-w-md w-full mx-4">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 shadow-lg">
+            <div className="flex items-center">
+              <div className="w-5 h-5 text-green-400 mr-3">✓</div>
+              <p className="text-sm font-medium text-green-800">
+                Sesión cerrada correctamente
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="w-full max-w-md p-10 bg-gray-50 rounded-lg shadow-lg">
         <div className="flex items-center gap-3 mb-8 justify-center">
           <div className="w-10 h-10 relative">
