@@ -150,7 +150,7 @@ export default function Informes() {
         setMes("");
         setAno("");
     };
-    
+
     // Filtrar órdenes por el CÓDIGO del departamento (primeras 3 letras)
     // Modificar la parte de filtrado por departamento
     const ordenesFiltradas = useMemo(() => {
@@ -210,6 +210,69 @@ export default function Informes() {
         
         return filtradas;
     }, [departamento, departamentoCodigo, ordenes]);
+
+    // Meses filtrados basados en las órdenes disponibles
+    const mesesFiltrados = useMemo(() => {
+        // Si no hay departamento seleccionado, mostrar todos los meses
+        if (!selectedDepartamento) return meses;
+        
+        // Si no hay órdenes, mostrar todos los meses
+        if (!ordenes.length) return meses;
+        
+        // Recopilar los meses que tienen órdenes para el departamento seleccionado
+        const mesesSet = new Set();
+        
+        // Añadir el mes actual por defecto
+        const mesActual = meses[new Date().getMonth()];
+        mesesSet.add(mesActual);
+        
+        // Añadir los meses de las órdenes filtradas
+        ordenesFiltradas.forEach(orden => {
+            if (orden.Fecha) {
+                try {
+                    const fecha = new Date(orden.Fecha);
+                    const mesOrden = meses[fecha.getMonth()];
+                    if (mesOrden) mesesSet.add(mesOrden);
+                } catch (error) {
+                    console.error("Error al procesar fecha de orden:", error);
+                }
+            }
+        });
+        
+        // Ordenar los meses según el orden natural (enero, febrero, etc.)
+        return Array.from(mesesSet).sort((a, b) => 
+            meses.indexOf(a) - meses.indexOf(b)
+        );
+    }, [selectedDepartamento, ordenes, ordenesFiltradas, meses]);
+
+    // Años filtrados basados en las órdenes disponibles
+    const anosFiltrados = useMemo(() => {
+        // Por defecto incluir el año actual
+        const añoActual = new Date().getFullYear().toString();
+        const añosSet = new Set([añoActual]);
+        
+        // Si no hay departamento seleccionado, devolver solo el año actual
+        if (!selectedDepartamento) return [añoActual];
+        
+        // Si no hay órdenes, devolver solo el año actual
+        if (!ordenesFiltradas.length) return [añoActual];
+        
+        // Añadir los años de las órdenes filtradas
+        ordenesFiltradas.forEach(orden => {
+            if (orden.Fecha) {
+                try {
+                    const fecha = new Date(orden.Fecha);
+                    const añoOrden = fecha.getFullYear().toString();
+                    añosSet.add(añoOrden);
+                } catch (error) {
+                    console.error("Error al procesar fecha de orden:", error);
+                }
+            }
+        });
+        
+        // Ordenar los años de menor a mayor
+        return Array.from(añosSet).sort();
+    }, [selectedDepartamento, ordenesFiltradas]);
 
     // Modificación para el filtrado por fecha
     const handleGenerarInforme = async () => {
@@ -430,6 +493,29 @@ export default function Informes() {
         } finally {
             setGeneratingPDF(false);
         }
+    };
+
+    // Función auxiliar para convertir imágenes a base64
+    const getBase64Image = (imgUrl) => {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = 'Anonymous';
+            img.onload = () => {
+                try {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    const dataURL = canvas.toDataURL('image/png');
+                    resolve(dataURL);
+                } catch (error) {
+                    reject(error);
+                }
+            };
+            img.onerror = (error) => reject(error);
+            img.src = imgUrl;
+        });
     };
     
     // Mensaje de carga si los datos aún no están listos
