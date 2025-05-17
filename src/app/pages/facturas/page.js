@@ -90,7 +90,7 @@ export default function Facturas() {
     const editFileInputRef = useRef(null)
 
     // Lista de posibles estados
-    const estadoOptions = ["Pendiente", "Pagada", "Anulada"]
+    const estadoOptions = ["Pendiente", "Contabilizada", "Anulada"]
 
     useEffect(() => {
         // Función para obtener el rol del usuario
@@ -791,7 +791,7 @@ export default function Facturas() {
                         className="w-full p-2 border border-gray-300 rounded-md appearance-none"
                     >
                         <option value="">Todos los estados</option>
-                        <option value="Pagada">Pagada</option>
+                        <option value="Contabilizada">Contabilizada</option>
                         <option value="Pendiente">Pendiente</option>
                         <option value="Anulada">Anulada</option>
                     </select>
@@ -877,7 +877,7 @@ export default function Facturas() {
                                         setOpenDropdown(openDropdown === factura.idFactura ? null : factura.idFactura);
                                     }}
                                     className={`border rounded px-3 py-1 w-full text-sm cursor-pointer ${
-                                        factura.Estado === "Pagada"
+                                        factura.Estado === "Contabilizada"
                                         ? "bg-green-50 text-green-800"
                                         : factura.Estado === "Pendiente"
                                         ? "bg-yellow-50 text-yellow-800"

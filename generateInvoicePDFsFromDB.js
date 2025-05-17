@@ -1,14 +1,12 @@
 /**
- * regenerateInvoicePDF.js
- * Script para regenerar un PDF de factura específico usando la base de datos
+ * generateInvoicePDFsFromDB.js
+ * Script para generar archivos PDF de facturas para Salesianos Zaragoza
+ * utilizando datos de la base de datos MySQL
  * 
  * Para ejecutar:
  * 1. Instalar dependencias: npm install pdfkit mysql2
- * 2. Ejecutar: node regenerateInvoicePDF.js NUMERO_FACTURA
- * 
- * Ejemplos:
- * - Para regenerar una factura específica: node regenerateInvoicePDF.js FAC-AMZ-123456
- * - Para regenerar todas las facturas: node regenerateInvoicePDF.js --all
+ * 2. Configurar las variables de entorno o modificar directamente dbConfig
+ * 3. Ejecutar: node generateInvoicePDFsFromDB.js
  */
 
 const fs = require('fs');
@@ -17,6 +15,7 @@ const PDFDocument = require('pdfkit');
 const mysql = require('mysql2/promise');
 
 // Configuración de la conexión a la base de datos
+// Puedes ajustar estos valores según tu entorno
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
   user: process.env.DB_USER || 'root',
@@ -62,7 +61,7 @@ function createEnhancedInvoicePDF(facturaData, outputPath) {
       try {
         const logoPath = path.join(process.cwd(), 'public', 'images', 'logo.jpg');
         if (fs.existsSync(logoPath)) {
-          doc.image(logoPath, 50, yPos, { width: 50 });
+          doc.image(logoPath, doc.page.width - 100, yPos, { width: 50 });
           yPos += 10;
         }
       } catch (error) {
@@ -71,7 +70,7 @@ function createEnhancedInvoicePDF(facturaData, outputPath) {
       
       // Título y Número de Factura
       doc.fontSize(22)
-         .fillColor('#E02D39')
+         .fillColor('#000000')
          .text('FACTURA', 50, yPos, { align: 'left' });
       
       yPos += 30;
@@ -254,19 +253,19 @@ function createEnhancedInvoicePDF(facturaData, outputPath) {
       const pageHeight = doc.page.height;
       
       // Línea divisoria
-      doc.moveTo(50, pageHeight - 100)
-         .lineTo(doc.page.width - 50, pageHeight - 100)
+      doc.moveTo(50, pageHeight - 140)
+         .lineTo(doc.page.width - 50, pageHeight - 140)
          .stroke('#cccccc');
       
       // Texto del pie
       doc.fontSize(9)
          .fillColor('#666666')
-         .text('Esta factura fue generada automáticamente por el sistema.', 50, pageHeight - 90)
-         .text('Sin el sello y la firma correspondiente, este documento carece de valor contable.', 50, pageHeight - 75);
+         .text('Esta factura fue generada automáticamente por el sistema.', 50, pageHeight - 130)
+         .text('Sin el sello y la firma correspondiente, este documento carece de valor contable.', 50, pageHeight - 115);
       
       // Texto de copyright
       doc.fontSize(8)
-         .text('© 2025 Salesianos Zaragoza', 0, pageHeight - 50, { align: 'center' });
+         .text('© 2025 Salesianos Zaragoza', 0, pageHeight - 90, { align: 'center' });
       
       // Finalizar el documento
       doc.end();
@@ -276,94 +275,41 @@ function createEnhancedInvoicePDF(facturaData, outputPath) {
   });
 }
 
-// Función principal
-async function main() {
-  // Obtener el número de factura de los argumentos de la línea de comandos
-  const numFactura = process.argv[2];
-  if (!numFactura) {
-    console.error('❌ Error: Debes proporcionar un número de factura como argumento.');
-    console.log('Uso: node regenerateInvoicePDF.js NUMERO_FACTURA');
-    console.log('Para regenerar todas las facturas: node regenerateInvoicePDF.js --all');
-    process.exit(1);
-  }
-  
+// Función principal para obtener datos de la BD y generar PDFs
+async function generateInvoicePDFsFromDB() {
   let connection;
   try {
-    // Conectar a la base de datos
     console.log('🔌 Conectando a la base de datos...');
     connection = await mysql.createConnection(dbConfig);
     console.log('✅ Conexión establecida');
     
-    // Construir la consulta según el modo (una factura o todas)
-    let query;
-    let params = [];
-    let message;
+    console.log('🔍 Consultando facturas en la base de datos...');
+    // Consulta SQL para obtener todas las facturas con sus datos relacionados
+    const [facturas] = await connection.query(`
+      SELECT 
+        f.idFactura,
+        f.Num_factura,
+        f.Fecha_emision,
+        f.Ruta_pdf,
+        o.Num_orden,
+        o.Importe,
+        o.Descripcion,
+        o.Cantidad,
+        p.Nombre AS Proveedor,
+        p.NIF,
+        p.Direccion,
+        p.Telefono,
+        p.Email,
+        d.Nombre AS Departamento,
+        e.Tipo AS Estado
+      FROM Factura f
+      JOIN Orden o ON f.idOrdenFK = o.idOrden
+      JOIN Proveedor p ON o.id_ProveedorFK = p.idProveedor
+      JOIN Departamento d ON o.id_DepartamentoFK = d.id_Departamento
+      JOIN Estado e ON f.idEstadoFK = e.idEstado
+    `);
     
-    if (numFactura === '--all') {
-      query = `
-        SELECT 
-          f.idFactura,
-          f.Num_factura,
-          f.Fecha_emision,
-          f.Ruta_pdf,
-          o.Num_orden,
-          o.Importe,
-          o.Descripcion,
-          o.Cantidad,
-          p.Nombre AS Proveedor,
-          p.NIF,
-          p.Direccion,
-          p.Telefono,
-          p.Email,
-          d.Nombre AS Departamento,
-          e.Tipo AS Estado
-        FROM Factura f
-        JOIN Orden o ON f.idOrdenFK = o.idOrden
-        JOIN Proveedor p ON o.id_ProveedorFK = p.idProveedor
-        JOIN Departamento d ON o.id_DepartamentoFK = d.id_Departamento
-        JOIN Estado e ON f.idEstadoFK = e.idEstado
-      `;
-      message = 'Buscando todas las facturas en la base de datos...';
-    } else {
-      query = `
-        SELECT 
-          f.idFactura,
-          f.Num_factura,
-          f.Fecha_emision,
-          f.Ruta_pdf,
-          o.Num_orden,
-          o.Importe,
-          o.Descripcion,
-          o.Cantidad,
-          p.Nombre AS Proveedor,
-          p.NIF,
-          p.Direccion,
-          p.Telefono,
-          p.Email,
-          d.Nombre AS Departamento,
-          e.Tipo AS Estado
-        FROM Factura f
-        JOIN Orden o ON f.idOrdenFK = o.idOrden
-        JOIN Proveedor p ON o.id_ProveedorFK = p.idProveedor
-        JOIN Departamento d ON o.id_DepartamentoFK = d.id_Departamento
-        JOIN Estado e ON f.idEstadoFK = e.idEstado
-        WHERE f.Num_factura = ?
-      `;
-      params = [numFactura];
-      message = `Buscando factura: ${numFactura}`;
-    }
-    
-    console.log(`🔍 ${message}`);
-    
-    // Ejecutar la consulta
-    const [facturas] = await connection.query(query, params);
-    
-    if (facturas.length === 0) {
-      console.error('❌ No se encontraron facturas con los criterios especificados.');
-      process.exit(1);
-    }
-    
-    console.log(`📋 Se encontraron ${facturas.length} facturas para regenerar`);
+    console.log(`📋 Se encontraron ${facturas.length} facturas para generar`);
     
     // Procesar cada factura
     let createdCount = 0;
@@ -373,16 +319,8 @@ async function main() {
       // Verificar si hay una ruta de PDF definida
       if (!factura.Ruta_pdf) {
         console.log(`⚠️ La factura ${factura.Num_factura} no tiene ruta de PDF definida. Asignando una predeterminada.`);
-        // Generar una ruta basada en el número de factura y el departamento
         const departamentoCodigo = factura.Departamento.substring(0, 3).toLowerCase();
-        factura.Ruta_pdf = `/facturas/2025/${departamentoCodigo}/fac-${factura.Num_factura.toLowerCase().replace(/\//g, '-')}.pdf`;
-        
-        // Actualizar la ruta en la base de datos
-        await connection.query(
-          'UPDATE Factura SET Ruta_pdf = ? WHERE idFactura = ?',
-          [factura.Ruta_pdf, factura.idFactura]
-        );
-        console.log(`✓ Ruta PDF actualizada en la base de datos: ${factura.Ruta_pdf}`);
+        factura.Ruta_pdf = `/facturas/2025/${departamentoCodigo}/fac-${factura.Num_factura.toLowerCase()}.pdf`;
       }
       
       // Normalizar la ruta del PDF
@@ -396,13 +334,6 @@ async function main() {
       
       console.log(`🔄 Procesando factura ${i+1}/${facturas.length}: ${factura.Num_factura}`);
       try {
-        // Crear directorio si no existe
-        const dir = path.dirname(rutaCompleta);
-        if (!fs.existsSync(dir)) {
-          fs.mkdirSync(dir, { recursive: true });
-          console.log(`✓ Directorio creado: ${dir}`);
-        }
-        
         // Generar el PDF de la factura
         await createEnhancedInvoicePDF(factura, rutaCompleta);
         console.log(`✅ PDF creado correctamente: ${rutaCompleta}`);
@@ -426,6 +357,7 @@ async function main() {
 }
 
 // Ejecutar la función principal
-main()
+console.log('🚀 Iniciando proceso de generación de facturas desde la base de datos...');
+generateInvoicePDFsFromDB()
   .then(() => console.log('✨ Proceso completado con éxito.'))
   .catch(error => console.error('❌ Error general:', error));

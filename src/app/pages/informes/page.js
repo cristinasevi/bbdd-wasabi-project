@@ -890,20 +890,7 @@ export default function Informes() {
                             </div>
                         )}
                         
-                        {/* Información de depuración (opcional) */}
-                        {departamentoCodigo && (
-                            <div className="text-sm text-gray-600 p-2 bg-gray-100 rounded">
-                                <p>Departamento: <strong>{selectedDepartamento}</strong></p>
-                                <p>Código de departamento: <strong>{departamentoCodigo}</strong></p>
-                                <p>Órdenes disponibles: <strong>{ordenesFiltradas.length}</strong></p>
-                                {ordenesFiltradas.length > 0 && (
-                                    <>
-                                        <p>Meses disponibles: <strong>{mesesFiltrados.length}</strong></p>
-                                        <p>Años disponibles: <strong>{anosFiltrados.length}</strong></p>
-                                    </>
-                                )}
-                            </div>
-                        )}
+                        {/* Ya no mostramos la información de depuración */}
                     
                         {/* Mostrar mensaje cuando no hay datos */}
                         {!isLoadingOrdenes && selectedDepartamento && ordenesFiltradas.length === 0 ? (
