@@ -14,6 +14,9 @@ export default function Informes() {
     const [loading, setLoading] = useState(false)
     const [ordenes, setOrdenes] = useState([])
     const [isLoadingOrdenes, setIsLoadingOrdenes] = useState(true)
+    const [departamentos, setDepartamentos] = useState([])
+    const [selectedDepartamento, setSelectedDepartamento] = useState("")
+    const [departamentoCodigo, setDepartamentoCodigo] = useState("") // Código de 3 letras
     
     // Referencias para las bibliotecas de PDF
     const jsPDFRef = useRef(null)
@@ -61,58 +64,62 @@ export default function Informes() {
             loadPdfLibs();
         }
     }, [showInformeModal, pdfLibsLoaded, addNotification]);
+
+    // Obtener información del usuario y departamentos
+    useEffect(() => {
+        async function fetchUserAndDepartamentos() {
+            try {
+                setLoading(true);
+                
+                // Obtener rol del usuario
+                const userResponse = await fetch('/api/getSessionUser');
+                if (userResponse.ok) {
+                    const userData = await userResponse.json();
+                    setUserRole(userData.usuario?.rol || '');
+                }
+                
+                // Obtener departamentos
+                const depsResponse = await fetch('/api/getDepartamentos');
+                if (depsResponse.ok) {
+                    const depsData = await depsResponse.json();
+                    setDepartamentos(depsData);
+                    
+                    // Si hay un departamento del usuario, seleccionarlo
+                    if (departamento) {
+                        setSelectedDepartamento(departamento);
+                        
+                        // Obtener el código de 3 letras para el departamento
+                        const depCode = departamento.substring(0, 3).toUpperCase();
+                        setDepartamentoCodigo(depCode);
+                        console.log(`Departamento seleccionado: ${departamento} (código: ${depCode})`);
+                    }
+                }
+            } catch (error) {
+                console.error("Error obteniendo datos iniciales:", error);
+            } finally {
+                setLoading(false);
+            }
+        }
+        
+        fetchUserAndDepartamentos();
+    }, [departamento]);
     
-    // Obtener órdenes de compra para determinar meses y años disponibles
+    // Obtener órdenes de compra
     useEffect(() => {
         async function fetchOrdenes() {
-            if (!departamento) return;
+            if (!selectedDepartamento) return;
             
             setIsLoadingOrdenes(true);
             try {
-                // Primero intentar obtener las órdenes por departamento
-                let response = await fetch(`/api/getOrdenByDepartamento?id=${encodeURIComponent(departamento)}`);
+                // Obtener todas las órdenes
+                const response = await fetch('/api/getOrden');
                 
                 if (response.ok) {
                     const data = await response.json();
-                    console.log("Órdenes cargadas:", data.length);
+                    console.log("Total órdenes cargadas:", data.length);
                     
-                    // Verificar si hay datos en las órdenes obtenidas
-                    if (data && data.length > 0) {
-                        setOrdenes(data);
-                    } else {
-                        console.warn("No se encontraron órdenes para el departamento:", departamento);
-                        
-                        // Como alternativa, intentar obtener todas las órdenes
-                        response = await fetch('/api/getOrden');
-                        if (response.ok) {
-                            const allOrdenes = await response.json();
-                            console.log("Todas las órdenes cargadas:", allOrdenes.length);
-                            
-                            // Filtrar solo las órdenes del departamento
-                            const filteredOrdenes = allOrdenes.filter(
-                                orden => orden.Departamento === departamento
-                            );
-                            
-                            console.log("Órdenes filtradas para departamento:", filteredOrdenes.length);
-                            setOrdenes(filteredOrdenes);
-                        }
-                    }
-                } else {
-                    // Si falla, intentar obtener todas las órdenes y filtrar por departamento
-                    console.warn("Error al obtener órdenes específicas del departamento:", await response.text());
-                    
-                    response = await fetch('/api/getOrden');
-                    if (response.ok) {
-                        const allOrdenes = await response.json();
-                        
-                        // Filtrar solo las órdenes del departamento
-                        const filteredOrdenes = allOrdenes.filter(
-                            orden => orden.Departamento === departamento
-                        );
-                        
-                        console.log("Órdenes filtradas para departamento:", filteredOrdenes.length);
-                        setOrdenes(filteredOrdenes);
-                    }
+                    // Guardar todas las órdenes
+                    setOrdenes(data);
                 }
             } catch (error) {
                 console.error("Error obteniendo órdenes de compra:", error);
@@ -123,239 +130,158 @@ export default function Informes() {
         }
         
         fetchOrdenes();
-    }, [departamento, addNotification]);
-
+    }, [addNotification, selectedDepartamento]);
     
-    // Obtener información del usuario
-    useEffect(() => {
-        async function fetchUserInfo() {
-            try {
-                const response = await fetch('/api/getSessionUser')
-                if (response.ok) {
-                    const data = await response.json()
-                    setUserRole(data.usuario?.rol || '')
-                }
-            } catch (error) {
-                console.error("Error obteniendo información del usuario:", error)
-            }
+    // Manejar cambio de departamento y actualizar código
+    const handleChangeDepartamento = (e) => {
+        const depNombre = e.target.value;
+        setSelectedDepartamento(depNombre);
+        
+        // Obtener el código de 3 letras para el departamento
+        if (depNombre) {
+            const depCode = depNombre.substring(0, 3).toUpperCase();
+            setDepartamentoCodigo(depCode);
+            console.log(`Departamento seleccionado: ${depNombre} (código: ${depCode})`);
+        } else {
+            setDepartamentoCodigo("");
         }
         
-        fetchUserInfo()
-    }, [])
-    
-    // Función para extraer mes y año de una fecha
-    const extraerFecha = (fechaString) => {
-        if (!fechaString) return { mes: null, ano: null };
-        
-        try {
-            // Intentar diferentes formatos de fecha
-            let fecha;
-            
-            // Si es un objeto Date
-            if (fechaString instanceof Date) {
-                fecha = fechaString;
-            } 
-            // Si es un string ISO
-            else if (typeof fechaString === 'string') {
-                // Verificar si el formato es yyyy-mm-dd
-                const isoMatch = fechaString.match(/(\d{4})-(\d{2})-(\d{2})/);
-                if (isoMatch) {
-                    fecha = new Date(fechaString);
-                } 
-                // Verificar si el formato es dd/mm/yyyy
-                else if (fechaString.includes('/')) {
-                    const parts = fechaString.split('/');
-                    if (parts.length === 3) {
-                        // Si el primer número parece un día (1-31)
-                        if (parseInt(parts[0]) <= 31) {
-                            fecha = new Date(parts[2], parts[1] - 1, parts[0]);
-                        } else {
-                            fecha = new Date(parts[0], parts[1] - 1, parts[2]);
-                        }
-                    }
-                } else {
-                    // Intentar el análisis estándar
-                    fecha = new Date(fechaString);
-                }
-            }
-            
-            // Verificar si la fecha es válida
-            if (isNaN(fecha.getTime())) {
-                console.warn("Fecha inválida:", fechaString);
-                return { mes: null, ano: null };
-            }
-            
-            return {
-                mes: meses[fecha.getMonth()],
-                ano: fecha.getFullYear().toString()
-            };
-        } catch (e) {
-            console.error("Error al procesar fecha:", e, fechaString);
-            return { mes: null, ano: null };
-        }
+        // Resetear selecciones
+        setMes("");
+        setAno("");
     };
     
-    // Obtener meses y años disponibles basados en las órdenes existentes
-    const { mesesDisponibles, anosDisponibles, combinacionesDisponibles } = useMemo(() => {
-        const mesSet = new Set();
-        const anoSet = new Set();
-        const combinaciones = new Map(); // Mapa para almacenar combinaciones mes-año
+    // Filtrar órdenes por el CÓDIGO del departamento (primeras 3 letras)
+    // Modificar la parte de filtrado por departamento
+    const ordenesFiltradas = useMemo(() => {
+        if (!departamento || !ordenes.length) {
+            return [];
+        }
         
-        if (ordenes && ordenes.length > 0) {
-            ordenes.forEach(orden => {
-                if (orden.Fecha) {
-                    const { mes, ano } = extraerFecha(orden.Fecha);
-                    
-                    if (mes && ano) {
-                        mesSet.add(mes);
-                        anoSet.add(ano);
-                        
-                        // Almacenar combinaciones válidas de mes-año
-                        if (!combinaciones.has(mes)) {
-                            combinaciones.set(mes, new Set());
-                        }
-                        combinaciones.get(mes).add(ano);
+        // Normalizar el nombre del departamento
+        const depNombre = departamento.toLowerCase().trim();
+        // Código de 3 letras
+        const depCode = departamentoCodigo;
+        
+        console.log("Filtrando órdenes para:", {
+            departamento: depNombre,
+            codigo: depCode,
+            totalOrdenes: ordenes.length
+        });
+
+        // Mostrar detalles de las primeras 5 órdenes para depuración
+        ordenes.slice(0, 5).forEach((orden, idx) => {
+            console.log(`Muestra orden ${idx}:`, {
+                idOrden: orden.idOrden,
+                Num_orden: orden.Num_orden,
+                Fecha: orden.Fecha,
+                Departamento: orden.Departamento || 'No especificado'
+            });
+        });
+        
+        // Filtrado más permisivo - intentamos varias estrategias
+        const filtradas = ordenes.filter(orden => {
+            // 1. Comprobar si hay un campo Departamento que coincida
+            if (orden.Departamento && orden.Departamento.toLowerCase().trim() === depNombre) {
+                return true;
+            }
+            
+            // 2. Comprobar por Num_orden con el formato: CODIGO/...
+            if (orden.Num_orden) {
+                const partes = orden.Num_orden.split('/');
+                if (partes.length > 0) {
+                    // Comparar con el código y también con las primeras letras del departamento
+                    const codigoOrden = partes[0].toUpperCase();
+                    if (codigoOrden === depCode || codigoOrden === depNombre.substring(0, 3).toUpperCase()) {
+                        return true;
                     }
                 }
-            });
+            }
+            
+            return false;
+        });
+        
+        console.log(`Órdenes filtradas para ${depNombre}: ${filtradas.length}`);
+        
+        // Si encontramos órdenes, mostrar algunas para depuración
+        if (filtradas.length > 0) {
+            console.log("Primeras órdenes filtradas:", filtradas.slice(0, 3));
         }
         
-        // Convertir a arrays y ordenar
-        const mesesOrdenados = Array.from(mesSet).sort((a, b) => 
-            meses.indexOf(a) - meses.indexOf(b)
-        );
+        return filtradas;
+    }, [departamento, departamentoCodigo, ordenes]);
+
+    // Modificación para el filtrado por fecha
+    const handleGenerarInforme = async () => {
+        // ... código existente ...
         
-        const anosOrdenados = Array.from(anoSet).sort();
+        // Filtrar órdenes por fecha con más detalle
+        const mesIndex = meses.indexOf(mes);
+        console.log(`Filtrando para ${mes} (índice ${mesIndex}) y año ${ano}`);
         
-        return { 
-            mesesDisponibles: mesesOrdenados, 
-            anosDisponibles: anosOrdenados,
-            combinacionesDisponibles: combinaciones
-        };
-    }, [ordenes, meses]);
-    
-    // Agregar esto después del final del useMemo de combinacionesDisponibles
-    const hayDatosDisponibles = useMemo(() => {
-        return mesesDisponibles.length > 0 && anosDisponibles.length > 0;
-    }, [mesesDisponibles, anosDisponibles]);
-    // Filtrar años disponibles según el mes seleccionado
-    const anosFiltrados = useMemo(() => {
-        if (!mes) return anosDisponibles;
-        
-        // Si hay un mes seleccionado, mostrar solo los años que tienen datos para ese mes
-        if (combinacionesDisponibles.has(mes)) {
-            return Array.from(combinacionesDisponibles.get(mes)).sort();
-        }
-        
-        return [];
-    }, [mes, anosDisponibles, combinacionesDisponibles]);
-    
-    // Filtrar meses disponibles según el año seleccionado
-    const mesesFiltrados = useMemo(() => {
-        if (!ano) return mesesDisponibles;
-        
-        // Si hay un año seleccionado, mostrar solo los meses que tienen datos para ese año
-        const mesesDelAno = [];
-        combinacionesDisponibles.forEach((anos, mesKey) => {
-            if (anos.has(ano)) {
-                mesesDelAno.push(mesKey);
+        const ordenesDelPeriodo = ordenesFiltradas.filter(orden => {
+            if (!orden.Fecha) {
+                console.log("Orden sin fecha:", orden);
+                return false;
+            }
+            
+            try {
+                const fechaStr = orden.Fecha;
+                console.log(`Procesando fecha: ${fechaStr}`);
+                
+                let fecha;
+                // Intentar varios formatos de fecha
+                if (typeof fechaStr === 'string') {
+                    // Formato ISO (YYYY-MM-DD)
+                    if (fechaStr.includes('-')) {
+                        const [year, month, day] = fechaStr.split('-');
+                        fecha = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                    } 
+                    // Formato DD/MM/YYYY
+                    else if (fechaStr.includes('/')) {
+                        const [day, month, year] = fechaStr.split('/');
+                        fecha = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                    } 
+                    // Timestamp o formato desconocido
+                    else {
+                        fecha = new Date(fechaStr);
+                    }
+                } else {
+                    fecha = new Date(fechaStr);
+                }
+                
+                if (isNaN(fecha.getTime())) {
+                    console.warn(`Fecha inválida: ${fechaStr}`);
+                    return false;
+                }
+                
+                const ordenMes = fecha.getMonth();
+                const ordenAno = fecha.getFullYear().toString();
+                
+                console.log(`Fecha procesada: ${fecha.toISOString()}, Mes: ${ordenMes}, Año: ${ordenAno}`);
+                
+                // Comprobar si coincide con el período seleccionado
+                const coincide = ordenMes === mesIndex && ordenAno === ano;
+                if (coincide) {
+                    console.log(`¡Coincide con el período! Mes ${ordenMes} === ${mesIndex}, Año ${ordenAno} === ${ano}`);
+                }
+                
+                return coincide;
+            } catch (error) {
+                console.error(`Error procesando fecha: ${orden.Fecha}`, error);
+                return false;
             }
         });
         
-        return mesesDelAno.sort((a, b) => meses.indexOf(a) - meses.indexOf(b));
-    }, [ano, mesesDisponibles, combinacionesDisponibles, meses]);
-    
-    // Función para generar el informe
-    const handleGenerarInforme = async () => {
-        // Validar que se haya seleccionado mes y año
-        if (!mes || !ano) {
-            addNotification("Por favor, selecciona mes y año para generar el informe", "warning")
-            return
-        }
-        
-        // Verificar si hay datos para la combinación de mes y año seleccionada
-        let tieneOrdenes = false;
-        
-        if (combinacionesDisponibles.has(mes)) {
-            tieneOrdenes = combinacionesDisponibles.get(mes).has(ano);
-        }
-        
-        if (!tieneOrdenes) {
-            addNotification("No hay datos disponibles para el periodo seleccionado", "warning");
-            return;
-        }
-        
-        setGeneratingInforme(true);
-        
-        try {
-            // Filtrar órdenes para el mes y año seleccionados
-            const mesIndex = meses.indexOf(mes);
-            const ordenesDelPeriodo = ordenes.filter(orden => {
-                if (!orden.Fecha) return false;
-                
-                const fecha = new Date(orden.Fecha);
-                return fecha.getMonth() === mesIndex && fecha.getFullYear().toString() === ano;
-            });
-            
-            // Calcular totales
-            const totalGastado = ordenesDelPeriodo.reduce((total, orden) => total + parseFloat(orden.Importe || 0), 0);
-            
-            // Obtener datos de presupuesto e inversión mediante consultas adicionales
-            // Estos valores serían idealmente obtenidos del backend, pero para mantener la simulación:
-            const presupuestoTotal = Math.floor(Math.random() * 30000) + 20000;
-            const presupuestoGastado = Math.min(totalGastado, presupuestoTotal);
-            const inversionTotal = Math.floor(Math.random() * 20000) + 10000;
-            const inversionGastada = Math.floor(Math.random() * 15000);
-            
-            // Generar datos de informe basados en órdenes reales
-            const simulatedData = {
-                titulo: `Informe de ${mes} ${ano}`,
-                departamento: departamento || "Todos",
-                fechaGeneracion: new Date().toLocaleDateString(),
-                presupuestoTotal: presupuestoTotal,
-                presupuestoGastado: presupuestoGastado,
-                inversionTotal: inversionTotal,
-                inversionGastada: inversionGastada,
-                ordenes: ordenesDelPeriodo.map((orden, i) => ({
-                    id: orden.idOrden || i + 1,
-                    numero: orden.Num_orden || `ORD/${String(i + 1).padStart(3, '0')}/${ano.toString().substring(2)}/1`,
-                    importe: parseFloat(orden.Importe) || 0,
-                    fecha: orden.Fecha ? new Date(orden.Fecha).toLocaleDateString() : `${Math.floor(Math.random() * 28) + 1}/${mesIndex + 1}/${ano}`,
-                    descripcion: orden.Descripcion || `Compra de material ${i % 2 === 0 ? 'inventariable' : 'fungible'}`
-                }))
-            };
-            
-            setInformeData(simulatedData);
-            setShowInformeModal(true);
-            
-        } catch (error) {
-            console.error("Error generando informe:", error);
-            addNotification("Error al generar el informe. Inténtalo de nuevo.", "error");
-        } finally {
-            setGeneratingInforme(false);
-        }
-    };
-    
-    // Función para convertir una imagen en base64
-    const getBase64Image = async (imgUrl) => {
-        try {
-            const response = await fetch(imgUrl);
-            const blob = await response.blob();
-            
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-            });
-        } catch (error) {
-            console.error("Error convirtiendo imagen a base64:", error);
-            return null;
-        }
-    };
+        console.log(`Órdenes del período ${mes} ${ano}: ${ordenesDelPeriodo.length}`);
+
+    }
     
     // Función para descargar el informe como PDF
     const handleDescargarInforme = async () => {
+        // Código para generar PDF (igual que antes)
+        // ...
+        
         if (!informeData) return;
         
         // Verificar si las bibliotecas están cargadas
@@ -494,19 +420,20 @@ export default function Informes() {
             }
             
             // Guardar el PDF y descargarlo
-            doc.save(`Informe_${departamento || 'General'}_${mes}_${ano}.pdf`);
+            doc.save(`Informe_${selectedDepartamento}_${mes}_${ano}.pdf`);
             
             addNotification("Informe descargado correctamente", "success");
             
         } catch (error) {
             console.error("Error generando PDF:", error);
-            addNotification("Error al generar el PDF. Inténtalo de nuevo.", "error");
+            addNotification("Error al generar el PDF", "error");
         } finally {
             setGeneratingPDF(false);
         }
     };
     
-    if (isDepartamentoLoading) {
+    // Mensaje de carga si los datos aún no están listos
+    if (isDepartamentoLoading || loading) {
         return <div className="p-6">Cargando...</div>
     }
 
@@ -518,7 +445,7 @@ export default function Informes() {
             {/* Encabezado */}
             <div className="mb-16">
                 <h1 className="text-3xl font-bold">Informes</h1>
-                <h2 className="text-xl text-gray-400">Departamento {departamento}</h2>
+                <h2 className="text-xl text-gray-400">Departamento {selectedDepartamento}</h2>
             </div>
 
             <div className="flex items-center justify-center my-8">
@@ -536,23 +463,43 @@ export default function Informes() {
                     </div>
             
                     <form className="space-y-6">
+                        {/* Selector de departamento (solo para admin y contable) */}
+                        {userRole !== "Jefe de Departamento" && (
+                            <div>
+                                <label htmlFor="departamento" className="block text-gray-700 mb-2">
+                                    Departamento
+                                </label>
+                                <select
+                                    id="departamento"
+                                    value={selectedDepartamento}
+                                    onChange={handleChangeDepartamento}
+                                    className="w-full bg-white px-4 py-3 border border-gray-300 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                                >
+                                    <option value="">Selecciona un departamento</option>
+                                    {departamentos.map((dep) => (
+                                        <option key={dep.id_Departamento} value={dep.Nombre}>
+                                            {dep.Nombre}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+                        
+                        {/* Información de depuración */}
+                        {departamentoCodigo && (
+                            <div className="text-sm text-gray-600 p-2 bg-gray-100 rounded">
+                                Código de departamento: <strong>{departamentoCodigo}</strong><br/>
+                                Órdenes filtradas: <strong>{ordenesFiltradas.length}</strong>
+                            </div>
+                        )}
+                    
                         {/* Mostrar un mensaje si no hay datos disponibles */}
-                        {!isLoadingOrdenes && !hayDatosDisponibles ? (
+                        {!isLoadingOrdenes && !selectedDepartamento ? (
                             <div className="bg-yellow-50 p-4 rounded-md border border-yellow-200">
-                                <p className="text-yellow-700 mb-2 font-semibold">No hay datos de órdenes disponibles</p>
+                                <p className="text-yellow-700 mb-2 font-semibold">Selecciona un departamento</p>
                                 <p className="text-sm text-yellow-600 mb-4">
-                                    No se encontraron órdenes de compra para el departamento seleccionado. 
-                                    Para generar informes, primero debe haber órdenes registradas.
+                                    Selecciona un departamento para ver los informes disponibles.
                                 </p>
-                                
-                                <Link href="/pages/ordenes-compra">
-                                    <button
-                                        type="button"
-                                        className="w-full bg-yellow-600 text-white py-2 rounded-md hover:bg-yellow-700 transition-colors"
-                                    >
-                                        Ir a Órdenes de Compra
-                                    </button>
-                                </Link>
                             </div>
                         ) : (
                             <>
@@ -563,17 +510,9 @@ export default function Informes() {
                                     <select
                                         id="mes"
                                         value={mes}
-                                        onChange={(e) => {
-                                            setMes(e.target.value);
-                                            // Si el año seleccionado no es válido para este mes, resetearlo
-                                            if (e.target.value && ano && 
-                                                combinacionesDisponibles.has(e.target.value) && 
-                                                !combinacionesDisponibles.get(e.target.value).has(ano)) {
-                                                setAno('');
-                                            }
-                                        }}
+                                        onChange={(e) => setMes(e.target.value)}
                                         className={`w-full bg-white px-4 py-3 border border-gray-300 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 ${isLoadingOrdenes ? 'opacity-50' : ''}`}
-                                        disabled={isLoadingOrdenes || mesesFiltrados.length === 0}
+                                        disabled={isLoadingOrdenes || !selectedDepartamento}
                                     >
                                         <option value="">Selecciona un mes</option>
                                         {mesesFiltrados.map((mesOpcion) => (
@@ -582,16 +521,6 @@ export default function Informes() {
                                             </option>
                                         ))}
                                     </select>
-                                    {isLoadingOrdenes && (
-                                        <p className="text-xs text-gray-500 mt-1">
-                                            Cargando datos disponibles...
-                                        </p>
-                                    )}
-                                    {!isLoadingOrdenes && mesesFiltrados.length === 0 && (
-                                        <p className="text-xs text-red-500 mt-1">
-                                            No hay meses con datos disponibles
-                                        </p>
-                                    )}
                                 </div>
 
                                 <div>
@@ -601,25 +530,9 @@ export default function Informes() {
                                     <select
                                         id="año"
                                         value={ano}
-                                        onChange={(e) => {
-                                            setAno(e.target.value);
-                                            // Si el mes seleccionado no es válido para este año, resetearlo
-                                            if (e.target.value && mes) {
-                                                let esValido = false;
-                                                
-                                                combinacionesDisponibles.forEach((anos, mesKey) => {
-                                                    if (mesKey === mes && anos.has(e.target.value)) {
-                                                        esValido = true;
-                                                    }
-                                                });
-                                                
-                                                if (!esValido) {
-                                                    setMes('');
-                                                }
-                                            }
-                                        }}
+                                        onChange={(e) => setAno(e.target.value)}
                                         className={`w-full bg-white px-4 py-3 border border-gray-300 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 ${isLoadingOrdenes ? 'opacity-50' : ''}`}
-                                        disabled={isLoadingOrdenes || anosFiltrados.length === 0}
+                                        disabled={isLoadingOrdenes || !selectedDepartamento}
                                     >
                                         <option value="">Selecciona un año</option>
                                         {anosFiltrados.map((anoOpcion) => (
@@ -628,25 +541,12 @@ export default function Informes() {
                                             </option>
                                         ))}
                                     </select>
-                                    {!isLoadingOrdenes && anosFiltrados.length === 0 && (
-                                        <p className="text-xs text-red-500 mt-1">
-                                            No hay años con datos disponibles
-                                        </p>
-                                    )}
                                 </div>
-                                
-                                {/* Mensaje informativo */}
-                                {!isLoadingOrdenes && mesesDisponibles.length > 0 && (
-                                    <div className="text-xs text-gray-600 italic">
-                                        Solo se muestran periodos con datos disponibles.
-                                        Hay {mesesDisponibles.length} meses y {anosDisponibles.length} años disponibles.
-                                    </div>
-                                )}
                         
                                 <button
                                     type="button"
                                     onClick={handleGenerarInforme}
-                                    disabled={generatingInforme || !mes || !ano || isLoadingOrdenes}
+                                    disabled={generatingInforme || !mes || !ano || isLoadingOrdenes || !selectedDepartamento}
                                     className="w-full bg-red-600 text-white py-3 rounded-md hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
                                 >
                                     {generatingInforme ? (
