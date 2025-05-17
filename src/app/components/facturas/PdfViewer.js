@@ -17,7 +17,11 @@ export default function PdfViewer({ pdfUrl, fileName, onClose }) {
   }, [pdfUrl]);
 
   const handleDownload = () => {
-    window.open(pdfUrl, '_blank');
+    // Convertir la URL de visualización a URL de descarga
+    const downloadUrl = pdfUrl.replace('/viewPdf', '/descargar');
+    
+    // Abrir la URL de descarga, que debería iniciar la descarga automáticamente
+    window.open(downloadUrl, '_blank');
   };
 
   return (
@@ -31,14 +35,14 @@ export default function PdfViewer({ pdfUrl, fileName, onClose }) {
           <div className="flex items-center space-x-2">
             <button
               onClick={handleDownload}
-              className="bg-blue-600 text-white px-3 py-1 rounded-md flex items-center"
+              className="bg-blue-600 text-white px-3 py-1 rounded-md flex items-center cursor-pointer"
             >
               <Download className="w-4 h-4 mr-1" />
               <span>Descargar</span>
             </button>
             <button
               onClick={onClose}
-              className="bg-gray-200 px-2 py-1 rounded-md text-gray-800"
+              className="bg-gray-200 px-2 py-1 rounded-md text-gray-800 cursor-pointer"
             >
               ×
             </button>

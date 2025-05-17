@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from "react"
-import { ChevronDown, ArrowUpDown, Search, Filter, Upload, X, Pencil, Calendar, Euro, Download } from "lucide-react"
+import { ChevronDown, ArrowUpDown, Search, Filter, Upload, X, Eye, Pencil, Calendar, Euro, Download } from "lucide-react"
 import Link from "next/link"
 import useUserDepartamento from "@/app/hooks/useUserDepartamento"
 import useNotifications from "@/app/hooks/useNotifications"
@@ -387,6 +387,32 @@ export default function Facturas() {
                 newFile: null,
                 hasNewFile: false
             }));
+        }
+    };
+
+    // Función para generar PDF
+    const generatePdf = async (facturaId) => {
+        try {
+            setIsLoading(true);
+            addNotification("Generando PDF...", "info");
+            
+            const response = await fetch(`/api/facturas/generate?id=${facturaId}`);
+            
+            if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || "Error generando PDF");
+            }
+            
+            const data = await response.json();
+            addNotification("PDF generado correctamente", "success");
+            
+            // Opcional: Refrescar la factura específica o recargar todas las facturas
+            // Podrías implementar esto si notas que los PDFs no se actualizan en la interfaz
+        } catch (error) {
+            console.error("Error generando PDF:", error);
+            addNotification(`Error: ${error.message}`, "error");
+        } finally {
+            setIsLoading(false);
         }
     };
     
@@ -870,42 +896,18 @@ export default function Facturas() {
                                 </span>
                                 </td>
                                 <td className="py-3 px-3 text-center">
-                                    <div className="flex justify-center gap-2 items-center">
-                                        {/* Botón de editar */}
-                                        <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleEditFactura(factura);
-                                        }}
-                                        className="text-gray-500 hover:text-red-600"
-                                        title="Editar factura"
-                                        >
-                                        <Pencil className="w-5 h-5" />
-                                        </button>
-                                        
-                                        {/* Botón de insertar factura cuando no hay PDF */}
-                                        {!factura.Ruta_pdf && (
-                                        <button
-                                            onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleInsertarFactura(factura.idFactura);
-                                            }}
-                                            className="bg-green-600 text-white text-sm px-3 py-1 rounded hover:bg-green-700"
-                                        >
-                                            Insertar Factura
-                                        </button>
-                                        )}
-                                        
-                                        {/* Botón para visualizar PDF cuando existe */}
+                                    <div className="flex justify-center gap-2 items-center">                                        
+                                        {/* Icono de ojo para previsualizar PDF cuando existe */}
                                         {factura.Ruta_pdf && (
                                         <button
                                             onClick={(e) => {
                                             e.stopPropagation();
                                             handleViewPdf(factura.idFactura, factura.Num_factura);
                                             }}
-                                            className="bg-blue-600 text-white text-sm px-3 py-1 rounded hover:bg-blue-700"
+                                            className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 cursor-pointer"
+                                            title="Ver PDF"
                                         >
-                                            Ver PDF
+                                            <Eye className="w-5 h-5" />
                                         </button>
                                         )}
                                     </div>
@@ -927,6 +929,15 @@ export default function Facturas() {
                    </table>
                </div>
            </div>
+
+            {/* Visor de PDF */}
+            {showPdfViewer && (
+            <PdfViewer
+                pdfUrl={selectedPdfUrl}
+                fileName={selectedPdfName}
+                onClose={() => setShowPdfViewer(false)}
+            />
+            )}
            
            {/* Botones de acción */}
            <div className="flex justify-between mt-4 mb-4">
@@ -1230,15 +1241,6 @@ export default function Facturas() {
                            >
                                {isUploading ? "Guardando..." : "Guardar Cambios"}
                            </button>
-
-                           {/* Visor de PDF */}
-                            {showPdfViewer && (
-                            <PdfViewer
-                                pdfUrl={selectedPdfUrl}
-                                fileName={selectedPdfName}
-                                onClose={() => setShowPdfViewer(false)}
-                            />
-                            )}
                        </div>
                    </div>
                </div>
