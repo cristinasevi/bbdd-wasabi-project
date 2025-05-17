@@ -1,17 +1,17 @@
 "use client"
 
 import { useState, useEffect } from 'react';
-import { File, Download, ExternalLink } from 'lucide-react';
+import { File, Download, ExternalLink, Loader } from 'lucide-react';
 
 export default function PdfViewer({ pdfUrl, fileName, onClose }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Simplemente para simular la carga del PDF
+    // Verificamos si el PDF está cargando
     const timer = setTimeout(() => {
       setIsLoading(false);
-    }, 1000);
+    }, 1500); // Aumentamos un poco el tiempo para asegurar que el PDF cargue
 
     return () => clearTimeout(timer);
   }, [pdfUrl]);
@@ -26,33 +26,38 @@ export default function PdfViewer({ pdfUrl, fileName, onClose }) {
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
-      <div className="bg-white rounded-lg w-full max-w-4xl h-[80vh] flex flex-col">
-        <div className="p-4 border-b flex justify-between items-center">
+      <div className="bg-white rounded-lg w-full max-w-5xl h-[85vh] flex flex-col">
+        {/* Cabecera del visor */}
+        <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
           <div className="flex items-center">
             <File className="w-5 h-5 mr-2 text-red-600" />
             <h2 className="text-xl font-semibold">{fileName || 'Factura PDF'}</h2>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-3">
             <button
               onClick={handleDownload}
-              className="bg-blue-600 text-white px-3 py-1 rounded-md flex items-center cursor-pointer"
+              className="bg-blue-600 text-white px-3 py-2 rounded-md flex items-center cursor-pointer hover:bg-blue-700 transition-colors"
             >
               <Download className="w-4 h-4 mr-1" />
               <span>Descargar</span>
             </button>
             <button
               onClick={onClose}
-              className="bg-gray-200 px-2 py-1 rounded-md text-gray-800 cursor-pointer"
+              className="bg-gray-200 px-3 py-2 rounded-md text-gray-800 hover:bg-gray-300 transition-colors"
             >
               ×
             </button>
           </div>
         </div>
 
+        {/* Contenido del PDF */}
         <div className="flex-grow overflow-hidden p-1 bg-gray-100">
           {isLoading ? (
             <div className="h-full flex items-center justify-center">
-              <div className="animate-spin w-8 h-8 border-4 border-red-600 border-t-transparent rounded-full"></div>
+              <div className="flex flex-col items-center">
+                <Loader className="w-8 h-8 text-red-600 animate-spin mb-2" />
+                <p className="text-gray-600">Cargando documento...</p>
+              </div>
             </div>
           ) : error ? (
             <div className="h-full flex items-center justify-center text-red-600">
@@ -67,9 +72,10 @@ export default function PdfViewer({ pdfUrl, fileName, onClose }) {
           )}
         </div>
 
-        <div className="p-3 bg-gray-50 border-t flex justify-between items-center">
+        {/* Pie del visor */}
+        <div className="p-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
           <span className="text-sm text-gray-500">
-            Puede ser necesario permitir la visualización de PDFs en su navegador
+            Visualizando factura en formato PDF
           </span>
           <a
             href={pdfUrl}
