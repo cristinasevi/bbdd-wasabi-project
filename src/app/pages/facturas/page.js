@@ -72,6 +72,18 @@ export default function Facturas() {
         newFile: null,
         hasNewFile: false
     })
+
+    // Función para limpiar todos los filtros
+    const handleClearFilters = () => {
+        setSearchTerm("");
+        setFilterFecha("");
+        setFilterImporte("");
+        setFilterEstado("");
+        setFilterProveedor("");
+        
+        // Mostrar notificación opcional
+        addNotification("Filtros eliminados", "info");
+    };
     
     // Referencia al input de archivo
     const fileInputRef = useRef(null)
@@ -723,7 +735,7 @@ export default function Facturas() {
             )}
             
             {/* Filtros y búsqueda */}
-            <div className="mb-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="mb-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="relative">
                     <input
                         type="text"
@@ -787,6 +799,16 @@ export default function Facturas() {
                         <ChevronDown className="w-4 h-4 text-gray-500" />
                     </div>
                 </div>
+                
+                <div className="flex justify-end">
+                    <button
+                        onClick={handleClearFilters}
+                        className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 transition-colors flex items-center gap-2 cursor-pointer"
+                    >
+                        <X className="w-4 h-4 cursor-pointer" />
+                        Limpiar filtros
+                    </button>
+                </div>
             </div>
             
             {/* Indicador de resultados */}
@@ -807,7 +829,7 @@ export default function Facturas() {
                                                 type="checkbox"
                                                 checked={selectedFacturas.length === filteredFacturas.length && filteredFacturas.length > 0}
                                                 onChange={toggleSelectAll}
-                                                className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                                                className="h-4 w-4 text-red-600 border-gray-300 rounded cursor-pointer"
                                             />
                                         </div>
                                     )}
@@ -838,7 +860,7 @@ export default function Facturas() {
                                     type="checkbox"
                                     checked={selectedFacturas.includes(factura.idFactura)}
                                     onChange={() => toggleSelectFactura(factura.idFactura)}
-                                    className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                                    className="h-4 w-4 text-red-600 border-gray-300 rounded cursor-pointer"
                                     />
                                 </div>
                                 </td>
@@ -854,7 +876,7 @@ export default function Facturas() {
                                         e.stopPropagation();
                                         setOpenDropdown(openDropdown === factura.idFactura ? null : factura.idFactura);
                                     }}
-                                    className={`border rounded px-3 py-1 w-full text-sm ${
+                                    className={`border rounded px-3 py-1 w-full text-sm cursor-pointer ${
                                         factura.Estado === "Pagada"
                                         ? "bg-green-50 text-green-800"
                                         : factura.Estado === "Pendiente"
