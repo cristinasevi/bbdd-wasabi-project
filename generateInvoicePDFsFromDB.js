@@ -61,7 +61,7 @@ function createEnhancedInvoicePDF(facturaData, outputPath) {
       try {
         const logoPath = path.join(process.cwd(), 'public', 'images', 'logo.jpg');
         if (fs.existsSync(logoPath)) {
-          doc.image(logoPath, 50, yPos, { width: 50 });
+          doc.image(logoPath, doc.page.width - 100, yPos, { width: 50 });
           yPos += 10;
         }
       } catch (error) {
@@ -70,7 +70,7 @@ function createEnhancedInvoicePDF(facturaData, outputPath) {
       
       // Título y Número de Factura
       doc.fontSize(22)
-         .fillColor('#E02D39')
+         .fillColor('#000000')
          .text('FACTURA', 50, yPos, { align: 'left' });
       
       yPos += 30;
@@ -253,19 +253,19 @@ function createEnhancedInvoicePDF(facturaData, outputPath) {
       const pageHeight = doc.page.height;
       
       // Línea divisoria
-      doc.moveTo(50, pageHeight - 100)
-         .lineTo(doc.page.width - 50, pageHeight - 100)
+      doc.moveTo(50, pageHeight - 140)
+         .lineTo(doc.page.width - 50, pageHeight - 140)
          .stroke('#cccccc');
       
       // Texto del pie
       doc.fontSize(9)
          .fillColor('#666666')
-         .text('Esta factura fue generada automáticamente por el sistema.', 50, pageHeight - 90)
-         .text('Sin el sello y la firma correspondiente, este documento carece de valor contable.', 50, pageHeight - 75);
+         .text('Esta factura fue generada automáticamente por el sistema.', 50, pageHeight - 130)
+         .text('Sin el sello y la firma correspondiente, este documento carece de valor contable.', 50, pageHeight - 115);
       
       // Texto de copyright
       doc.fontSize(8)
-         .text('© 2025 Salesianos Zaragoza', 0, pageHeight - 50, { align: 'center' });
+         .text('© 2025 Salesianos Zaragoza', 0, pageHeight - 90, { align: 'center' });
       
       // Finalizar el documento
       doc.end();
