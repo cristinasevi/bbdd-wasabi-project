@@ -1,3 +1,4 @@
+// En src/app/hooks/useSecureLogout.js
 "use client"
 
 import { useCallback } from 'react';
@@ -9,13 +10,14 @@ export default function useSecureLogout() {
 
   const secureLogout = useCallback(async () => {
     try {
-      // 1. Marcar en localStorage que fue un logout explícito
+      // 1. Marcar en localStorage que fue un logout explícito para evitar advertencias
       if (typeof window !== 'undefined') {
         localStorage.setItem('wasabi_explicit_logout', 'true');
         
         // También limpiar cualquier dato sensible del localStorage
         localStorage.removeItem('selectedDepartamento');
         localStorage.removeItem('userDepartamento');
+        localStorage.removeItem('wasabi_session_aborted');
       }
 
       // 2. Hacer la llamada a signOut con configuración especial

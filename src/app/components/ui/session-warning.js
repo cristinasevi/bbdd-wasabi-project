@@ -1,3 +1,4 @@
+// En src/app/components/ui/session-warning.js
 "use client"
 
 import { useState, useEffect } from 'react';
@@ -6,12 +7,33 @@ import { X, AlertTriangle } from 'lucide-react';
 
 export default function SessionWarning() {
   const [showWarning, setShowWarning] = useState(false);
+  const [warningMessage, setWarningMessage] = useState('');
+  const [warningDetail, setWarningDetail] = useState('');
   const searchParams = useSearchParams();
 
   useEffect(() => {
     const message = searchParams.get('message');
+    const wasAborted = typeof window !== 'undefined' ? 
+      localStorage.getItem('wasabi_session_aborted') === 'true' : false;
+    
     if (message === 'session_expired') {
+      setWarningMessage('Tu sesión expiró. Por favor, inicia sesión nuevamente.');
+      setWarningDetail('Recuerda hacer logout antes de cerrar la ventana.');
       setShowWarning(true);
+      
+      // Limpiar el flag
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('wasabi_session_aborted');
+      }
+    } else if (wasAborted) {
+      setWarningMessage('Se detectó un cierre anormal de tu sesión anterior.');
+      setWarningDetail('Siempre debes hacer logout antes de cerrar la ventana del navegador.');
+      setShowWarning(true);
+      
+      // Limpiar el flag
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('wasabi_session_aborted');
+      }
     }
   }, [searchParams]);
 
@@ -26,10 +48,10 @@ export default function SessionWarning() {
           </div>
           <div className="ml-3 flex-1">
             <p className="text-sm font-medium text-yellow-800">
-              Tu sesión expiró. Por favor, inicia sesión nuevamente.
+              {warningMessage}
             </p>
             <p className="text-xs text-yellow-600 mt-1">
-              Recuerda hacer logout antes de cerrar la ventana.
+              {warningDetail}
             </p>
           </div>
           <div className="ml-4 flex-shrink-0">
