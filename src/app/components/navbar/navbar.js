@@ -129,13 +129,15 @@ export default function Navbar() {
                             <li key={item.name} className="mb-2">
                                 <Link
                                     href={item.href}
-                                    className={`flex items-center px-6 py-3 ${isActive
+                                    className={`flex items-center px-6 py-3 whitespace-nowrap ${isActive
                                         ? "text-red-600 bg-red-50 border-l-2 border-red-600" 
                                         : "text-gray-700 hover:bg-gray-100"}`}
                                     prefetch={false}
                                 >
-                                    <Icon className="w-5 h-5 mr-7" />
-                                    {item.bold ? <strong>{item.name}</strong> : item.name}
+                                    <Icon className="w-5 h-5 mr-7 flex-shrink-0" />
+                                    <span className={item.bold ? "font-bold" : (isActive ? "font-semibold" : "")}>
+                                        {item.name}
+                                    </span>
                                 </Link>
                             </li>
                         )
