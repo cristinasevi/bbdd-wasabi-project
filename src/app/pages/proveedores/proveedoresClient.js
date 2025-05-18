@@ -15,7 +15,7 @@ export default function ProveedoresClient({
   // Agregamos el hook para obtener el departamento del usuario
   const { departamento, isLoading: isDepartamentoLoading } = useUserDepartamento();
   const [userRole, setUserRole] = useState(null); // Añadimos estado para el rol
-  
+
   // Estados principales
   const [proveedores, setProveedores] = useState([]);
   const [departamentos] = useState(initialDepartamentos);
@@ -24,14 +24,14 @@ export default function ProveedoresClient({
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState("add"); // 'add' o 'edit'
   const [formErrors, setFormErrors] = useState({});
-  
+
   // Nuevo estado para el selector de departamentos múltiples
   const [showDepartamentosSelector, setShowDepartamentosSelector] = useState(false);
 
   // Estados para búsqueda y filtrado
   const [searchTerm, setSearchTerm] = useState("");
   const [filterDepartamento, setFilterDepartamento] = useState("");
-  
+
   // Efecto para obtener el rol del usuario
   useEffect(() => {
     async function fetchUserRole() {
@@ -41,7 +41,7 @@ export default function ProveedoresClient({
           const data = await response.json();
           const role = data.usuario?.rol || '';
           setUserRole(role);
-          
+
           // Si es Jefe de Departamento, establecer el filtro automáticamente
           if (role === "Jefe de Departamento" && departamento) {
             setFilterDepartamento(departamento);
@@ -51,21 +51,21 @@ export default function ProveedoresClient({
         console.error("Error obteniendo rol del usuario:", error);
       }
     }
-    
+
     fetchUserRole();
   }, [departamento]);
-  
+
   // Procesamiento para eliminar duplicados de proveedores y agrupar sus departamentos
   useEffect(() => {
     if (initialProveedores && initialProveedores.length > 0) {
       console.log("Procesando", initialProveedores.length, "proveedores iniciales");
-      
+
       // Crear un mapa para agrupar proveedores por ID
       const proveedoresMap = new Map();
-      
+
       initialProveedores.forEach(proveedor => {
         const id = proveedor.idProveedor;
-        
+
         if (!proveedoresMap.has(id)) {
           // Si es la primera vez que vemos este proveedor, lo añadimos con un array de departamentos
           proveedoresMap.set(id, {
@@ -80,11 +80,11 @@ export default function ProveedoresClient({
           }
         }
       });
-      
+
       // Convertir el mapa a un array de proveedores sin duplicados
       const proveedoresUnicos = Array.from(proveedoresMap.values());
       console.log("Procesados", proveedoresUnicos.length, "proveedores únicos");
-      
+
       setProveedores(proveedoresUnicos);
     } else {
       setProveedores([]);
@@ -96,7 +96,7 @@ export default function ProveedoresClient({
     isOpen: false,
     title: "",
     message: "",
-    onConfirm: () => {},
+    onConfirm: () => { },
   });
 
   // Hook de notificaciones
@@ -126,7 +126,7 @@ export default function ProveedoresClient({
 
       // Filtro por departamento (ahora busca en el array de departamentos)
       const matchesDepartamento =
-        filterDepartamento === "" || 
+        filterDepartamento === "" ||
         (proveedor.Departamentos && proveedor.Departamentos.includes(filterDepartamento));
 
       return matchesSearch && matchesDepartamento;
@@ -154,7 +154,7 @@ export default function ProveedoresClient({
   // Abrir modal de añadir proveedor
   const handleOpenAddModal = () => {
     limpiarFormulario();
-    
+
     // Si es Jefe de Departamento, preseleccionamos su departamento
     if (userRole === "Jefe de Departamento" && departamento) {
       setFormularioProveedor(prev => ({
@@ -163,7 +163,7 @@ export default function ProveedoresClient({
         departamentos: [departamento]
       }));
     }
-    
+
     setModalMode("add");
     setShowModal(true);
   };
@@ -171,17 +171,17 @@ export default function ProveedoresClient({
   // Abrir modal de editar proveedor
   const handleOpenEditModal = (proveedor) => {
     // Elegimos el primer departamento como el principal (para compatibilidad con la API)
-    const departamentoPrincipal = proveedor.Departamentos && proveedor.Departamentos.length > 0 
-      ? proveedor.Departamentos[0] 
+    const departamentoPrincipal = proveedor.Departamentos && proveedor.Departamentos.length > 0
+      ? proveedor.Departamentos[0]
       : "";
-      
+
     setFormularioProveedor({
       idProveedor: proveedor.idProveedor,
-      nombre: proveedor.Nombre || "",
-      nif: proveedor.NIF || "",
-      direccion: proveedor.Direccion || "",
-      telefono: proveedor.Telefono || "",
-      email: proveedor.Email || "",
+      nombre: String(proveedor.Nombre || ""),
+      nif: String(proveedor.NIF || ""),
+      direccion: String(proveedor.Direccion || ""),
+      telefono: String(proveedor.Telefono || ""),
+      email: String(proveedor.Email || ""),
       departamento: departamentoPrincipal,
       departamentos: proveedor.Departamentos || []
     });
@@ -214,16 +214,16 @@ export default function ProveedoresClient({
   // Manejar cambios en el formulario con validación en tiempo real
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    
+
     // Actualizar el valor del campo
     let updatedForm;
     if (name === "departamento") {
       updatedForm = {
         ...formularioProveedor,
         [name]: value,
-        departamentos: modalMode === "add" ? [value] : 
-          formularioProveedor.departamentos.includes(value) ? 
-            formularioProveedor.departamentos : 
+        departamentos: modalMode === "add" ? [value] :
+          formularioProveedor.departamentos.includes(value) ?
+            formularioProveedor.departamentos :
             [value, ...formularioProveedor.departamentos.filter(dep => dep !== value)]
       };
     } else {
@@ -232,16 +232,16 @@ export default function ProveedoresClient({
         [name]: value,
       };
     }
-    
+
     setFormularioProveedor(updatedForm);
-    
+
     // Limpiar el error del campo si existe
     if (formErrors[name]) {
       const newErrors = { ...formErrors };
       delete newErrors[name];
       setFormErrors(newErrors);
     }
-    
+
     // Solo validación en tiempo real para el NIF
     if (name === "nif" && value.trim().length > 0) {
       const nifValidation = validateNIF(value);
@@ -249,8 +249,8 @@ export default function ProveedoresClient({
         setFormErrors(prev => ({ ...prev, nif: nifValidation.error }));
       } else {
         // Verificar duplicados
-        const nifExists = proveedores.some(p => 
-          p.NIF && p.NIF.toUpperCase() === nifValidation.formatted && 
+        const nifExists = proveedores.some(p =>
+          p.NIF && p.NIF.toUpperCase() === nifValidation.formatted &&
           p.idProveedor !== formularioProveedor.idProveedor
         );
         if (nifExists) {
@@ -280,8 +280,8 @@ export default function ProveedoresClient({
         errors.nif = nifValidation.error;
       } else {
         // Verificar duplicados
-        const nifExists = proveedoresList.some(p => 
-          p.NIF && p.NIF.toUpperCase() === nifValidation.formatted && 
+        const nifExists = proveedoresList.some(p =>
+          p.NIF && p.NIF.toUpperCase() === nifValidation.formatted &&
           p.idProveedor !== editingId
         );
         if (nifExists) {
@@ -309,11 +309,11 @@ export default function ProveedoresClient({
   // Validar formulario
   const validarFormulario = () => {
     const validation = validateProveedorForm(
-      formularioProveedor, 
-      proveedores, 
+      formularioProveedor,
+      proveedores,
       modalMode === "edit" ? formularioProveedor.idProveedor : null
     );
-    
+
     if (!validation.isValid) {
       setFormErrors(validation.errors);
       addNotification("Por favor, corrige los errores en el formulario", "error");
@@ -328,16 +328,16 @@ export default function ProveedoresClient({
   const handleAddDepartamento = (depNombre) => {
     // Si ya está incluido, no hacemos nada
     if (formularioProveedor.departamentos.includes(depNombre)) return;
-    
+
     setFormularioProveedor(prev => ({
       ...prev,
       departamentos: [...prev.departamentos, depNombre]
     }));
-    
+
     // Cerrar el selector después de agregar
     setShowDepartamentosSelector(false);
   };
-  
+
   // Nuevo método para eliminar un departamento de la lista
   const handleRemoveDepartamento = (depNombre) => {
     // Si es el departamento principal, mostrar un mensaje
@@ -348,7 +348,7 @@ export default function ProveedoresClient({
       );
       return;
     }
-    
+
     setFormularioProveedor(prev => ({
       ...prev,
       departamentos: prev.departamentos.filter(dep => dep !== depNombre)
@@ -364,24 +364,24 @@ export default function ProveedoresClient({
     try {
       // Limpiar errores anteriores
       setFormErrors({});
-      
+
       // Limpiar y formatear el NIF
       const nifValidation = validateNIF(formularioProveedor.nif);
       const nifFormateado = nifValidation.formatted;
-      
+
       // Datos del proveedor a enviar
       const proveedorData = {
-        nombre: formularioProveedor.nombre.trim(),
+        nombre: String(formularioProveedor.nombre || "").trim(),
         nif: nifFormateado,
-        direccion: formularioProveedor.direccion?.trim() || "",
-        telefono: formularioProveedor.telefono?.trim() || "",
-        email: formularioProveedor.email?.trim() || "",
+        direccion: String(formularioProveedor.direccion || "").trim(),
+        telefono: String(formularioProveedor.telefono || "").trim(),
+        email: String(formularioProveedor.email || "").trim(),
         departamento: formularioProveedor.departamento,
       };
-      
+
       let response;
       let proveedorId;
-      
+
       if (modalMode === "add") {
         // Lógica para añadir nuevo proveedor
         try {
@@ -392,39 +392,39 @@ export default function ProveedoresClient({
             },
             body: JSON.stringify(proveedorData),
           });
-          
+
           // Verificar si la respuesta es correcta
           if (!response.ok) {
             const contentType = response.headers.get("content-type");
             if (contentType && contentType.includes("application/json")) {
               const errorData = await response.json();
-              
+
               // Comprobar si es error de NIF duplicado
               if (errorData.error && (
-                  errorData.error.includes("duplicate") || 
-                  errorData.error.includes("Duplicate") ||
-                  errorData.error.includes("Ya existe")
-                )) {
+                errorData.error.includes("duplicate") ||
+                errorData.error.includes("Duplicate") ||
+                errorData.error.includes("Ya existe")
+              )) {
                 setFormErrors({ nif: "Ya existe un proveedor con este NIF/CIF" });
                 addNotification("Ya existe un proveedor con este NIF/CIF", "error");
                 return; // Importante: salir de la función aquí
               }
-              
+
               throw new Error(errorData.error || `Error del servidor: ${response.status}`);
             } else {
               throw new Error(`Error del servidor: ${response.status} ${response.statusText}`);
             }
           }
-          
+
           // Procesar la respuesta exitosa
           const respText = await response.text();
           const data = respText ? JSON.parse(respText) : {};
           proveedorId = data.id;
-          
+
           if (!proveedorId) {
             throw new Error("No se recibió el ID del proveedor creado");
           }
-          
+
         } catch (fetchError) {
           console.error("Error en la solicitud de creación:", fetchError);
           throw new Error(`Error al crear el proveedor: ${fetchError.message}`);
@@ -432,7 +432,7 @@ export default function ProveedoresClient({
       } else {
         // Lógica para editar proveedor existente
         proveedorId = formularioProveedor.idProveedor;
-        
+
         try {
           response = await fetch(`/api/getProveedores/${proveedorId}`, {
             method: "PUT",
@@ -441,30 +441,30 @@ export default function ProveedoresClient({
             },
             body: JSON.stringify(proveedorData),
           });
-          
+
           // Verificar si la respuesta es correcta
           if (!response.ok) {
             const contentType = response.headers.get("content-type");
             if (contentType && contentType.includes("application/json")) {
               const errorData = await response.json();
-              
+
               // Comprobar si es error de NIF duplicado
               if (errorData.error && (
-                  errorData.error.includes("duplicate") || 
-                  errorData.error.includes("Duplicate") ||
-                  errorData.error.includes("Ya existe")
-                )) {
+                errorData.error.includes("duplicate") ||
+                errorData.error.includes("Duplicate") ||
+                errorData.error.includes("Ya existe")
+              )) {
                 setFormErrors({ nif: "Ya existe un proveedor con este NIF/CIF" });
                 addNotification("Ya existe un proveedor con este NIF/CIF", "error");
                 return; // Importante: salir de la función aquí
               }
-              
+
               throw new Error(errorData.error || `Error del servidor: ${response.status}`);
             } else {
               throw new Error(`Error del servidor: ${response.status} ${response.statusText}`);
             }
           }
-          
+
           // Leer la respuesta como texto para evitar errores de parsing JSON
           await response.text();
         } catch (fetchError) {
@@ -472,18 +472,18 @@ export default function ProveedoresClient({
           throw new Error(`Error al actualizar el proveedor: ${fetchError.message}`);
         }
       }
-      
-      
+
+
       // Ahora vamos a añadir el resto de departamentos (si hay más de uno)
       // Excluimos el departamento principal que ya se guardó
       const departamentosAdicionales = formularioProveedor.departamentos.filter(
         dep => dep !== formularioProveedor.departamento
       );
-      
+
       // Si hay departamentos adicionales, los añadimos uno por uno
       if (departamentosAdicionales.length > 0) {
         console.log("Añadiendo departamentos adicionales:", departamentosAdicionales);
-        
+
         for (const depNombre of departamentosAdicionales) {
           // Buscar el ID del departamento
           const depInfo = departamentos.find(d => d.Nombre === depNombre);
@@ -491,7 +491,7 @@ export default function ProveedoresClient({
             console.warn(`No se encontró el departamento ${depNombre} en la lista`);
             continue;
           }
-          
+
           try {
             const depResponse = await fetch("/api/proveedorDepartamento", {
               method: "POST",
@@ -504,9 +504,9 @@ export default function ProveedoresClient({
                 propio: 1
               }),
             });
-            
+
             if (!depResponse.ok) {
-              console.warn(`No se pudo añadir el departamento ${depNombre}:`, 
+              console.warn(`No se pudo añadir el departamento ${depNombre}:`,
                 depResponse.status, depResponse.statusText);
             } else {
               console.log(`Departamento ${depNombre} añadido correctamente`);
@@ -516,19 +516,19 @@ export default function ProveedoresClient({
           }
         }
       }
-      
+
       // Actualizar lista de proveedores
       try {
         const updatedResponse = await fetch("/api/getProveedores/list");
         if (updatedResponse.ok) {
           const updatedProveedores = await updatedResponse.json();
-          
+
           // Procesar los proveedores actualizados para eliminar duplicados
           const proveedoresMap = new Map();
-          
+
           updatedProveedores.forEach(proveedor => {
             const id = proveedor.idProveedor;
-            
+
             if (!proveedoresMap.has(id)) {
               proveedoresMap.set(id, {
                 ...proveedor,
@@ -541,11 +541,11 @@ export default function ProveedoresClient({
               }
             }
           });
-          
+
           // Actualizar el estado local con los proveedores actualizados
           const proveedoresActualizados = Array.from(proveedoresMap.values());
           setProveedores(proveedoresActualizados);
-          
+
           // Si estamos en modo edición, también actualizar el estado seleccionado (si existe)
           if (modalMode === "edit" && formularioProveedor.idProveedor) {
             // Verificar si el proveedor editado está seleccionado actualmente
@@ -554,12 +554,12 @@ export default function ProveedoresClient({
               setSelectedProveedores([...selectedProveedores]);
             }
           }
-          
+
           console.log("Lista de proveedores actualizada correctamente con", proveedoresActualizados.length, "proveedores");
         } else {
-          console.warn("No se pudo actualizar la lista de proveedores:", 
+          console.warn("No se pudo actualizar la lista de proveedores:",
             updatedResponse.status, updatedResponse.statusText);
-          
+
           // Actualización manual como respaldo si falla la obtención de datos
           if (modalMode === "edit") {
             // Crear un proveedor actualizado con la información del formulario
@@ -572,7 +572,7 @@ export default function ProveedoresClient({
               Email: formularioProveedor.email,
               Departamentos: formularioProveedor.departamentos
             };
-            
+
             // Actualizar el estado local
             setProveedores(
               proveedores.map(p => p.idProveedor === formularioProveedor.idProveedor ? proveedorActualizado : p)
@@ -581,7 +581,7 @@ export default function ProveedoresClient({
         }
       } catch (listError) {
         console.error("Error al actualizar la lista de proveedores:", listError);
-        
+
         // Actualización manual como respaldo si falla la obtención de datos
         if (modalMode === "edit") {
           // Actualizar localmente el proveedor editado
@@ -594,7 +594,7 @@ export default function ProveedoresClient({
             Email: formularioProveedor.email,
             Departamentos: formularioProveedor.departamentos
           };
-          
+
           setProveedores(
             proveedores.map(p => p.idProveedor === formularioProveedor.idProveedor ? proveedorActualizado : p)
           );
@@ -661,7 +661,7 @@ export default function ProveedoresClient({
       // Leer la respuesta como texto primero para comprobar si hay contenido
       const responseText = await response.text();
       let responseData = {};
-      
+
       if (responseText.trim()) {
         try {
           responseData = JSON.parse(responseText);
@@ -783,9 +783,8 @@ export default function ProveedoresClient({
                 filteredProveedores.map((proveedor, index) => (
                   <tr
                     key={`${proveedor.idProveedor}-${index}`}
-                    className={`border-t border-gray-200 cursor-pointer hover:bg-gray-50 ${
-                      selectedProveedores.includes(proveedor.idProveedor) ? "bg-red-50 hover:bg-red-100" : ""
-                    }`}
+                    className={`border-t border-gray-200 cursor-pointer hover:bg-gray-50 ${selectedProveedores.includes(proveedor.idProveedor) ? "bg-red-50 hover:bg-red-100" : ""
+                      }`}
                     onClick={() => toggleSelectProveedor(proveedor.idProveedor)}
                   >
                     <td className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
@@ -847,9 +846,8 @@ export default function ProveedoresClient({
         >
           {isLoading
             ? "Procesando..."
-            : `Eliminar ${
-                selectedProveedores.length > 0 ? `(${selectedProveedores.length})` : ""
-              }`}
+            : `Eliminar ${selectedProveedores.length > 0 ? `(${selectedProveedores.length})` : ""
+            }`}
         </Button>
       </div>
 
@@ -901,21 +899,20 @@ export default function ProveedoresClient({
               <div>
                 <label className="block text-gray-700 mb-1">NIF</label>
                 <input
-                type="text"
-                name="nif"
-                value={formularioProveedor.nif}
-                onChange={handleInputChange}
-                className={`border rounded px-3 py-2 w-full uppercase ${
-                  formErrors.nif ? 'border-red-500' : 'border-gray-300'
-                }`}
-                maxLength={20}
-              />
-              {formErrors.nif && (
-                <div className="flex items-center mt-1 text-red-600 text-sm">
-                  <AlertCircle className="w-4 h-4 mr-1" />
-                  {formErrors.nif}
-                </div>
-              )}
+                  type="text"
+                  name="nif"
+                  value={formularioProveedor.nif}
+                  onChange={handleInputChange}
+                  className={`border rounded px-3 py-2 w-full uppercase ${formErrors.nif ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                  maxLength={20}
+                />
+                {formErrors.nif && (
+                  <div className="flex items-center mt-1 text-red-600 text-sm">
+                    <AlertCircle className="w-4 h-4 mr-1" />
+                    {formErrors.nif}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-gray-700 mb-1">Dirección</label>
@@ -972,7 +969,7 @@ export default function ProveedoresClient({
                   </div>
                 </div>
               </div>
-              
+
               {/* Sección de departamentos adicionales */}
               <div className="md:col-span-2">
                 <div className="flex justify-between items-center mb-2">
@@ -988,7 +985,7 @@ export default function ProveedoresClient({
                     Añadir departamento
                   </button>
                 </div>
-                
+
                 {/* Lista de departamentos seleccionados */}
                 <div className="p-3 bg-gray-50 rounded border border-gray-200 min-h-[80px]">
                   {formularioProveedor.departamentos && formularioProveedor.departamentos.length > 0 ? (
@@ -1010,15 +1007,15 @@ export default function ProveedoresClient({
                   ) : (
                     <p className="text-gray-500 text-sm">No hay departamentos asociados</p>
                   )}
-                  
+
                   {/* Mensaje explicativo */}
                   <p className="text-xs text-gray-500 mt-2">
-                    {userRole === "Jefe de Departamento" 
+                    {userRole === "Jefe de Departamento"
                       ? "Como Jefe de Departamento, solo puedes asignar tu propio departamento."
                       : "El primer departamento será el principal. Puedes añadir departamentos adicionales."}
                   </p>
                 </div>
-                
+
                 {/* Selector de departamentos adicionales */}
                 {showDepartamentosSelector && (
                   <div className="mt-2 p-2 bg-white border border-gray-200 rounded-md shadow-sm">
