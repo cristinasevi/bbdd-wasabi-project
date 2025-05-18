@@ -70,102 +70,46 @@ export const validateNIF = (nif) => {
   return { valid: true, formatted: cleanNIF };
 };
 
-// Función para validar email
-export const validateEmail = (email) => {
-  if (!email) return { valid: true }; // Email es opcional
-  
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-    return { valid: false, error: "El formato del email no es válido" };
-  }
-  
-  if (email.length > 100) {
-    return { valid: false, error: "El email es demasiado largo (máximo 100 caracteres)" };
-  }
-  
-  return { valid: true };
-};
-
-// Función para validar teléfono
-export const validatePhone = (telefono) => {
-  if (!telefono) return { valid: true }; // Teléfono es opcional
-  
-  const cleanPhone = telefono.replace(/\s/g, '');
-  if (!/^[+]?[0-9]{9,15}$/.test(cleanPhone)) {
-    return { valid: false, error: "El formato del teléfono no es válido (9-15 dígitos)" };
-  }
-  
-  return { valid: true };
-};
-
-// Función principal para validar todo el formulario de proveedor
-export const validateProveedorForm = (formData, existingProveedores = [], currentId = null) => {
+// Función de validación del formulario - actualizada para solo validar NIF
+const validateProveedorForm = (formData, proveedoresList, editingId = null) => {
   const errors = {};
-  
-  // Validar nombre
+
+  // Validar nombre (obligatorio)
   if (!formData.nombre || formData.nombre.trim().length === 0) {
     errors.nombre = "El nombre es obligatorio";
   } else if (formData.nombre.trim().length > 100) {
     errors.nombre = "El nombre es demasiado largo (máximo 100 caracteres)";
   }
-  
-  // Validar NIF
-  const nifValidation = validateNIF(formData.nif);
-  if (!nifValidation.valid) {
-    errors.nif = nifValidation.error;
+
+  // Validar NIF/CIF (obligatorio)
+  if (!formData.nif || formData.nif.trim().length === 0) {
+    errors.nif = "El NIF/CIF es obligatorio";
   } else {
-    // Verificar si el NIF ya existe (excluyendo el proveedor actual en modo edición)
-    const nifExists = existingProveedores.some(p => 
-      p.NIF && p.NIF.toUpperCase() === nifValidation.formatted && p.idProveedor !== currentId
-    );
-    if (nifExists) {
-      errors.nif = "Ya existe un proveedor con este NIF/CIF";
-    }
-  }
-  
-  // Validar email (si se proporciona)
-  if (formData.email && formData.email.trim().length > 0) {
-    const emailValidation = validateEmail(formData.email);
-    if (!emailValidation.valid) {
-      errors.email = emailValidation.error;
+    const nifValidation = validateNIF(formData.nif);
+    if (!nifValidation.valid) {
+      errors.nif = nifValidation.error;
     } else {
-      // Verificar si el email ya existe (excluyendo el proveedor actual en modo edición)
-      const emailExists = existingProveedores.some(p => 
-        p.Email && p.Email.toLowerCase() === formData.email.trim().toLowerCase() && p.idProveedor !== currentId
+      // Verificar duplicados
+      const nifExists = proveedoresList.some(p => 
+        p.NIF && p.NIF.toUpperCase() === nifValidation.formatted && 
+        p.idProveedor !== editingId
       );
-      if (emailExists) {
-        errors.email = "Ya existe un proveedor con este email";
+      if (nifExists) {
+        errors.nif = "Ya existe un proveedor con este NIF/CIF";
       }
     }
   }
-  
-  // Validar teléfono (si se proporciona)
-  if (formData.telefono && formData.telefono.trim().length > 0) {
-    const phoneValidation = validatePhone(formData.telefono);
-    if (!phoneValidation.valid) {
-      errors.telefono = phoneValidation.error;
-    } else {
-      // Verificar si el teléfono ya existe (excluyendo el proveedor actual en modo edición)
-      const cleanPhone = formData.telefono.replace(/\s/g, '');
-      const phoneExists = existingProveedores.some(p => 
-        p.Telefono && p.Telefono.replace(/\s/g, '') === cleanPhone && p.idProveedor !== currentId
-      );
-      if (phoneExists) {
-        errors.telefono = "Ya existe un proveedor con este número de teléfono";
-      }
-    }
+
+  // Validar departamento (obligatorio)
+  if (!formData.departamento || formData.departamento.trim().length === 0) {
+    errors.departamento = "El departamento es obligatorio";
   }
-  
-  // Validar dirección
+
+  // Validar dirección (opcional, pero con límite de longitud)
   if (formData.direccion && formData.direccion.length > 200) {
     errors.direccion = "La dirección es demasiado larga (máximo 200 caracteres)";
   }
-  
-  // Validar departamento
-  if (!formData.departamento || formData.departamentos.length === 0) {
-    errors.departamento = "Debe seleccionar al menos un departamento";
-  }
-  
+
   return {
     isValid: Object.keys(errors).length === 0,
     errors
