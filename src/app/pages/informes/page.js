@@ -885,8 +885,13 @@ export default function Informes() {
                                     id="departamento"
                                     value={selectedDepartamento}
                                     onChange={handleChangeDepartamento}
-                                    className="w-full bg-white px-4 py-3 border border-gray-300 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer"
-                                    style={selectStyle}
+                                    className="w-full bg-white px-4 py-3 pr-10 border border-gray-300 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer appearance-none"
+                                    style={{
+                                        backgroundImage: "url(\"data:image/svg+xml;charset=US-ASCII,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M4 6l4 4 4-4'/></svg>\")",
+                                        backgroundRepeat: "no-repeat",
+                                        backgroundPosition: "right 12px center",
+                                        backgroundSize: "16px"
+                                    }}
                                 >
                                     <option value="">Selecciona un departamento</option>
                                     {departamentos.map((dep) => (
@@ -925,9 +930,14 @@ export default function Informes() {
                                         id="ano"
                                         value={ano}
                                         onChange={(e) => setAno(e.target.value)}
-                                        className={`w-full bg-white px-4 py-3 border border-gray-300 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer ${isLoadingOrdenes ? 'opacity-50' : ''}`}
+                                        className={`w-full bg-white px-4 py-3 pr-10 border border-gray-300 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer appearance-none ${isLoadingOrdenes ? 'opacity-50' : ''}`}
                                         disabled={isLoadingOrdenes || !selectedDepartamento || anosFiltrados.length === 0}
-                                        style={selectStyle}
+                                        style={{
+                                            backgroundImage: "url(\"data:image/svg+xml;charset=US-ASCII,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M4 6l4 4 4-4'/></svg>\")",
+                                            backgroundRepeat: "no-repeat",
+                                            backgroundPosition: "right 12px center",
+                                            backgroundSize: "16px"
+                                        }}
                                     >
                                         <option value="">Selecciona un año</option>
                                         {anosFiltrados.map((anoOpcion) => (
@@ -946,9 +956,14 @@ export default function Informes() {
                                         id="mes"
                                         value={mes}
                                         onChange={(e) => setMes(e.target.value)}
-                                        className={`w-full bg-white px-4 py-3 border border-gray-300 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer ${isLoadingOrdenes ? 'opacity-50' : ''}`}
+                                        className={`w-full bg-white px-4 py-3 pr-10 border border-gray-300 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer appearance-none ${isLoadingOrdenes ? 'opacity-50' : ''}`}
                                         disabled={isLoadingOrdenes || !selectedDepartamento || !ano || mesesFiltrados.length === 0}
-                                        style={selectStyle}
+                                        style={{
+                                            backgroundImage: "url(\"data:image/svg+xml;charset=US-ASCII,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M4 6l4 4 4-4'/></svg>\")",
+                                            backgroundRepeat: "no-repeat",
+                                            backgroundPosition: "right 12px center",
+                                            backgroundSize: "16px"
+                                        }}
                                     >
                                         <option value="">Selecciona un mes</option>
                                         {mesesFiltrados.map((mesOpcion) => (
