@@ -49,6 +49,11 @@ export default function Informes() {
         "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
     ];
 
+    // Estilo personalizado para ajustar la posición de las flechas en los desplegables
+    const selectStyle = {
+        backgroundPosition: "right 0.75rem center"
+    };
+
     // Cargar bibliotecas PDF cuando se necesiten
     useEffect(() => {
         if (showInformeModal && !pdfLibsLoaded) {
@@ -156,7 +161,8 @@ export default function Informes() {
                 const ordenesEjemplo = generarOrdenesEjemplo(selectedDepartamento, departamentoCodigo);
                 
                 setOrdenes(ordenesEjemplo);
-                addNotification("Modo demostración: usando datos de ejemplo", "info");
+                // Se elimina la notificación automática de "usando datos de ejemplo"
+                // addNotification("Modo demostración: usando datos de ejemplo", "info");
                 
             } catch (error) {
                 console.log("Usando datos de ejemplo debido a un error:", error.message);
@@ -165,7 +171,8 @@ export default function Informes() {
                 const ordenesEjemplo = generarOrdenesEjemplo(selectedDepartamento, departamentoCodigo);
                 setOrdenes(ordenesEjemplo);
                 
-                addNotification("Modo demostración activado", "info");
+                // También se elimina aquí la notificación automática
+                // addNotification("Modo demostración activado", "info");
             } finally {
                 setIsLoadingOrdenes(false);
             }
@@ -878,7 +885,8 @@ export default function Informes() {
                                     id="departamento"
                                     value={selectedDepartamento}
                                     onChange={handleChangeDepartamento}
-                                    className="w-full bg-white px-4 py-3 border border-gray-300 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                                    className="w-full bg-white px-4 py-3 border border-gray-300 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer"
+                                    style={selectStyle}
                                 >
                                     <option value="">Selecciona un departamento</option>
                                     {departamentos.map((dep) => (
@@ -917,8 +925,9 @@ export default function Informes() {
                                         id="ano"
                                         value={ano}
                                         onChange={(e) => setAno(e.target.value)}
-                                        className={`w-full bg-white px-4 py-3 border border-gray-300 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 ${isLoadingOrdenes ? 'opacity-50' : ''}`}
+                                        className={`w-full bg-white px-4 py-3 border border-gray-300 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer ${isLoadingOrdenes ? 'opacity-50' : ''}`}
                                         disabled={isLoadingOrdenes || !selectedDepartamento || anosFiltrados.length === 0}
+                                        style={selectStyle}
                                     >
                                         <option value="">Selecciona un año</option>
                                         {anosFiltrados.map((anoOpcion) => (
@@ -937,8 +946,9 @@ export default function Informes() {
                                         id="mes"
                                         value={mes}
                                         onChange={(e) => setMes(e.target.value)}
-                                        className={`w-full bg-white px-4 py-3 border border-gray-300 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 ${isLoadingOrdenes ? 'opacity-50' : ''}`}
+                                        className={`w-full bg-white px-4 py-3 border border-gray-300 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer ${isLoadingOrdenes ? 'opacity-50' : ''}`}
                                         disabled={isLoadingOrdenes || !selectedDepartamento || !ano || mesesFiltrados.length === 0}
+                                        style={selectStyle}
                                     >
                                         <option value="">Selecciona un mes</option>
                                         {mesesFiltrados.map((mesOpcion) => (
@@ -1005,7 +1015,7 @@ export default function Informes() {
                             </div>
                             <button
                                 onClick={() => setShowInformeModal(false)}
-                                className="text-gray-500 hover:text-red-600"
+                                className="text-gray-500 hover:text-red-600 cursor-pointer"
                             >
                                 <X className="w-6 h-6" />
                             </button>
@@ -1026,7 +1036,7 @@ export default function Informes() {
                                     <button
                                         onClick={handleDescargarInforme}
                                         disabled={generatingPDF || !pdfLibsLoaded}
-                                        className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                                        className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
                                     >
                                         {generatingPDF ? (
                                             <>
