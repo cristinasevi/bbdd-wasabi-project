@@ -451,9 +451,9 @@ export default function InventarioClient({
           <select
             value={filterInventariable}
             onChange={(e) => setFilterInventariable(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10"
+            className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10 pr-10"
           >
-            <option value="">Todos Inventarible / No Inventariable</option>
+            <option value="">Todos (Inventarible / No Inventariable)</option>
             <option value="inventariable">Inventariable</option>
             <option value="no-inventariable">No Inventariable</option>
           </select>
@@ -497,7 +497,7 @@ export default function InventarioClient({
                         filteredInventarios.length > 0
                       }
                       onChange={toggleSelectAll}
-                      className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                      className="h-4 w-4 text-red-600 border-gray-300 rounded cursor-pointer"
                     />
                   )}
                 </th>
@@ -525,7 +525,7 @@ export default function InventarioClient({
                         type="checkbox"
                         checked={selectedItems.includes(item.idOrden)}
                         onChange={() => toggleSelectItem(item.idOrden)}
-                        className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                        className="h-4 w-4 text-red-600 border-gray-300 rounded cursor-pointer"
                       />
                     </td>
                     <td className="py-3 px-4">{item.Descripcion}</td>

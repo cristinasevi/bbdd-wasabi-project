@@ -506,7 +506,7 @@ export default function UsuariosClient({
                         filteredUsuarios.length > 0
                       }
                       onChange={toggleSelectAll}
-                      className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                      className="h-4 w-4 text-red-600 border-gray-300 rounded cursor-pointer"
                     />
                   )}
                 </th>
@@ -548,7 +548,7 @@ export default function UsuariosClient({
                           type="checkbox"
                           checked={selectedUsers.includes(usuario.idUsuario)}
                           onChange={() => toggleSelectUser(usuario.idUsuario)}
-                          className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                          className="h-4 w-4 text-red-600 border-gray-300 rounded cursor-pointer"
                         />
                       </td>
                       <td className="py-3 px-4">

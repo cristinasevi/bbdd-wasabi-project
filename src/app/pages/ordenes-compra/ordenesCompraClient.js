@@ -1170,7 +1170,7 @@ export default function OrdenesCompraClient({
                           filteredOrdenes.length > 0
                         }
                         onChange={toggleSelectAll}
-                        className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                        className="h-4 w-4 text-red-600 border-gray-300 rounded cursor-pointer"
                       />
                     </div>
                   )}
@@ -1203,7 +1203,7 @@ export default function OrdenesCompraClient({
                           type="checkbox"
                           checked={selectedOrdenes.includes(orden.idOrden)}
                           onChange={() => toggleSelectOrden(orden.idOrden)}
-                          className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                          className="h-4 w-4 text-red-600 border-gray-300 rounded cursor-pointer"
                         />
                       </div>
                     </td>

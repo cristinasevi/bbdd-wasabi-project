@@ -419,7 +419,7 @@ export default function ProveedoresClient({
       
       // Actualizar lista de proveedores
       try {
-        const updatedResponse = await fetch("/api/getProveedores");
+        const updatedResponse = await fetch("/api/getProveedores/list");
         if (updatedResponse.ok) {
           const updatedProveedores = await updatedResponse.json();
           
@@ -646,7 +646,7 @@ export default function ProveedoresClient({
                         filteredProveedores.length > 0
                       }
                       onChange={toggleSelectAll}
-                      className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                      className="h-4 w-4 text-red-600 border-gray-300 rounded cursor-pointer"
                     />
                   )}
                 </th>
@@ -674,7 +674,7 @@ export default function ProveedoresClient({
                         type="checkbox"
                         checked={selectedProveedores.includes(proveedor.idProveedor)}
                         onChange={() => toggleSelectProveedor(proveedor.idProveedor)}
-                        className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                        className="h-4 w-4 text-red-600 border-gray-300 rounded cursor-pointer"
                       />
                     </td>
                     <td className="py-3 px-4">{proveedor.Nombre}</td>
