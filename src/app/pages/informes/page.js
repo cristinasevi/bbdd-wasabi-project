@@ -878,7 +878,7 @@ export default function Informes() {
                                     id="departamento"
                                     value={selectedDepartamento}
                                     onChange={handleChangeDepartamento}
-                                    className="w-full bg-white px-4 py-3 border border-gray-300 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                                    className="w-full bg-white px-4 py-3 border border-gray-300 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 pr-8"
                                 >
                                     <option value="">Selecciona un departamento</option>
                                     {departamentos.map((dep) => (
@@ -1007,7 +1007,7 @@ export default function Informes() {
                                 onClick={() => setShowInformeModal(false)}
                                 className="text-gray-500 hover:text-red-600"
                             >
-                                <X className="w-6 h-6" />
+                                <X className="w-6 h-6 cursor-pointer" />
                             </button>
                         </div>
                         

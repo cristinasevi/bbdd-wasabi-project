@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from "react"
-import { ChevronDown, ArrowUpDown, Search, Filter, Upload, X, Eye, Pencil, Calendar, Euro, Download } from "lucide-react"
+import { ChevronDown, Pencil, X, Search, Filter, Plus, Check, Eye, Calendar, Euro, Download, FileText } from "lucide-react"
 import Link from "next/link"
 import useUserDepartamento from "@/app/hooks/useUserDepartamento"
 import useNotifications from "@/app/hooks/useNotifications"
@@ -28,6 +28,14 @@ export default function Facturas() {
     const [showPdfViewer, setShowPdfViewer] = useState(false);
     const [selectedPdfUrl, setSelectedPdfUrl] = useState("");
     const [selectedPdfName, setSelectedPdfName] = useState("");
+    
+    // NUEVO: Estados para exportación a Excel
+    const [showExportModal, setShowExportModal] = useState(false);
+    const [exportData, setExportData] = useState([]);
+    const sheetJSRef = useRef(null);
+    const [exportLoading, setExportLoading] = useState(false);
+    const [excelFileName, setExcelFileName] = useState("facturas");
+    const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
     
     // Función para abrir el visor de PDF
     const handleViewPdf = (facturaId, numFactura) => {
@@ -95,6 +103,25 @@ export default function Facturas() {
 
     // Lista de posibles estados
     const estadoOptions = ["Pendiente", "Contabilizada", "Anulada"]
+
+    // NUEVO: Efecto para cargar la biblioteca SheetJS cuando sea necesaria
+    useEffect(() => {
+        if (showExportModal && !sheetJSRef.current) {
+            const loadSheetJS = async () => {
+                try {
+                    // Cargar la biblioteca XLSX (SheetJS)
+                    const XLSX = await import('xlsx');
+                    sheetJSRef.current = XLSX;
+                    console.log("Biblioteca SheetJS cargada correctamente");
+                } catch (error) {
+                    console.error("Error al cargar SheetJS:", error);
+                    addNotification("Error al cargar las herramientas de exportación", "error");
+                }
+            };
+            
+            loadSheetJS();
+        }
+    }, [showExportModal, addNotification]);
 
     useEffect(() => {
         // Función para obtener el rol del usuario
@@ -300,93 +327,134 @@ export default function Facturas() {
         }
     }
     
-    // Función para descargar facturas seleccionadas
-    const handleDescargarSeleccionadas = async () => {
-        if (selectedFacturas.length === 0) {
-            addNotification("Por favor, selecciona al menos una factura", "warning");
-            return;
-        }
+    // NUEVO: Preparar datos para exportación a Excel
+    const prepareExportData = () => {
+        // Si hay facturas seleccionadas, usar esas; si no, usar todas las filtradas
+        const facturasToExport = selectedFacturas.length > 0
+            ? filteredFacturas.filter(f => selectedFacturas.includes(f.idFactura))
+            : filteredFacturas;
         
-        // Verificar si hay facturas con PDF disponibles
-        const facturasConPdf = filteredFacturas.filter(
-            f => selectedFacturas.includes(f.idFactura) && f.Ruta_pdf
-        );
+        // Crear la estructura de datos para Excel
+        const data = facturasToExport.map(factura => ({
+            'Número Factura': factura.Num_factura || '',
+            'Número Orden': factura.Num_orden || '',
+            'Proveedor': factura.Proveedor || '',
+            'Departamento': factura.Departamento || '',
+            'Fecha Emisión': formatDate(factura.Fecha_emision) || '',
+            'Importe (€)': factura.Importe || 0,
+            'Estado': factura.Estado || ''
+        }));
         
-        if (facturasConPdf.length === 0) {
-            addNotification("Ninguna de las facturas seleccionadas tiene un PDF asociado", "warning");
-            return;
-        }
-        
-        if (facturasConPdf.length < selectedFacturas.length) {
-            addNotification(
-            `Solo se descargarán ${facturasConPdf.length} de ${selectedFacturas.length} facturas seleccionadas porque el resto no tiene PDF asociado`,
-            "info"
-            );
-        }
-        
+        return data;
+    };
+    
+    // NUEVO: Función para generar Excel (.xlsx)
+    const generateExcel = async () => {
         try {
-            // Si es solo una factura, descargarla directamente
-            if (facturasConPdf.length === 1) {
-            const facturaId = facturasConPdf[0].idFactura;
-            window.open(`/api/facturas/descargar?id=${facturaId}`, '_blank');
-            return;
+            setIsGeneratingExcel(true);
+            
+            // Verificar que SheetJS esté cargado
+            if (!sheetJSRef.current) {
+                throw new Error("La biblioteca de Excel no está cargada");
             }
             
-            // Si son múltiples facturas, usar la API de descarga masiva (ZIP)
-            setIsLoading(true);
-            addNotification(`Preparando ${facturasConPdf.length} facturas para descarga...`, "info");
+            const XLSX = sheetJSRef.current;
             
-            // Llamar a la API de descarga masiva
-            const response = await fetch('/api/facturas/bulkDownload', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ 
-                facturaIds: facturasConPdf.map(f => f.idFactura) 
-            }),
+            // Crear un nuevo libro de trabajo
+            const workbook = XLSX.utils.book_new();
+            
+            // Convertir los datos a una hoja de trabajo
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+            
+            // Agregar la hoja al libro
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Facturas");
+            
+            // Configurar el ancho de las columnas para mejor visualización
+            const colWidths = Object.keys(exportData[0] || {}).map(key => ({
+                wch: Math.max(key.length, 15) // Ancho mínimo de 15 caracteres
+            }));
+            worksheet['!cols'] = colWidths;
+            
+            // Generar el archivo Excel
+            const excelBuffer = XLSX.write(workbook, { 
+                bookType: 'xlsx', 
+                type: 'array',
+                compression: true 
             });
             
-            if (!response.ok) {
-            // Si hay un error, intentar obtener los detalles
-            let errorMessage = "Error al descargar las facturas";
-            try {
-                const errorData = await response.json();
-                errorMessage = errorData.error || errorMessage;
-            } catch (e) {
-                // Si no podemos parsear el error, usamos el mensaje genérico
-            }
+            // Convertir a Blob
+            const blob = new Blob([excelBuffer], { 
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+            });
             
-            throw new Error(errorMessage);
-            }
+            // Crear URL para descarga
+            const url = URL.createObjectURL(blob);
             
-            // Obtener el blob de la respuesta
-            const blob = await response.blob();
+            return {
+                url,
+                blob,
+                filename: `${excelFileName}.xlsx`
+            };
             
-            // Crear una URL para el blob
-            const url = window.URL.createObjectURL(blob);
-            
-            // Crear un enlace para descargar el archivo
-            const a = document.createElement('a');
-            const fechaActual = new Date().toISOString().split('T')[0];
-            a.href = url;
-            a.download = `Facturas_${fechaActual}.zip`;
-            
-            // Añadir el enlace al documento y hacer clic en él
-            document.body.appendChild(a);
-            a.click();
-            
-            // Limpiar
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-            
-            addNotification("Descarga iniciada correctamente", "success");
         } catch (error) {
-            console.error("Error al descargar facturas:", error);
-            addNotification(`Error: ${error.message}`, "error");
+            console.error("Error generando archivo Excel:", error);
+            addNotification("Error al generar el archivo Excel", "error");
+            return null;
         } finally {
-            setIsLoading(false);
+            setIsGeneratingExcel(false);
         }
+    };
+    
+    // NUEVO: Función para descargar el Excel generado
+    const downloadExcel = async () => {
+        const excelData = await generateExcel();
+        
+        if (!excelData) return;
+        
+        // Crear enlace para descarga y hacer clic
+        const downloadLink = document.createElement('a');
+        downloadLink.href = excelData.url;
+        downloadLink.download = excelData.filename;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+        
+        // Liberar URL
+        URL.revokeObjectURL(excelData.url);
+        
+        // Cerrar modal
+        setShowExportModal(false);
+        
+        addNotification("Archivo Excel descargado correctamente", "success");
+    };
+    
+    // NUEVO: Manejar apertura del modal de exportación
+    const handleDescargarSeleccionadas = () => {
+        // Verificar si hay facturas seleccionadas
+        if (selectedFacturas.length === 0) {
+            addNotification("Por favor, selecciona al menos una factura para exportar", "warning");
+            return;
+        }
+        
+        // Preparar datos para exportación
+        const data = prepareExportData();
+        
+        if (data.length === 0) {
+            addNotification("No hay datos para exportar", "warning");
+            return;
+        }
+        
+        setExportData(data);
+        
+        // Generar nombre de archivo con fecha actual
+        const today = new Date();
+        const formattedDate = `${today.getFullYear()}${(today.getMonth() + 1).toString().padStart(2, '0')}${today.getDate().toString().padStart(2, '0')}`;
+        // Añadir el departamento al nombre del archivo si está seleccionado
+        const deptSuffix = filterDepartamento ? `_${filterDepartamento.toLowerCase().replace(/\s+/g, '_')}` : '';
+        setExcelFileName(`facturas${deptSuffix}_${formattedDate}`);
+        
+        // Mostrar modal
+        setShowExportModal(true);
     };
 
     // Función para manejar el click en "Insertar Factura"
@@ -1015,18 +1083,18 @@ export default function Facturas() {
            
            {/* Botones de acción */}
            <div className="flex justify-between mt-4 mb-4">
-               {/* Botón para descargar facturas seleccionadas */}
+               {/* Botón para descargar facturas seleccionadas como Excel */}
                <button
                     onClick={handleDescargarSeleccionadas}
-                    disabled={!hayFacturasDescargables}
+                    disabled={selectedFacturas.length === 0}
                     className={`flex items-center gap-2 bg-red-600 opacity-80 text-white px-6 py-2 rounded-md ${
-                        hayFacturasDescargables 
+                        selectedFacturas.length > 0 
                             ? "hover:bg-red-700 cursor-pointer" 
                             : "opacity-50 cursor-not-allowed"
                     }`}
                 >
-                    <Download className="w-4 h-4" />
-                    <span>Descargar {selectedFacturas.length > 0 ? `(${selectedFacturas.length})` : ""}</span>
+                    <FileText className="w-4 h-4" />
+                    <span>Exportar a Excel {selectedFacturas.length > 0 ? `(${selectedFacturas.length})` : ""}</span>
                 </button>
            </div>
            
@@ -1319,6 +1387,133 @@ export default function Facturas() {
                    </div>
                </div>
            )}
+
+            {/* Modal para previsualizar y exportar Excel */}
+            {showExportModal && (
+                <div
+                    className="fixed inset-0 flex items-center justify-center z-50"
+                    style={{
+                        backgroundColor: "rgba(0, 0, 0, 0.3)",
+                        backdropFilter: "blur(2px)",
+                    }}
+                >
+                    <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-xl">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-xl font-bold">Exportar a Excel</h2>
+                            <button
+                                onClick={() => setShowExportModal(false)}
+                                className="text-gray-500 hover:text-red-600"
+                                disabled={isGeneratingExcel}
+                            >
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+                        
+                        {/* Nombre del archivo */}
+                        <div className="mb-6">
+                            <label className="block text-gray-700 mb-1">Nombre del archivo</label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={excelFileName}
+                                    onChange={(e) => setExcelFileName(e.target.value)}
+                                    className="border border-gray-300 rounded px-3 py-2 flex-grow"
+                                    disabled={isGeneratingExcel}
+                                />
+                                <span className="bg-gray-100 text-gray-600 border border-gray-200 rounded px-3 py-2">.xlsx</span>
+                            </div>
+                        </div>
+                        
+                        {/* Vista previa de los datos */}
+                        <div className="mb-6">
+                            <h3 className="font-medium text-gray-700 mb-2">Vista previa de los datos</h3>
+                            <div className="border border-gray-200 rounded overflow-x-auto max-h-96">
+                                <table className="w-full">
+                                    <thead className="bg-gray-50 sticky top-0">
+                                        <tr>
+                                            {exportData.length > 0 && Object.keys(exportData[0]).map(header => (
+                                                <th key={header} className="py-2 px-4 text-left text-xs font-medium text-gray-600 uppercase">
+                                                    {header}
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {exportData.length > 0 ? (
+                                            exportData.map((row, rowIndex) => (
+                                                <tr key={rowIndex} className="border-t border-gray-200">
+                                                    {Object.values(row).map((cell, cellIndex) => (
+                                                        <td key={cellIndex} className="py-2 px-4">
+                                                            {cell}
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                            ))
+                                        ) : (
+                                            <tr>
+                                                <td colSpan="8" className="py-4 text-center text-gray-500">
+                                                    No hay datos para exportar
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                                Se exportarán {exportData.length} facturas {selectedFacturas.length > 0 ? 'seleccionadas' : 'filtradas'}.
+                            </p>
+                        </div>
+                        
+                        {/* Información sobre qué se exportará */}
+                        <div className="mb-6 bg-blue-50 p-4 rounded-md text-blue-700 text-sm">
+                            <p className="font-medium mb-1">Información sobre la exportación:</p>
+                            <ul className="list-disc list-inside">
+                                <li>Se exportarán {exportData.length} facturas en formato Excel (.xlsx)</li>
+                                <li>Las columnas incluidas son: Número de factura, Número de orden, Proveedor, Departamento, Fecha de emisión, Importe y Estado</li>
+                                <li>
+                                    {selectedFacturas.length > 0 
+                                        ? `Has seleccionado ${selectedFacturas.length} facturas para exportar` 
+                                        : 'Se exportarán todas las facturas visibles según los filtros aplicados'}
+                                </li>
+                                <li>El archivo generado se podrá abrir directamente en Microsoft Excel u otras aplicaciones de hojas de cálculo</li>
+                            </ul>
+                        </div>
+                        
+                        {/* Botones de acción */}
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setShowExportModal(false)}
+                                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
+                                disabled={isGeneratingExcel}
+                            >
+                                Cancelar
+                            </button>
+                            
+                            {/* Botón descargar */}
+                            <button
+                                onClick={downloadExcel}
+                                disabled={isGeneratingExcel || exportData.length === 0}
+                                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                                {isGeneratingExcel ? (
+                                    <>
+                                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        Procesando...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Download className="w-4 h-4" />
+                                        Descargar Excel
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
        </div>
-   )
+    );
 }

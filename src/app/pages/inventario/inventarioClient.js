@@ -783,7 +783,7 @@ export default function InventarioClient({
               <div className="mb-6 bg-blue-50 p-4 rounded-md text-blue-700 text-sm">
                 <p className="font-medium mb-1">Información sobre la exportación:</p>
                 <ul className="list-disc list-inside">
-                  <li>Se exportarán {exportData.length} items en formato XLSX</li>
+                  <li>Se exportarán {exportData.length} items en formato XLSX (Excel)</li>
                   <li>Las columnas se ajustarán automáticamente para mejor visualización</li>
                   <li>
                     {selectedItems.length > 0 
