@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react';
-import { File, Download, ExternalLink, Loader } from 'lucide-react';
+import { File, Download, ExternalLink, Loader, X } from 'lucide-react';
 
 export default function PdfViewer({ pdfUrl, fileName, onClose }) {
   const [isLoading, setIsLoading] = useState(true);
@@ -43,9 +43,9 @@ export default function PdfViewer({ pdfUrl, fileName, onClose }) {
             </button>
             <button
               onClick={onClose}
-              className="bg-gray-200 px-3 py-2 rounded-md text-gray-800 hover:bg-gray-300 transition-colors"
+              className="bg-gray-200 px-3 py-2 rounded-md text-gray-800 hover:bg-gray-300 transition-colors cursor-pointer"
             >
-              ×
+              <X className='w-5 h-5'></X>
             </button>
           </div>
         </div>

@@ -201,7 +201,7 @@ export async function generateInvoicePDF(facturaData, outputPath) {
       doc.moveDown();
       doc.fontSize(12)
          .fillColor(
-           facturaData.Estado === 'Pagada' ? '#008000' : 
+           facturaData.Estado === 'Contabilizada' ? '#008000' : 
            facturaData.Estado === 'Pendiente' ? '#FFA500' : '#FF0000'
          )
          .text(`Estado: ${facturaData.Estado}`, 350, doc.y, { align: 'right' });

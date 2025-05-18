@@ -26,7 +26,7 @@ export async function POST(request) {
       case "Pendiente":
         idEstado = 1;
         break;
-      case "Pagada":
+      case "Contabilizada":
         idEstado = 2;
         break;
       case "Anulada":

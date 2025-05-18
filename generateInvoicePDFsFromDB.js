@@ -243,7 +243,7 @@ function createEnhancedInvoicePDF(facturaData, outputPath) {
         yPos += 60;
         doc.fontSize(12)
            .fillColor(
-             facturaData.Estado === 'Pagada' ? '#008000' : 
+             facturaData.Estado === 'Contabilizada' ? '#008000' : 
              facturaData.Estado === 'Pendiente' ? '#FFA500' : '#FF0000'
            )
            .text(`Estado: ${facturaData.Estado}`, 350, yPos, { align: 'right' });
