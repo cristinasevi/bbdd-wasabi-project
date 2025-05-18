@@ -7,7 +7,7 @@ export async function GET(request, { params }) {
   try {
     const awaitedParams = await params;
     const userId = awaitedParams.id;
-    
+
     const [rows] = await pool.query(`
       SELECT 
         u.idUsuario,
@@ -31,11 +31,11 @@ export async function GET(request, { params }) {
       WHERE u.idUsuario = ?
       GROUP BY u.idUsuario, u.DNI, u.Nombre, u.Apellidos, u.Telefono, u.Direccion, u.Email, u.id_RolFK, r.Tipo
     `, [userId]);
-    
+
     if (rows.length === 0) {
       return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
     }
-    
+
     return NextResponse.json(rows[0]);
   } catch (error) {
     console.error("Error al obtener usuario:", error);
@@ -49,18 +49,18 @@ export async function PUT(request, { params }) {
     const awaitedParams = await params;
     const userId = awaitedParams.id;
     const userData = await request.json();
-    
+
     // Comenzar una transacción
     const connection = await pool.getConnection();
     await connection.beginTransaction();
-    
+
     try {
       // 1. Actualizar la información del usuario
       let query = `
         UPDATE Usuario 
         SET Nombre = ?, Apellidos = ?, Telefono = ?, Direccion = ?, Email = ?, id_RolFK = ?
       `;
-      
+
       let queryParams = [
         userData.Nombre,
         userData.Apellidos,
@@ -69,31 +69,31 @@ export async function PUT(request, { params }) {
         userData.Email,
         userData.id_RolFK
       ];
-      
+
       // Si se proporciona una contraseña, actualizarla
       if (userData.Contrasena && userData.Contrasena.trim() !== '') {
         query += `, Contrasena = ?`;
         queryParams.push(userData.Contrasena);
       }
-      
+
       // Completar la query con el WHERE
       query += ` WHERE idUsuario = ?`;
       queryParams.push(userId);
-      
+
       await connection.query(query, queryParams);
-      
+
       // 2. Obtener información del rol
       const [rolResult] = await connection.query('SELECT Tipo FROM Rol WHERE idRol = ?', [userData.id_RolFK]);
       const rolTipo = rolResult[0]?.Tipo;
-      
+
       // 3. Eliminar permisos existentes
       await connection.query('DELETE FROM Permiso WHERE id_UsuarioFK = ?', [userId]);
-      
+
       // 4. Configurar nuevos permisos basados en el rol
       if (rolTipo === 'Administrador') {
         // Admin tiene acceso a todos los departamentos
         const [depts] = await connection.query('SELECT id_Departamento FROM Departamento');
-        
+
         for (const dept of depts) {
           await connection.query(`
             INSERT INTO Permiso (id_UsuarioFK, id_DepFK, Puede_editar, Puede_ver, Fecha_asignacion)
@@ -103,7 +103,7 @@ export async function PUT(request, { params }) {
       } else if (rolTipo === 'Contable') {
         // Contable puede ver todos los departamentos
         const [depts] = await connection.query('SELECT id_Departamento FROM Departamento');
-        
+
         for (const dept of depts) {
           await connection.query(`
             INSERT INTO Permiso (id_UsuarioFK, id_DepFK, Puede_editar, Puede_ver, Fecha_asignacion)
@@ -113,7 +113,7 @@ export async function PUT(request, { params }) {
       } else if (rolTipo === 'Jefe de Departamento') {
         // Jefe tiene acceso solo a su departamento
         const [deptResult] = await connection.query('SELECT id_Departamento FROM Departamento WHERE Nombre = ?', [userData.Departamento]);
-        
+
         if (deptResult.length > 0) {
           await connection.query(`
             INSERT INTO Permiso (id_UsuarioFK, id_DepFK, Puede_editar, Puede_ver, Fecha_asignacion)
@@ -121,15 +121,15 @@ export async function PUT(request, { params }) {
           `, [userId, deptResult[0].id_Departamento]);
         }
       }
-      
+
       // Confirmar la transacción
       await connection.commit();
-      
-      return NextResponse.json({ 
-        id: userId, 
-        message: "Usuario actualizado exitosamente" 
+
+      return NextResponse.json({
+        id: userId,
+        message: "Usuario actualizado exitosamente"
       });
-      
+
     } catch (error) {
       // Si hay error, hacer rollback
       await connection.rollback();
@@ -138,10 +138,26 @@ export async function PUT(request, { params }) {
       // Liberar la conexión
       connection.release();
     }
-    
+
   } catch (error) {
-    console.error("Error al actualizar usuario:", error);
-    return NextResponse.json({ error: "Error al actualizar usuario: " + error.message }, { status: 500 });
+    // Si hay error, hacer rollback
+    await connection.rollback();
+
+    // Manejar específicamente los errores de duplicados
+    if (error.code === 'ER_DUP_ENTRY') {
+      if (error.message.includes('DNI')) {
+        throw new Error("Ya existe otro usuario con este DNI");
+      } else if (error.message.includes('Email')) {
+        throw new Error("Ya existe otro usuario con este email");
+      } else {
+        throw new Error("Ya existe otro usuario con estos datos");
+      }
+    }
+
+    throw error;
+  } finally {
+    // Liberar la conexión
+    connection.release();
   }
 }
 
@@ -150,29 +166,29 @@ export async function DELETE(request, { params }) {
   try {
     const awaitedParams = await params;
     const userId = awaitedParams.id;
-    
+
     // Comenzar una transacción
     const connection = await pool.getConnection();
     await connection.beginTransaction();
-    
+
     try {
       // 1. Eliminar permisos asociados
       await connection.query('DELETE FROM Permiso WHERE id_UsuarioFK = ?', [userId]);
-      
+
       // 2. Eliminar el usuario
       const [result] = await connection.query('DELETE FROM Usuario WHERE idUsuario = ?', [userId]);
-      
+
       // Confirmar la transacción
       await connection.commit();
-      
+
       if (result.affectedRows === 0) {
         return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
       }
-      
-      return NextResponse.json({ 
-        message: "Usuario eliminado exitosamente" 
+
+      return NextResponse.json({
+        message: "Usuario eliminado exitosamente"
       });
-      
+
     } catch (error) {
       // Si hay error, hacer rollback
       await connection.rollback();
@@ -181,7 +197,7 @@ export async function DELETE(request, { params }) {
       // Liberar la conexión
       connection.release();
     }
-    
+
   } catch (error) {
     console.error("Error al eliminar usuario:", error);
     return NextResponse.json({ error: "Error al eliminar usuario: " + error.message }, { status: 500 });

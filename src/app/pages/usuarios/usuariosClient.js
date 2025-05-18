@@ -30,6 +30,56 @@ export default function UsuariosClient({
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [formError, setFormError] = useState("");
+  const [dniError, setDniError] = useState("");
+  const [emailError, setEmailError] = useState("");
+
+  // Agregar esta función para validar DNI duplicado:
+  const validateDniDuplicate = async (dni) => {
+    if (!dni || dni.trim() === "") {
+      setDniError("");
+      return;
+    }
+
+    try {
+      // Validar si el DNI ya existe (excluyendo el usuario actual en modo edición)
+      const existingUser = usuarios.find(user =>
+        user.DNI && user.DNI.toUpperCase() === dni.toUpperCase() &&
+        user.idUsuario !== formularioUsuario.idUsuario
+      );
+
+      if (existingUser) {
+        setDniError("Este DNI ya está registrado en el sistema");
+      } else {
+        setDniError("");
+      }
+    } catch (error) {
+      console.error("Error validando DNI:", error);
+    }
+  };
+
+  // Agregar esta función para validar email duplicado:
+  const validateEmailDuplicate = async (email) => {
+    if (!email || email.trim() === "") {
+      setEmailError("");
+      return;
+    }
+
+    try {
+      // Validar si el email ya existe (excluyendo el usuario actual en modo edición)
+      const existingUser = usuarios.find(user =>
+        user.Email && user.Email.toLowerCase() === email.toLowerCase() &&
+        user.idUsuario !== formularioUsuario.idUsuario
+      );
+
+      if (existingUser) {
+        setEmailError("Este email ya está registrado en el sistema");
+      } else {
+        setEmailError("");
+      }
+    } catch (error) {
+      console.error("Error validando email:", error);
+    }
+  };
 
   // Estados para búsqueda y filtrado - Mantener estos separados del formulario
   const [searchTerm, setSearchTerm] = useState("");
@@ -40,7 +90,7 @@ export default function UsuariosClient({
     isOpen: false,
     title: "",
     message: "",
-    onConfirm: () => {},
+    onConfirm: () => { },
   });
 
   // Estado del formulario - COMPLETAMENTE SEPARADO del estado de búsqueda
@@ -114,8 +164,12 @@ export default function UsuariosClient({
       setFormError("Por favor, ingresa el DNI");
       return false;
     }
-    if (modalMode === "add" && !formularioUsuario.contrasena) {
-      setFormError("Por favor, establece una contraseña");
+    if (dniError) {
+      setFormError("Corrige el error en el DNI antes de continuar");
+      return false;
+    }
+    if (emailError) {
+      setFormError("Corrige el error en el email antes de continuar");
       return false;
     }
     if (!formularioUsuario.rol) {
@@ -152,6 +206,8 @@ export default function UsuariosClient({
       permisos: "",
     });
     setFormError("");
+    setDniError("");
+    setEmailError(""); // Limpiar también el error de email
   };
 
   // Abrir modal de añadir usuario
@@ -189,8 +245,19 @@ export default function UsuariosClient({
   };
 
   // Manejar cambios en el formulario - NUNCA ACTUALIZA SEARCHTERM
+  // Modificar la función handleInputChange para incluir validación de DNI:
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+
+    // Validación especial para DNI
+    if (name === "dni") {
+      validateDniDuplicate(value);
+    }
+
+    // Validación especial para email
+    if (name === "email") {
+      validateEmailDuplicate(value);
+    }
 
     // Si cambia el rol, actualizar los permisos y departamento automáticamente
     if (name === "rol") {
@@ -205,7 +272,6 @@ export default function UsuariosClient({
         nuevoDepartamento = "Contable";
       } else if (value === "Jefe de Departamento") {
         nuevosPermisos = "ver y editar";
-        // El departamento debe seleccionarlo el usuario
         nuevoDepartamento = "";
       }
 
@@ -253,6 +319,7 @@ export default function UsuariosClient({
   };
 
   // Función handleGuardarUsuario - CORREGIDA
+  // Función handleGuardarUsuario - CORREGIR MANEJO DE ERRORES
   const handleGuardarUsuario = async () => {
     if (!validarFormulario()) return;
 
@@ -274,18 +341,22 @@ export default function UsuariosClient({
         throw new Error("No se pudo encontrar el ID del rol seleccionado");
       }
 
-      // Preparar datos para enviar
+      // Preparar datos para enviar - CONTRASEÑA OPCIONAL
       const datosUsuario = {
         DNI: formularioUsuario.dni,
         Nombre: formularioUsuario.nombre,
         Apellidos: formularioUsuario.apellidos,
         Telefono: formularioUsuario.telefono,
         Direccion: formularioUsuario.direccion,
-        Contrasena: formularioUsuario.contrasena,
         Email: formularioUsuario.email,
         id_RolFK: rolId,
         Departamento: formularioUsuario.departamento,
       };
+
+      // Solo incluir contraseña si se proporciona
+      if (formularioUsuario.contrasena && formularioUsuario.contrasena.trim() !== '') {
+        datosUsuario.Contrasena = formularioUsuario.contrasena;
+      }
 
       const response = await fetch(url, {
         method,
@@ -295,15 +366,34 @@ export default function UsuariosClient({
         body: JSON.stringify(datosUsuario),
       });
 
+      // MANEJO MEJORADO DE ERRORES
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.error || `Error del servidor: ${response.status}`
-        );
+        let errorMessage = `Error del servidor: ${response.status}`;
+
+        try {
+          // Intentar leer el JSON solo si la respuesta tiene contenido
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (jsonError) {
+          // Si no se puede parsear el JSON, usar un mensaje basado en el status
+          if (response.status === 400) {
+            errorMessage = "Datos incorrectos. Verifica que todos los campos estén correctos.";
+          } else if (response.status === 500) {
+            errorMessage = "Error interno del servidor. Intenta nuevamente.";
+          }
+        }
+
+        throw new Error(errorMessage);
       }
 
       // Obtener los datos del usuario creado/actualizado
-      const data = await response.json();
+      let data = {};
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        // Si no hay JSON en la respuesta exitosa, continuar sin datos
+        console.warn("Respuesta exitosa sin JSON válido");
+      }
 
       // Actualizar la lista de usuarios local
       if (modalMode === "add") {
@@ -315,7 +405,7 @@ export default function UsuariosClient({
         } else {
           // Si falla, al menos añadimos el usuario que acabamos de crear
           const nuevoUsuario = {
-            idUsuario: data.id,
+            idUsuario: data.id || Date.now(), // Usar timestamp si no hay ID
             DNI: datosUsuario.DNI,
             Nombre: datosUsuario.Nombre,
             Apellidos: datosUsuario.Apellidos,
@@ -334,17 +424,17 @@ export default function UsuariosClient({
           usuarios.map((user) =>
             user.idUsuario === formularioUsuario.idUsuario
               ? {
-                  ...user,
-                  DNI: datosUsuario.DNI,
-                  Nombre: datosUsuario.Nombre,
-                  Apellidos: datosUsuario.Apellidos,
-                  Email: datosUsuario.Email,
-                  Telefono: datosUsuario.Telefono,
-                  Direccion: datosUsuario.Direccion,
-                  Rol: formularioUsuario.rol,
-                  Departamento: formularioUsuario.departamento,
-                  Permisos: formularioUsuario.permisos,
-                }
+                ...user,
+                DNI: datosUsuario.DNI,
+                Nombre: datosUsuario.Nombre,
+                Apellidos: datosUsuario.Apellidos,
+                Email: datosUsuario.Email,
+                Telefono: datosUsuario.Telefono,
+                Direccion: datosUsuario.Direccion,
+                Rol: formularioUsuario.rol,
+                Departamento: formularioUsuario.departamento,
+                Permisos: formularioUsuario.permisos,
+              }
               : user
           )
         );
@@ -586,7 +676,7 @@ export default function UsuariosClient({
               ) : (
                 <tr>
                   <td colSpan="8" className="py-6 text-center text-gray-500">
-                      No se encontraron usuarios{searchTerm || filterRole ? " con los criterios de búsqueda actuales" : ""}
+                    No se encontraron usuarios{searchTerm || filterRole ? " con los criterios de búsqueda actuales" : ""}
                   </td>
                 </tr>
               )}
@@ -604,9 +694,8 @@ export default function UsuariosClient({
         >
           {isLoading
             ? "Procesando..."
-            : `Eliminar ${
-                selectedUsers.length > 0 ? `(${selectedUsers.length})` : ""
-              }`}
+            : `Eliminar ${selectedUsers.length > 0 ? `(${selectedUsers.length})` : ""
+            }`}
         </Button>
       </div>
 
@@ -672,9 +761,13 @@ export default function UsuariosClient({
                   name="dni"
                   value={formularioUsuario.dni}
                   onChange={handleInputChange}
-                  className="border border-gray-200 rounded px-3 py-2 w-full"
+                  className={`border rounded px-3 py-2 w-full ${dniError ? 'border-red-500' : 'border-gray-200'
+                    }`}
                   required
                 />
+                {dniError && (
+                  <p className="text-red-500 text-sm mt-1">{dniError}</p>
+                )}
               </div>
               <div>
                 <label className="block text-gray-700 mb-1">Email</label>
@@ -683,9 +776,13 @@ export default function UsuariosClient({
                   name="email"
                   value={formularioUsuario.email}
                   onChange={handleInputChange}
-                  className="border border-gray-200 rounded px-3 py-2 w-full"
+                  className={`border rounded px-3 py-2 w-full ${emailError ? 'border-red-500' : 'border-gray-200'
+                    }`}
                   required
                 />
+                {emailError && (
+                  <p className="text-red-500 text-sm mt-1">{emailError}</p>
+                )}
               </div>
               <div>
                 <label className="block text-gray-700 mb-1">Teléfono</label>
@@ -707,7 +804,7 @@ export default function UsuariosClient({
                   className="border border-gray-200 rounded px-3 py-2 w-full"
                 />
               </div>
-              <div>
+              {/* <div>
                 <label className="block text-gray-700 mb-1">
                   Contraseña{" "}
                   {modalMode === "edit" && "(Dejar vacío para mantener)"}
@@ -718,9 +815,8 @@ export default function UsuariosClient({
                   value={formularioUsuario.contrasena}
                   onChange={handleInputChange}
                   className="border border-gray-200 rounded px-3 py-2 w-full"
-                  required={modalMode === "add"}
                 />
-              </div>
+              </div> */}
               <div>
                 <label className="block text-gray-700 mb-1">Rol</label>
                 <div className="relative">

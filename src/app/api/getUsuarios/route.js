@@ -1,4 +1,4 @@
-// File: src/app/api/usuarios/route.js
+// File: src/app/api/getUsuarios/route.js
 import { NextResponse } from "next/server";
 import { pool } from "@/app/api/lib/db";
 
@@ -42,98 +42,116 @@ export async function GET() {
   }
 }
 
-// Sección POST - Crear un nuevo usuario
-
+// POST - Crear un nuevo usuario (versión simplificada para depurar)
 export async function POST(request) {
+  let connection;
+  
   try {
     const userData = await request.json();
+    console.log("✅ Datos recibidos en el servidor:", userData);
     
-    // Validar que tenemos los datos mínimos necesarios
-    if (!userData.DNI || !userData.Nombre || !userData.Apellidos || !userData.Email || !userData.Contrasena || !userData.id_RolFK) {
-      return NextResponse.json({ 
-        error: "Faltan datos obligatorios para crear el usuario" 
-      }, { status: 400 });
-    }
-    
-    // Comenzar una transacción
-    const connection = await pool.getConnection();
-    await connection.beginTransaction();
-    
-    try {
-      // 1. Insertar el usuario
-      const [userResult] = await connection.query(`
-        INSERT INTO Usuario (DNI, Nombre, Apellidos, Telefono, Direccion, Contrasena, Email, id_RolFK)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `, [
-        userData.DNI,
-        userData.Nombre,
-        userData.Apellidos,
-        userData.Telefono || null,
-        userData.Direccion || null,
-        userData.Contrasena,
-        userData.Email,
-        userData.id_RolFK
-      ]);
-      
-      const userId = userResult.insertId;
-      
-      // 2. Obtener información del rol
-      const [rolResult] = await connection.query('SELECT Tipo FROM Rol WHERE idRol = ?', [userData.id_RolFK]);
-      const rolTipo = rolResult[0]?.Tipo;
-      
-      // 3. Configurar permisos basados en el rol
-      if (rolTipo === 'Administrador') {
-        // Admin tiene acceso a todos los departamentos
-        const [depts] = await connection.query('SELECT id_Departamento FROM Departamento');
-        
-        for (const dept of depts) {
-          await connection.query(`
-            INSERT INTO Permiso (id_UsuarioFK, id_DepFK, Puede_editar, Puede_ver, Fecha_asignacion)
-            VALUES (?, ?, 1, 1, CURDATE())
-          `, [userId, dept.id_Departamento]);
-        }
-      } else if (rolTipo === 'Contable') {
-        // Contable puede ver todos los departamentos
-        const [depts] = await connection.query('SELECT id_Departamento FROM Departamento');
-        
-        for (const dept of depts) {
-          await connection.query(`
-            INSERT INTO Permiso (id_UsuarioFK, id_DepFK, Puede_editar, Puede_ver, Fecha_asignacion)
-            VALUES (?, ?, 0, 1, CURDATE())
-          `, [userId, dept.id_Departamento]);
-        }
-      } else if (rolTipo === 'Jefe de Departamento') {
-        // Jefe tiene acceso solo a su departamento
-        const [deptResult] = await connection.query('SELECT id_Departamento FROM Departamento WHERE Nombre = ?', [userData.Departamento]);
-        
-        if (deptResult.length > 0) {
-          await connection.query(`
-            INSERT INTO Permiso (id_UsuarioFK, id_DepFK, Puede_editar, Puede_ver, Fecha_asignacion)
-            VALUES (?, ?, 1, 1, CURDATE())
-          `, [userId, deptResult[0].id_Departamento]);
-        }
+    // Validar datos obligatorios
+    const camposObligatorios = ['DNI', 'Nombre', 'Apellidos', 'Email', 'id_RolFK'];
+    for (const campo of camposObligatorios) {
+      if (!userData[campo]) {
+        console.log(`❌ Campo obligatorio faltante: ${campo}`);
+        return NextResponse.json({ 
+          error: `El campo ${campo} es obligatorio` 
+        }, { status: 400 });
       }
-      
-      // Confirmar la transacción
-      await connection.commit();
-      
-      return NextResponse.json({ 
-        id: userId, 
-        message: "Usuario creado exitosamente" 
-      });
-      
-    } catch (error) {
-      // Si hay error, hacer rollback
-      await connection.rollback();
-      throw error;
-    } finally {
-      // Liberar la conexión
-      connection.release();
     }
+    
+    // Obtener conexión
+    connection = await pool.getConnection();
+    console.log("✅ Conexión obtenida");
+    
+    // Verificar si ya existe el DNI
+    console.log("🔍 Verificando DNI duplicado...");
+    const [existingDNI] = await connection.query('SELECT idUsuario FROM Usuario WHERE DNI = ?', [userData.DNI]);
+    if (existingDNI.length > 0) {
+      return NextResponse.json({ error: "Ya existe un usuario con este DNI" }, { status: 400 });
+    }
+    
+    // Verificar si ya existe el email
+    console.log("🔍 Verificando email duplicado...");
+    const [existingEmail] = await connection.query('SELECT idUsuario FROM Usuario WHERE Email = ?', [userData.Email]);
+    if (existingEmail.length > 0) {
+      return NextResponse.json({ error: "Ya existe un usuario con este email" }, { status: 400 });
+    }
+    
+    // Verificar que el rol existe
+    console.log("🔍 Verificando rol...");
+    const [rolCheck] = await connection.query('SELECT Tipo FROM Rol WHERE idRol = ?', [userData.id_RolFK]);
+    if (rolCheck.length === 0) {
+      return NextResponse.json({ error: "El rol especificado no existe" }, { status: 400 });
+    }
+    
+    console.log("✅ Validaciones pasadas, insertando usuario...");
+    
+    // Preparar datos para inserción
+    const insertData = {
+      DNI: userData.DNI,
+      Nombre: userData.Nombre,
+      Apellidos: userData.Apellidos,
+      Email: userData.Email,
+      id_RolFK: userData.id_RolFK,
+      Telefono: userData.Telefono || null,
+      Direccion: userData.Direccion || null
+    };
+    
+    // Solo agregar contraseña si se proporciona
+    if (userData.Contrasena && userData.Contrasena.trim() !== '') {
+      insertData.Contrasena = userData.Contrasena;
+    }
+    
+    // Construir query dinámicamente
+    const campos = Object.keys(insertData);
+    const valores = Object.values(insertData);
+    const placeholders = campos.map(() => '?').join(', ');
+    
+    const query = `INSERT INTO Usuario (${campos.join(', ')}) VALUES (${placeholders})`;
+    console.log("📝 Query:", query);
+    console.log("📝 Valores:", valores);
+    
+    // Ejecutar inserción
+    const [result] = await connection.query(query, valores);
+    const userId = result.insertId;
+    
+    console.log("✅ Usuario creado con ID:", userId);
+    
+    // Por ahora, saltamos la configuración de permisos para simplificar
+    // TODO: Agregar permisos después de que funcione la inserción básica
+    
+    return NextResponse.json({ 
+      id: userId, 
+      message: "Usuario creado exitosamente" 
+    });
     
   } catch (error) {
-    console.error("Error al crear usuario:", error);
-    return NextResponse.json({ error: "Error al crear usuario: " + error.message }, { status: 500 });
+    console.error("❌ Error completo en POST:", error);
+    console.error("❌ Stack trace:", error.stack);
+    
+    // Manejar errores específicos de MySQL
+    if (error.code === 'ER_DUP_ENTRY') {
+      if (error.message.includes('DNI')) {
+        return NextResponse.json({ error: "Ya existe un usuario con este DNI" }, { status: 400 });
+      } else if (error.message.includes('Email')) {
+        return NextResponse.json({ error: "Ya existe un usuario con este email" }, { status: 400 });
+      }
+      return NextResponse.json({ error: "Ya existe un usuario con estos datos" }, { status: 400 });
+    }
+    
+    // Error genérico
+    return NextResponse.json({ 
+      error: "Error interno: " + (error.message || "Error desconocido")
+    }, { status: 500 });
+    
+  } finally {
+    // Liberar conexión
+    if (connection) {
+      connection.release();
+      console.log("🔐 Conexión liberada");
+    }
   }
 }
 

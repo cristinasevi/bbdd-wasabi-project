@@ -27,7 +27,7 @@ export default function ConfirmationDialog({
           <h2 className="text-xl font-bold">{title}</h2>
           <button 
             onClick={onClose}
-            className="text-gray-500 hover:text-red-600"
+            className="text-gray-500 hover:text-red-600 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -40,7 +40,7 @@ export default function ConfirmationDialog({
         <div className="flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
+            className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100 cursor-pointer"
           >
             {cancelText}
           </button>
@@ -49,7 +49,7 @@ export default function ConfirmationDialog({
               onConfirm()
               onClose()
             }}
-            className={`px-4 py-2 rounded-md ${confirmButtonClass}`}
+            className={`px-4 py-2 rounded-md cursor-pointer ${confirmButtonClass}`}
           >
             {confirmText}
           </button>
