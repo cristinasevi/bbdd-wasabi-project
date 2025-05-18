@@ -258,9 +258,31 @@ export default function ProveedoresClient({
         }
       }
     }
+
+    // Validación en tiempo real para el teléfono
+    if (name === "telefono" && value.trim().length > 0) {
+      const telefonoExists = proveedores.some(p =>
+        p.Telefono &&
+        String(p.Telefono).trim() === String(value).trim() &&
+        p.idProveedor !== formularioProveedor.idProveedor
+      );
+      if (telefonoExists) {
+        setFormErrors(prev => ({ ...prev, telefono: "Ya existe un proveedor con este teléfono" }));
+      } else {
+        // Si no hay error, quitar el error de teléfono si existía
+        const newErrors = { ...formErrors };
+        delete newErrors.telefono;
+        setFormErrors(newErrors);
+      }
+    } else if (name === "telefono") {
+      // Si se borra el teléfono, quitar el error
+      const newErrors = { ...formErrors };
+      delete newErrors.telefono;
+      setFormErrors(newErrors);
+    }
   };
 
-  // Función de validación del formulario - actualizada para solo validar NIF
+  // Función de validación del formulario - actualizada para validar NIF, teléfono y email
   const validateProveedorForm = (formData, proveedoresList, editingId = null) => {
     const errors = {};
 
@@ -279,7 +301,7 @@ export default function ProveedoresClient({
       if (!nifValidation.valid) {
         errors.nif = nifValidation.error;
       } else {
-        // Verificar duplicados
+        // Verificar duplicados de NIF
         const nifExists = proveedoresList.some(p =>
           p.NIF && p.NIF.toUpperCase() === nifValidation.formatted &&
           p.idProveedor !== editingId
@@ -932,9 +954,16 @@ export default function ProveedoresClient({
                   name="telefono"
                   value={formularioProveedor.telefono}
                   onChange={handleInputChange}
-                  className="border border-gray-300 rounded px-3 py-2 w-full"
+                  className={`border rounded px-3 py-2 w-full ${formErrors.telefono ? 'border-red-500' : 'border-gray-300'
+                    }`}
                   placeholder="Teléfono"
                 />
+                {formErrors.telefono && (
+                  <div className="flex items-center mt-1 text-red-600 text-sm">
+                    <AlertCircle className="w-4 h-4 mr-1" />
+                    {formErrors.telefono}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-gray-700 mb-1">Email</label>
@@ -943,9 +972,16 @@ export default function ProveedoresClient({
                   name="email"
                   value={formularioProveedor.email}
                   onChange={handleInputChange}
-                  className="border border-gray-300 rounded px-3 py-2 w-full"
+                  className={`border rounded px-3 py-2 w-full ${formErrors.email ? 'border-red-500' : 'border-gray-300'
+                    }`}
                   placeholder="Email"
                 />
+                {formErrors.email && (
+                  <div className="flex items-center mt-1 text-red-600 text-sm">
+                    <AlertCircle className="w-4 h-4 mr-1" />
+                    {formErrors.email}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-gray-700 mb-1">Departamento Principal</label>
