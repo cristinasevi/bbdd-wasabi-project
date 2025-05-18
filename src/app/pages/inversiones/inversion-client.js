@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react"
 import { ChevronDown, Calendar } from "lucide-react"
 import Link from "next/link"
 import useUserDepartamento from "@/app/hooks/useUserDepartamento"
+import { useRouter } from "next/navigation";
 
 export default function InversionClient({
   initialOrden = [],
@@ -23,6 +24,7 @@ export default function InversionClient({
   // Estados para los filtros de fecha - inicializados con valores actuales
   const [selectedMes, setSelectedMes] = useState(mesActual)
   const [selectedAño, setSelectedAño] = useState(año.toString())
+  const router = useRouter();
 
   // Obtener información del usuario
   useEffect(() => {
@@ -278,6 +280,20 @@ export default function InversionClient({
     setSelectedAño(e.target.value)
   }
 
+  // Función para manejar el clic en botón de resumen
+  const handleResumenClick = (e) => {
+    e.preventDefault();
+
+    // Guardar selección actual en localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('selectedMes', selectedMes);
+      localStorage.setItem('selectedAño', selectedAño);
+    }
+
+    // Navegar a la página de resumen
+    router.push(`/pages/resumen/${departamento}`);
+  };
+
   // Formatear valores monetarios
   const formatCurrency = (value) => {
     if (value === null || value === undefined || isNaN(value)) return "0,00 €"
@@ -378,6 +394,7 @@ export default function InversionClient({
           {departamento && (
             <Link
               href={`/pages/resumen/${departamento}`}
+              onClick={handleResumenClick}
               className="bg-black text-white px-4 py-2 rounded-full hover:bg-gray-800"
             >
               Resumen
