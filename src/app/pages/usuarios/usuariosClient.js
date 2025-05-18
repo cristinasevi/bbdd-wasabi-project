@@ -318,8 +318,7 @@ export default function UsuariosClient({
     setFilterRole(e.target.value);
   };
 
-  // Función handleGuardarUsuario - CORREGIDA
-  // Función handleGuardarUsuario - CORREGIR MANEJO DE ERRORES
+  // Función handleGuardarUsuario
   const handleGuardarUsuario = async () => {
     if (!validarFormulario()) return;
 
@@ -343,14 +342,14 @@ export default function UsuariosClient({
 
       // Preparar datos para enviar - CONTRASEÑA OPCIONAL
       const datosUsuario = {
-        DNI: formularioUsuario.dni,
+        DNI: formularioUsuario.dni || null, // Permitir DNI opcional
         Nombre: formularioUsuario.nombre,
         Apellidos: formularioUsuario.apellidos,
-        Telefono: formularioUsuario.telefono,
-        Direccion: formularioUsuario.direccion,
+        Telefono: formularioUsuario.telefono || null,
+        Direccion: formularioUsuario.direccion || null,
         Email: formularioUsuario.email,
         id_RolFK: rolId,
-        Departamento: formularioUsuario.departamento,
+        Departamento: formularioUsuario.departamento || null,
       };
 
       // Solo incluir contraseña si se proporciona

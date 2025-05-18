@@ -1,4 +1,3 @@
-// File: src/app/api/getUsuarios/[id]/route.js
 import { NextResponse } from "next/server";
 import { pool } from "@/app/api/lib/db";
 
@@ -45,13 +44,67 @@ export async function GET(request, { params }) {
 
 // PUT - Actualizar un usuario específico
 export async function PUT(request, { params }) {
+  let connection;
+  
   try {
     const awaitedParams = await params;
     const userId = awaitedParams.id;
     const userData = await request.json();
 
-    // Comenzar una transacción
-    const connection = await pool.getConnection();
+    console.log("✅ Datos recibidos para actualizar usuario:", userId, userData);
+
+    // Validar datos obligatorios
+    const camposObligatorios = ['Nombre', 'Apellidos', 'Email', 'id_RolFK'];
+    for (const campo of camposObligatorios) {
+      if (!userData[campo]) {
+        console.log(`❌ Campo obligatorio faltante: ${campo}`);
+        return NextResponse.json({ 
+          error: `El campo ${campo} es obligatorio` 
+        }, { status: 400 });
+      }
+    }
+
+    // Obtener conexión
+    connection = await pool.getConnection();
+    console.log("✅ Conexión obtenida");
+
+    // Verificar si el usuario existe
+    const [userCheck] = await connection.query('SELECT idUsuario FROM Usuario WHERE idUsuario = ?', [userId]);
+    if (userCheck.length === 0) {
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
+    }
+
+    // Verificar duplicados (excluir el usuario actual)
+    console.log("🔍 Verificando DNI duplicado...");
+    if (userData.DNI) {
+      const [existingDNI] = await connection.query(
+        'SELECT idUsuario FROM Usuario WHERE DNI = ? AND idUsuario != ?', 
+        [userData.DNI, userId]
+      );
+      if (existingDNI.length > 0) {
+        return NextResponse.json({ error: "Ya existe otro usuario con este DNI" }, { status: 400 });
+      }
+    }
+
+    console.log("🔍 Verificando email duplicado...");
+    const [existingEmail] = await connection.query(
+      'SELECT idUsuario FROM Usuario WHERE Email = ? AND idUsuario != ?', 
+      [userData.Email, userId]
+    );
+    if (existingEmail.length > 0) {
+      return NextResponse.json({ error: "Ya existe otro usuario con este email" }, { status: 400 });
+    }
+
+    // Verificar que el rol existe
+    console.log("🔍 Verificando rol...");
+    const [rolCheck] = await connection.query('SELECT Tipo FROM Rol WHERE idRol = ?', [userData.id_RolFK]);
+    if (rolCheck.length === 0) {
+      return NextResponse.json({ error: "El rol especificado no existe" }, { status: 400 });
+    }
+
+    console.log("✅ Validaciones pasadas, actualizando usuario...");
+
+    // Comenzar transacción
     await connection.beginTransaction();
 
     try {
@@ -70,21 +123,51 @@ export async function PUT(request, { params }) {
         userData.id_RolFK
       ];
 
+      // Solo agregar DNI si se proporciona
+      if (userData.DNI && userData.DNI.trim() !== '') {
+        query = `
+          UPDATE Usuario 
+          SET DNI = ?, Nombre = ?, Apellidos = ?, Telefono = ?, Direccion = ?, Email = ?, id_RolFK = ?
+        `;
+        queryParams = [
+          userData.DNI,
+          userData.Nombre,
+          userData.Apellidos,
+          userData.Telefono || null,
+          userData.Direccion || null,
+          userData.Email,
+          userData.id_RolFK
+        ];
+      }
+
       // Si se proporciona una contraseña, actualizarla
       if (userData.Contrasena && userData.Contrasena.trim() !== '') {
-        query += `, Contrasena = ?`;
-        queryParams.push(userData.Contrasena);
+        if (userData.DNI && userData.DNI.trim() !== '') {
+          query = `
+            UPDATE Usuario 
+            SET DNI = ?, Nombre = ?, Apellidos = ?, Telefono = ?, Direccion = ?, Email = ?, id_RolFK = ?, Contrasena = ?
+          `;
+          queryParams.push(userData.Contrasena);
+        } else {
+          query = `
+            UPDATE Usuario 
+            SET Nombre = ?, Apellidos = ?, Telefono = ?, Direccion = ?, Email = ?, id_RolFK = ?, Contrasena = ?
+          `;
+          queryParams.push(userData.Contrasena);
+        }
       }
 
       // Completar la query con el WHERE
       query += ` WHERE idUsuario = ?`;
       queryParams.push(userId);
 
+      console.log("📝 Query de actualización:", query);
+      console.log("📝 Parámetros:", queryParams);
+
       await connection.query(query, queryParams);
 
-      // 2. Obtener información del rol
-      const [rolResult] = await connection.query('SELECT Tipo FROM Rol WHERE idRol = ?', [userData.id_RolFK]);
-      const rolTipo = rolResult[0]?.Tipo;
+      // 2. Obtener información del rol actualizado
+      const rolTipo = rolCheck[0]?.Tipo;
 
       // 3. Eliminar permisos existentes
       await connection.query('DELETE FROM Permiso WHERE id_UsuarioFK = ?', [userId]);
@@ -112,52 +195,76 @@ export async function PUT(request, { params }) {
         }
       } else if (rolTipo === 'Jefe de Departamento') {
         // Jefe tiene acceso solo a su departamento
-        const [deptResult] = await connection.query('SELECT id_Departamento FROM Departamento WHERE Nombre = ?', [userData.Departamento]);
+        if (userData.Departamento) {
+          const [deptResult] = await connection.query(
+            'SELECT id_Departamento FROM Departamento WHERE Nombre = ?', 
+            [userData.Departamento]
+          );
 
-        if (deptResult.length > 0) {
-          await connection.query(`
-            INSERT INTO Permiso (id_UsuarioFK, id_DepFK, Puede_editar, Puede_ver, Fecha_asignacion)
-            VALUES (?, ?, 1, 1, CURDATE())
-          `, [userId, deptResult[0].id_Departamento]);
+          if (deptResult.length > 0) {
+            await connection.query(`
+              INSERT INTO Permiso (id_UsuarioFK, id_DepFK, Puede_editar, Puede_ver, Fecha_asignacion)
+              VALUES (?, ?, 1, 1, CURDATE())
+            `, [userId, deptResult[0].id_Departamento]);
+          }
         }
       }
 
-      // Confirmar la transacción
+        // Confirmar la transacción
       await connection.commit();
+      console.log("✅ Usuario actualizado correctamente");
 
       return NextResponse.json({
         id: userId,
         message: "Usuario actualizado exitosamente"
       });
 
-    } catch (error) {
-      // Si hay error, hacer rollback
+    } catch (transactionError) {
+      // Si hay error en la transacción, hacer rollback
       await connection.rollback();
-      throw error;
-    } finally {
-      // Liberar la conexión
-      connection.release();
+      console.error("❌ Error en la transacción:", transactionError);
+      throw transactionError;
     }
 
   } catch (error) {
-    // Si hay error, hacer rollback
-    await connection.rollback();
+    console.error("❌ Error completo en PUT:", error);
+    console.error("❌ Stack trace:", error.stack);
+
+    // Si hay conexión y error, hacer rollback
+    if (connection) {
+      try {
+        await connection.rollback();
+      } catch (rollbackError) {
+        console.error("❌ Error en rollback:", rollbackError);
+      }
+    }
 
     // Manejar específicamente los errores de duplicados
     if (error.code === 'ER_DUP_ENTRY') {
       if (error.message.includes('DNI')) {
-        throw new Error("Ya existe otro usuario con este DNI");
+        return NextResponse.json({ error: "Ya existe otro usuario con este DNI" }, { status: 400 });
       } else if (error.message.includes('Email')) {
-        throw new Error("Ya existe otro usuario con este email");
+        return NextResponse.json({ error: "Ya existe otro usuario con este email" }, { status: 400 });
       } else {
-        throw new Error("Ya existe otro usuario con estos datos");
+        return NextResponse.json({ error: "Ya existe otro usuario con estos datos" }, { status: 400 });
       }
     }
 
-    throw error;
+    // Error genérico
+    return NextResponse.json({ 
+      error: "Error interno: " + (error.message || "Error desconocido")
+    }, { status: 500 });
+
   } finally {
     // Liberar la conexión
-    connection.release();
+    if (connection) {
+      try {
+        connection.release();
+        console.log("🔐 Conexión liberada");
+      } catch (releaseError) {
+        console.error("❌ Error liberando conexión:", releaseError);
+      }
+    }
   }
 }
 
