@@ -5,9 +5,9 @@ import { ChevronDown, Calendar } from "lucide-react"
 import Link from "next/link"
 import useUserDepartamento from "@/app/hooks/useUserDepartamento"
 
-export default function InversionClient({ 
-  initialOrden = [], 
-  initialDepartamentos = [], 
+export default function InversionClient({
+  initialOrden = [],
+  initialDepartamentos = [],
   inversionesPorDepartamento = {},
   inversionesAcumPorDepartamento = {},
   mesActual = "",
@@ -19,11 +19,11 @@ export default function InversionClient({
   const [departamentoId, setDepartamentoId] = useState(null)
   const [inversionMensual, setInversionMensual] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
-  
+
   // Estados para los filtros de fecha - inicializados con valores actuales
   const [selectedMes, setSelectedMes] = useState(mesActual)
   const [selectedAño, setSelectedAño] = useState(año.toString())
-  
+
   // Obtener información del usuario
   useEffect(() => {
     async function getUserInfo() {
@@ -33,17 +33,40 @@ export default function InversionClient({
         if (response.ok) {
           const data = await response.json()
           setUserRole(data.usuario?.rol || '')
-          
+
           const userDep = data.usuario?.departamento || ''
-          
-          // Establecer departamento inicial
+
+          // Establecer departamento inicial según el rol
           if (data.usuario?.rol === "Jefe de Departamento") {
+            // Para Jefe de Departamento, usar su propio departamento
             setDepartamento(userDep)
-          } else {
-            if (typeof window !== 'undefined' && window.selectedDepartamento) {
-              setDepartamento(window.selectedDepartamento)
+          } else if (data.usuario?.rol === "Administrador") {
+            // Para Admin, establecer siempre Informática por defecto
+            const informaticaDep = initialDepartamentos.find(dep => dep.Nombre === "Informática")
+            if (informaticaDep) {
+              setDepartamento("Informática")
             } else if (initialDepartamentos.length > 0) {
+              // Si no hay departamento Informática, usar el primero
               setDepartamento(initialDepartamentos[0].Nombre)
+            }
+          } else if (data.usuario?.rol === "Contable") {
+            // Para Contable, verificar si hay una selección guardada
+            const savedDep = typeof window !== 'undefined' && window.selectedDepartamento
+
+            if (savedDep) {
+              // Verificar que el departamento guardado existe
+              const depExists = initialDepartamentos.some(dep => dep.Nombre === savedDep)
+              if (depExists) {
+                setDepartamento(savedDep)
+              } else if (initialDepartamentos.length > 0) {
+                // Si no es válido, usar Informática o el primero
+                const informaticaDep = initialDepartamentos.find(dep => dep.Nombre === "Informática")
+                setDepartamento(informaticaDep ? "Informática" : initialDepartamentos[0].Nombre)
+              }
+            } else if (initialDepartamentos.length > 0) {
+              // Sin selección guardada, establecer Informática o el primero
+              const informaticaDep = initialDepartamentos.find(dep => dep.Nombre === "Informática")
+              setDepartamento(informaticaDep ? "Informática" : initialDepartamentos[0].Nombre)
             }
           }
         }
@@ -53,10 +76,10 @@ export default function InversionClient({
         setIsLoading(false)
       }
     }
-    
+
     getUserInfo()
   }, [initialDepartamentos])
-  
+
   // Actualizar ID del departamento cuando cambia el nombre del departamento
   useEffect(() => {
     if (departamento && initialDepartamentos.length > 0) {
@@ -66,195 +89,195 @@ export default function InversionClient({
       }
     }
   }, [departamento, initialDepartamentos])
-  
+
   // Filtrar todas las órdenes de inversión por departamento (para cálculo de gastos totales)
   const allInvestmentOrders = useMemo(() => {
     if (!departamento || !initialOrden.length) return [];
-    
+
     return initialOrden.filter(o => {
       // Solo órdenes del departamento y que sí tengan número de inversión
       return o.Departamento === departamento && o.Num_inversion;
     });
   }, [departamento, initialOrden]);
-  
+
   // Filtrar las órdenes por departamento, mes y año (solo inversión, CON Num_inversion)
   const filteredOrdenes = useMemo(() => {
     if (!departamento || !initialOrden.length) return []
-    
+
     const filtered = initialOrden.filter(o => {
       // Solo órdenes del departamento y que TENGAN número de inversión
       if (o.Departamento !== departamento || !o.Num_inversion) {
         return false;
       }
-      
+
       // Filtrar por año y mes si están seleccionados
       if (selectedAño || selectedMes) {
         const ordenDate = new Date(o.Fecha);
         const ordenAño = ordenDate.getFullYear().toString();
-        const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
-                      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+        const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+          "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
         const ordenMes = meses[ordenDate.getMonth()];
-        
+
         if (selectedAño && ordenAño !== selectedAño) return false;
         if (selectedMes && ordenMes !== selectedMes) return false;
       }
-      
+
       return true;
     });
-    
+
     return filtered;
   }, [departamento, initialOrden, selectedMes, selectedAño]);
-  
+
   // Obtener los meses y años disponibles
   const { availableMeses, availableAños } = useMemo(() => {
     const mesesSet = new Set();
     const añosSet = new Set();
-    
+
     if (departamento && initialOrden.length) {
       // Filtrar solo órdenes del departamento seleccionado CON inversión
-      const departamentoOrdenes = initialOrden.filter(o => 
+      const departamentoOrdenes = initialOrden.filter(o =>
         o.Departamento === departamento && o.Num_inversion
       );
-      
+
       departamentoOrdenes.forEach(orden => {
         const ordenDate = new Date(orden.Fecha);
         const ordenAño = ordenDate.getFullYear().toString();
-        const mesesNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
-                           "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+        const mesesNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+          "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
         const ordenMes = mesesNames[ordenDate.getMonth()];
-        
+
         mesesSet.add(ordenMes);
         añosSet.add(ordenAño);
       });
     }
-    
+
     // Siempre incluir el mes y año actual
     mesesSet.add(mesActual);
     añosSet.add(año.toString());
-    
+
     // Ordenar meses
     const mesesOrder = {
       "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4, "Mayo": 5, "Junio": 6,
       "Julio": 7, "Agosto": 8, "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
     };
-    
+
     const sortedMeses = Array.from(mesesSet).sort((a, b) => mesesOrder[a] - mesesOrder[b]);
     const sortedAños = Array.from(añosSet).sort((a, b) => parseInt(a) - parseInt(b));
-    
+
     return { availableMeses: sortedMeses, availableAños: sortedAños };
   }, [departamento, initialOrden, mesActual, año]);
-  
+
   // Calcular gasto del mes seleccionado
   const gastoDelMes = useMemo(() => {
     return filteredOrdenes.reduce((sum, orden) => sum + (parseFloat(orden.Importe) || 0), 0);
   }, [filteredOrdenes]);
-  
- // Calcular gasto total acumulado en inversiones (todas las órdenes de inversión)
-const gastoTotalInversion = useMemo(() => {
-  // Solo considerar órdenes del año seleccionado
-  const ordenesDelAño = allInvestmentOrders.filter(orden => {
-    if (!orden.Fecha) return false;
-    const ordenDate = new Date(orden.Fecha);
-    const ordenAño = ordenDate.getFullYear().toString();
-    return ordenAño === selectedAño;
-  });
-  
-  return ordenesDelAño.reduce((sum, orden) => sum + (parseFloat(orden.Importe) || 0), 0);
-}, [allInvestmentOrders, selectedAño]);
-  
+
+  // Calcular gasto total acumulado en inversiones (todas las órdenes de inversión)
+  const gastoTotalInversion = useMemo(() => {
+    // Solo considerar órdenes del año seleccionado
+    const ordenesDelAño = allInvestmentOrders.filter(orden => {
+      if (!orden.Fecha) return false;
+      const ordenDate = new Date(orden.Fecha);
+      const ordenAño = ordenDate.getFullYear().toString();
+      return ordenAño === selectedAño;
+    });
+
+    return ordenesDelAño.reduce((sum, orden) => sum + (parseFloat(orden.Importe) || 0), 0);
+  }, [allInvestmentOrders, selectedAño]);
+
   // Cargar datos cuando cambie el departamento o el año seleccionado
-useEffect(() => {
-  if (!departamentoId) return
-  
-  try {
-    // Obtener datos de inversión
+  useEffect(() => {
+    if (!departamentoId) return
+
+    try {
+      // Obtener datos de inversión
+      const inversionData = inversionesPorDepartamento[departamentoId] || [];
+
+      // Verificar si la inversión aplica para el año seleccionado
+      const fechaInicio = inversionData[0]?.fecha_inicio ? new Date(inversionData[0]?.fecha_inicio) : null;
+      const fechaFinal = inversionData[0]?.fecha_final ? new Date(inversionData[0]?.fecha_final) : null;
+
+      // Si no hay fechas o la inversión incluye el año seleccionado, calcular valor
+      if (!fechaInicio || !fechaFinal ||
+        (fechaInicio.getFullYear() <= parseInt(selectedAño) &&
+          fechaFinal.getFullYear() >= parseInt(selectedAño))) {
+        // Calcular inversión mensual
+        const invMensual = (inversionData[0]?.total_inversion || 0) / 12;
+        setInversionMensual(invMensual);
+      } else {
+        // Si el año seleccionado está fuera del rango, establecer a 0
+        setInversionMensual(0);
+      }
+    } catch (error) {
+      console.error("Error cargando datos de inversión:", error);
+    }
+  }, [departamentoId, inversionesPorDepartamento, selectedAño]);
+
+  // Calcular inversión total anual para el año seleccionado
+  const inversionTotalAnual = useMemo(() => {
     const inversionData = inversionesPorDepartamento[departamentoId] || [];
-    
+    const total = inversionData[0]?.total_inversion || 0;
+
     // Verificar si la inversión aplica para el año seleccionado
     const fechaInicio = inversionData[0]?.fecha_inicio ? new Date(inversionData[0]?.fecha_inicio) : null;
     const fechaFinal = inversionData[0]?.fecha_final ? new Date(inversionData[0]?.fecha_final) : null;
-    
-    // Si no hay fechas o la inversión incluye el año seleccionado, calcular valor
-    if (!fechaInicio || !fechaFinal || 
-        (fechaInicio.getFullYear() <= parseInt(selectedAño) && 
+
+    // Si no hay fechas o la inversión incluye el año seleccionado, usar el valor completo
+    if (!fechaInicio || !fechaFinal ||
+      (fechaInicio.getFullYear() <= parseInt(selectedAño) &&
         fechaFinal.getFullYear() >= parseInt(selectedAño))) {
-      // Calcular inversión mensual
-      const invMensual = (inversionData[0]?.total_inversion || 0) / 12;
-      setInversionMensual(invMensual);
-    } else {
-      // Si el año seleccionado está fuera del rango, establecer a 0
-      setInversionMensual(0);
+      return total;
     }
-  } catch (error) {
-    console.error("Error cargando datos de inversión:", error);
-  }
-}, [departamentoId, inversionesPorDepartamento, selectedAño]);
-  
-// Calcular inversión total anual para el año seleccionado
-const inversionTotalAnual = useMemo(() => {
-  const inversionData = inversionesPorDepartamento[departamentoId] || [];
-  const total = inversionData[0]?.total_inversion || 0;
-  
-  // Verificar si la inversión aplica para el año seleccionado
-  const fechaInicio = inversionData[0]?.fecha_inicio ? new Date(inversionData[0]?.fecha_inicio) : null;
-  const fechaFinal = inversionData[0]?.fecha_final ? new Date(inversionData[0]?.fecha_final) : null;
-  
-  // Si no hay fechas o la inversión incluye el año seleccionado, usar el valor completo
-  if (!fechaInicio || !fechaFinal || 
-      (fechaInicio.getFullYear() <= parseInt(selectedAño) && 
-       fechaFinal.getFullYear() >= parseInt(selectedAño))) {
-    return total;
-  }
-  
-  // Si no coincide el año, retornar 0
-  return 0;
-}, [inversionesPorDepartamento, departamentoId, selectedAño]);
-  
+
+    // Si no coincide el año, retornar 0
+    return 0;
+  }, [inversionesPorDepartamento, departamentoId, selectedAño]);
+
   // Calcular saldo actual en tiempo real (inversión total - gasto acumulado)
   const saldoActual = useMemo(() => {
     return inversionTotalAnual - gastoTotalInversion;
   }, [inversionTotalAnual, gastoTotalInversion]);
-  
+
   // Calcular inversión mensual disponible para el mes y año seleccionados
-const inversionMensualDisponible = useMemo(() => {
-  // Verificar si la inversión aplica para el año y mes seleccionados
-  const inversionData = inversionesPorDepartamento[departamentoId] || [];
-  const fechaInicio = inversionData[0]?.fecha_inicio ? new Date(inversionData[0]?.fecha_inicio) : null;
-  const fechaFinal = inversionData[0]?.fecha_final ? new Date(inversionData[0]?.fecha_final) : null;
-  
-  // Si no hay fechas o la inversión incluye el año seleccionado, calcular disponible
-  if (!fechaInicio || !fechaFinal || 
-      (fechaInicio.getFullYear() <= parseInt(selectedAño) && 
-       fechaFinal.getFullYear() >= parseInt(selectedAño))) {
-    return inversionMensual - gastoDelMes;
-  }
-  
-  // Si no coincide el año, no hay disponible
-  return 0;
-}, [inversionMensual, gastoDelMes, departamentoId, inversionesPorDepartamento, selectedAño]);
-  
+  const inversionMensualDisponible = useMemo(() => {
+    // Verificar si la inversión aplica para el año y mes seleccionados
+    const inversionData = inversionesPorDepartamento[departamentoId] || [];
+    const fechaInicio = inversionData[0]?.fecha_inicio ? new Date(inversionData[0]?.fecha_inicio) : null;
+    const fechaFinal = inversionData[0]?.fecha_final ? new Date(inversionData[0]?.fecha_final) : null;
+
+    // Si no hay fechas o la inversión incluye el año seleccionado, calcular disponible
+    if (!fechaInicio || !fechaFinal ||
+      (fechaInicio.getFullYear() <= parseInt(selectedAño) &&
+        fechaFinal.getFullYear() >= parseInt(selectedAño))) {
+      return inversionMensual - gastoDelMes;
+    }
+
+    // Si no coincide el año, no hay disponible
+    return 0;
+  }, [inversionMensual, gastoDelMes, departamentoId, inversionesPorDepartamento, selectedAño]);
+
   // Función para cambiar el departamento (solo para admin/contable)
   const handleChangeDepartamento = (newDepartamento) => {
     if (userRole === "Jefe de Departamento") return
-    
+
     setDepartamento(newDepartamento)
-    
+
     // Guardar selección en window
     if (typeof window !== 'undefined') {
       window.selectedDepartamento = newDepartamento
     }
   }
-  
+
   // Manejar cambio de mes
   const handleMesChange = (e) => {
     setSelectedMes(e.target.value)
   }
-  
+
   // Manejar cambio de año
   const handleAñoChange = (e) => {
     setSelectedAño(e.target.value)
   }
-  
+
   // Formatear valores monetarios
   const formatCurrency = (value) => {
     if (value === null || value === undefined || isNaN(value)) return "0,00 €"
@@ -263,18 +286,18 @@ const inversionMensualDisponible = useMemo(() => {
       maximumFractionDigits: 2
     }) + " €"
   }
-  
+
   // Determinar el color del indicador según el saldo restante
   const getIndicatorColor = (actual, total) => {
     if (!total) return "bg-gray-400"; // Si no hay total, gris
-    
+
     const porcentaje = (actual / total) * 100;
-    
+
     if (porcentaje < 25) return "bg-red-500";      // Menos del 25% - Rojo
     if (porcentaje < 50) return "bg-yellow-500";   // Entre 25% y 50% - Amarillo
     return "bg-green-500";                         // Más del 50% - Verde
   };
-  
+
   // Determinar el color del texto para valores negativos
   const getTextColorClass = (valor) => {
     return valor < 0 ? "text-red-600" : "";
@@ -305,7 +328,6 @@ const inversionMensualDisponible = useMemo(() => {
                 onChange={(e) => handleChangeDepartamento(e.target.value)}
                 className="appearance-none bg-gray-100 border border-gray-200 rounded-md px-4 py-2 pr-8 cursor-pointer"
               >
-                <option value="">Seleccionar departamento</option>
                 {initialDepartamentos.map((dep) => (
                   <option key={dep.id_Departamento} value={dep.Nombre}>
                     {dep.Nombre}
@@ -318,7 +340,7 @@ const inversionMensualDisponible = useMemo(() => {
             </div>
           )}
         </div>
-        
+
         <div className="flex gap-4">
           {/* Selector de mes */}
           <div className="relative">
@@ -335,7 +357,7 @@ const inversionMensualDisponible = useMemo(() => {
               <Calendar className="w-4 h-4" />
             </div>
           </div>
-          
+
           {/* Selector de año */}
           <div className="relative">
             <select
@@ -351,7 +373,7 @@ const inversionMensualDisponible = useMemo(() => {
               <Calendar className="w-4 h-4" />
             </div>
           </div>
-          
+
           {/* Botón resumen */}
           {departamento && (
             <Link
@@ -378,7 +400,7 @@ const inversionMensualDisponible = useMemo(() => {
                 </div>
               </div>
             </div>
-            
+
             {/* Inversión mensual disponible del mes seleccionado */}
             <div className="bg-white border border-gray-200 rounded-lg p-6">
               <h3 className="text-gray-500 mb-2 text-xl">Inversión mensual disponible</h3>
@@ -437,11 +459,11 @@ const inversionMensualDisponible = useMemo(() => {
                   ) : (
                     <tr>
                       <td colSpan="3" className="py-4 text-center text-gray-400">
-                          {filteredOrdenes.length === 0 && allInvestmentOrders.length > 0
-                            ? `No hay órdenes de inversión para ${selectedMes} ${selectedAño}`
-                            : allInvestmentOrders.length === 0
-                              ? "No hay órdenes de inversión registradas para este departamento"
-                              : "No hay órdenes de inversión que cumplan con los filtros seleccionados"}
+                        {filteredOrdenes.length === 0 && allInvestmentOrders.length > 0
+                          ? `No hay órdenes de inversión para ${selectedMes} ${selectedAño}`
+                          : allInvestmentOrders.length === 0
+                            ? "No hay órdenes de inversión registradas para este departamento"
+                            : "No hay órdenes de inversión que cumplan con los filtros seleccionados"}
                       </td>
                     </tr>
                   )}
