@@ -6,7 +6,7 @@ import Button from "@/app/components/ui/button";
 import useNotifications from "@/app/hooks/useNotifications";
 import ConfirmationDialog from "@/app/components/ui/confirmation-dialog";
 import useUserDepartamento from "@/app/hooks/useUserDepartamento";
-import { validateNIF, validateProveedorForm } from "@/app/utils/validations";
+import { validateNIF } from "@/app/utils/validations";
 
 export default function ProveedoresClient({
   initialProveedores,
@@ -242,7 +242,7 @@ export default function ProveedoresClient({
       setFormErrors(newErrors);
     }
     
-    // Validación en tiempo real para el NIF
+    // Solo validación en tiempo real para el NIF
     if (name === "nif" && value.trim().length > 0) {
       const nifValidation = validateNIF(value);
       if (!nifValidation.valid) {
@@ -258,41 +258,52 @@ export default function ProveedoresClient({
         }
       }
     }
-    
-    // Validación en tiempo real para el email
-    if (name === "email" && value.trim().length > 0) {
-      const emailValidation = validateEmail(value);
-      if (!emailValidation.valid) {
-        setFormErrors(prev => ({ ...prev, email: emailValidation.error }));
+  };
+
+  // Función de validación del formulario - actualizada para solo validar NIF
+  const validateProveedorForm = (formData, proveedoresList, editingId = null) => {
+    const errors = {};
+
+    // Validar nombre (obligatorio)
+    if (!formData.nombre || formData.nombre.trim().length === 0) {
+      errors.nombre = "El nombre es obligatorio";
+    } else if (formData.nombre.trim().length > 100) {
+      errors.nombre = "El nombre es demasiado largo (máximo 100 caracteres)";
+    }
+
+    // Validar NIF/CIF (obligatorio)
+    if (!formData.nif || formData.nif.trim().length === 0) {
+      errors.nif = "El NIF/CIF es obligatorio";
+    } else {
+      const nifValidation = validateNIF(formData.nif);
+      if (!nifValidation.valid) {
+        errors.nif = nifValidation.error;
       } else {
         // Verificar duplicados
-        const emailExists = proveedores.some(p => 
-          p.Email && p.Email.toLowerCase() === value.trim().toLowerCase() && 
-          p.idProveedor !== formularioProveedor.idProveedor
+        const nifExists = proveedoresList.some(p => 
+          p.NIF && p.NIF.toUpperCase() === nifValidation.formatted && 
+          p.idProveedor !== editingId
         );
-        if (emailExists) {
-          setFormErrors(prev => ({ ...prev, email: "Ya existe un proveedor con este email" }));
+        if (nifExists) {
+          errors.nif = "Ya existe un proveedor con este NIF/CIF";
         }
       }
     }
-    
-    // Validación en tiempo real para el teléfono
-    if (name === "telefono" && value.trim().length > 0) {
-      const phoneValidation = validatePhone(value);
-      if (!phoneValidation.valid) {
-        setFormErrors(prev => ({ ...prev, telefono: phoneValidation.error }));
-      } else {
-        // Verificar duplicados
-        const cleanPhone = value.replace(/\s/g, '');
-        const phoneExists = proveedores.some(p => 
-          p.Telefono && p.Telefono.replace(/\s/g, '') === cleanPhone && 
-          p.idProveedor !== formularioProveedor.idProveedor
-        );
-        if (phoneExists) {
-          setFormErrors(prev => ({ ...prev, telefono: "Ya existe un proveedor con este número de teléfono" }));
-        }
-      }
+
+    // Validar departamento (obligatorio)
+    if (!formData.departamento || formData.departamento.trim().length === 0) {
+      errors.departamento = "El departamento es obligatorio";
     }
+
+    // Validar dirección (opcional, pero con límite de longitud)
+    if (formData.direccion && formData.direccion.length > 200) {
+      errors.direccion = "La dirección es demasiado larga (máximo 200 caracteres)";
+    }
+
+    return {
+      isValid: Object.keys(errors).length === 0,
+      errors
+    };
   };
 
   // Validar formulario

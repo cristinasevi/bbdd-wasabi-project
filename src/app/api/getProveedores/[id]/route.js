@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/app/api/lib/db";
-import { validateNIF, validateEmail, validatePhone } from "@/app/utils/validations";
+import { validateNIF } from "@/app/utils/validations";
 
 // PUT - Actualizar un proveedor específico
 export async function PUT(request, { params }) {
@@ -31,26 +31,6 @@ export async function PUT(request, { params }) {
       }, { status: 400 });
     }
     
-    // Validar email si se proporciona
-    if (data.email) {
-      const emailValidation = validateEmail(data.email);
-      if (!emailValidation.valid) {
-        return NextResponse.json({ 
-          error: emailValidation.error 
-        }, { status: 400 });
-      }
-    }
-    
-    // Validar teléfono si se proporciona
-    if (data.telefono) {
-      const phoneValidation = validatePhone(data.telefono);
-      if (!phoneValidation.valid) {
-        return NextResponse.json({ 
-          error: phoneValidation.error 
-        }, { status: 400 });
-      }
-    }
-    
     // Validar dirección
     if (data.direccion && data.direccion.length > 200) {
       return NextResponse.json({ 
@@ -63,36 +43,32 @@ export async function PUT(request, { params }) {
     await connection.beginTransaction();
     
     try {
-    // Verificar si ya existe otro proveedor con el mismo email (excluyendo el actual)
-    if (data.email && data.email.trim()) {
-      const [existingEmail] = await connection.query(
-        'SELECT idProveedor FROM Proveedor WHERE Email = ? AND idProveedor != ?',
-        [data.email.trim().toLowerCase(), proveedorId]
+      // Actualizar los datos del proveedor
+      await connection.query(`
+        UPDATE Proveedor 
+        SET Nombre = ?, NIF = ?, Direccion = ?, Telefono = ?, Email = ?
+        WHERE idProveedor = ?
+      `, [
+        data.nombre.trim(),
+        nifValidation.formatted,
+        data.direccion?.trim() || null,
+        data.telefono?.trim() || null,
+        data.email?.trim().toLowerCase() || null,
+        proveedorId
+      ]);
+      
+      // Buscar el departamento por nombre
+      const [deptResult] = await connection.query(
+        'SELECT id_Departamento FROM Departamento WHERE Nombre = ?',
+        [data.departamento]
       );
       
-      if (existingEmail.length > 0) {
+      if (deptResult.length === 0) {
         await connection.rollback();
         return NextResponse.json({ 
-          error: "Ya existe otro proveedor con este email" 
-        }, { status: 400 });
+          error: "Departamento no encontrado" 
+        }, { status: 404 });
       }
-    }
-
-    // Verificar si ya existe otro proveedor con el mismo teléfono (excluyendo el actual)
-    if (data.telefono && data.telefono.trim()) {
-      const cleanPhone = data.telefono.replace(/\s/g, '');
-      const [existingPhone] = await connection.query(
-        'SELECT idProveedor FROM Proveedor WHERE REPLACE(Telefono, " ", "") = ? AND idProveedor != ?',
-        [cleanPhone, proveedorId]
-      );
-      
-      if (existingPhone.length > 0) {
-        await connection.rollback();
-        return NextResponse.json({ 
-          error: "Ya existe otro proveedor con este número de teléfono" 
-        }, { status: 400 });
-      }
-    }
       
       const departamentoId = deptResult[0].id_Departamento;
       

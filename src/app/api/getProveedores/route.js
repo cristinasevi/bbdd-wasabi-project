@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/app/api/lib/db";
-import { validateNIF, validateEmail, validatePhone } from "@/app/utils/validations";
+import { validateNIF } from "@/app/utils/validations";
 
 // POST - Crear un nuevo proveedor
 export async function POST(request) {
@@ -29,25 +29,7 @@ export async function POST(request) {
       }, { status: 400 });
     }
     
-    // Validar email si se proporciona
-    if (data.email) {
-      const emailValidation = validateEmail(data.email);
-      if (!emailValidation.valid) {
-        return NextResponse.json({ 
-          error: emailValidation.error 
-        }, { status: 400 });
-      }
-    }
-    
-    // Validar teléfono si se proporciona
-    if (data.telefono) {
-      const phoneValidation = validatePhone(data.telefono);
-      if (!phoneValidation.valid) {
-        return NextResponse.json({ 
-          error: phoneValidation.error 
-        }, { status: 400 });
-      }
-    }
+    // ELIMINADAS las validaciones de email y teléfono
     
     // Validar dirección
     if (data.direccion && data.direccion.length > 200) {
@@ -74,37 +56,6 @@ export async function POST(request) {
         }, { status: 400 });
       }
       
-      // Verificar si ya existe un proveedor con el mismo email (si se proporciona)
-      if (data.email && data.email.trim()) {
-        const [existingEmail] = await connection.query(
-          'SELECT idProveedor FROM Proveedor WHERE Email = ?',
-          [data.email.trim().toLowerCase()]
-        );
-        
-        if (existingEmail.length > 0) {
-          await connection.rollback();
-          return NextResponse.json({ 
-            error: "Ya existe un proveedor con este email" 
-          }, { status: 400 });
-        }
-      }
-      
-      // Verificar si ya existe un proveedor con el mismo teléfono (si se proporciona)
-      if (data.telefono && data.telefono.trim()) {
-        const cleanPhone = data.telefono.replace(/\s/g, '');
-        const [existingPhone] = await connection.query(
-          'SELECT idProveedor FROM Proveedor WHERE REPLACE(Telefono, " ", "") = ?',
-          [cleanPhone]
-        );
-        
-        if (existingPhone.length > 0) {
-          await connection.rollback();
-          return NextResponse.json({ 
-            error: "Ya existe un proveedor con este número de teléfono" 
-          }, { status: 400 });
-        }
-      }
-      
       // Insertar el proveedor
       const [proveedorResult] = await connection.query(`
         INSERT INTO Proveedor (Nombre, NIF, Direccion, Telefono, Email, Fecha_alta)
@@ -117,7 +68,36 @@ export async function POST(request) {
         data.email?.trim().toLowerCase() || null
       ]);
       
-      // ... resto del código igual...
+      const proveedorId = proveedorResult.insertId;
+      
+      // Buscar el departamento por nombre
+      const [departamentoResult] = await connection.query(
+        'SELECT id_Departamento FROM Departamento WHERE Nombre = ?',
+        [data.departamento]
+      );
+      
+      if (departamentoResult.length === 0) {
+        await connection.rollback();
+        return NextResponse.json({ 
+          error: "Departamento no encontrado" 
+        }, { status: 404 });
+      }
+      
+      const departamentoId = departamentoResult[0].id_Departamento;
+      
+      // Crear la relación Proveedor_Departamento
+      await connection.query(`
+        INSERT INTO Proveedor_Departamento (idProveedorFK, idDepartamentoFK, Propio, Fecha_vinculacion)
+        VALUES (?, ?, 1, CURDATE())
+      `, [proveedorId, departamentoId]);
+      
+      // Confirmar la transacción
+      await connection.commit();
+      
+      return NextResponse.json({ 
+        id: proveedorId, 
+        message: "Proveedor creado correctamente" 
+      }, { status: 201 });
       
     } catch (error) {
       // Si hay error, hacer rollback
@@ -125,18 +105,10 @@ export async function POST(request) {
       
       // Manejar errores específicos de la base de datos
       if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) {
-        // Determinar qué campo está duplicado basándose en el mensaje de error
+        // Solo verificar duplicados para NIF
         if (error.message.includes('NIF')) {
           return NextResponse.json({ 
             error: "Ya existe un proveedor con este NIF/CIF" 
-          }, { status: 400 });
-        } else if (error.message.includes('Email')) {
-          return NextResponse.json({ 
-            error: "Ya existe un proveedor con este email" 
-          }, { status: 400 });
-        } else if (error.message.includes('Telefono')) {
-          return NextResponse.json({ 
-            error: "Ya existe un proveedor con este número de teléfono" 
           }, { status: 400 });
         } else {
           return NextResponse.json({ 
