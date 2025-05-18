@@ -81,7 +81,9 @@ export default function Facturas() {
         setFilterImporte("");
         setFilterEstado("");
         setFilterProveedor("");
-        setFilterDepartamento("");
+        if (userRole !== "Jefe de Departamento") {
+            setFilterDepartamento("");
+        }
         
         // Mostrar notificación opcional
         addNotification("Filtros eliminados", "info");
@@ -98,14 +100,30 @@ export default function Facturas() {
         // Función para obtener el rol del usuario
         async function fetchUserRole() {
             try {
-                const response = await fetch('/api/getSessionUser')
-                const data = await response.json()
-                const role = data.usuario?.rol || ''
-                setUserRole(role)
-                return role
+                const response = await fetch('/api/getSessionUser');
+                if (response.ok) {
+                const data = await response.json();
+                const userRol = data.usuario?.rol || '';
+                setUserRole(userRol);
+                
+                // Si es Jefe de Departamento, establecer el filtro automáticamente
+                if (userRol === "Jefe de Departamento" && departamento) {
+                    setFilterDepartamento(departamento);
+                    
+                    // También hay que asegurar que se mantenga esta selección
+                    // Esto es importante por si la app se reinicia o cambia de estado
+                    const handleBeforeUnload = () => {
+                    localStorage.setItem('selectedDepartamento', departamento);
+                    };
+                    
+                    window.addEventListener('beforeunload', handleBeforeUnload);
+                    return () => {
+                    window.removeEventListener('beforeunload', handleBeforeUnload);
+                    };
+                }
+                }
             } catch (error) {
-                console.error("Error obteniendo rol del usuario:", error)
-                return null
+                console.error("Error obteniendo información del usuario:", error);
             }
         }
 
