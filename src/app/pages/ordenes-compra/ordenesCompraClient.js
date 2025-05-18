@@ -44,6 +44,7 @@ export default function OrdenesCompraClient({
   const [filterDepartamento, setFilterDepartamento] = useState("");
   const [filterProveedor, setFilterProveedor] = useState("");
   const [filterInventariable, setFilterInventariable] = useState("");
+  const [filterEstado, setFilterEstado] = useState("");
   
   // Estados para los filtros de fecha
   const [filterMes, setFilterMes] = useState("");
@@ -369,6 +370,10 @@ export default function OrdenesCompraClient({
       const matchesProveedor = filterProveedor === "" || 
         orden.Proveedor === filterProveedor;
 
+      // Filtro por estado
+      const matchesEstado = filterEstado === "" ||
+       orden.Estado === filterEstado;  
+
       // Filtro por inventariable
       const matchesInventariable = filterInventariable === "" || 
         (filterInventariable === "inventariable" && orden.Inventariable === 1) ||
@@ -385,9 +390,9 @@ export default function OrdenesCompraClient({
         if (filterAño && año !== filterAño) matchesFecha = false;
       }
 
-      return matchesSearch && matchesDepartamento && matchesProveedor && matchesInventariable && matchesFecha;
+      return matchesSearch && matchesDepartamento && matchesProveedor && matchesInventariable && matchesFecha && matchesEstado;
     });
-  }, [ordenes, searchTerm, filterDepartamento, filterProveedor, filterInventariable, filterMes, filterAño]);
+  }, [ordenes, searchTerm, filterDepartamento, filterProveedor, filterInventariable, filterMes, filterAño, filterEstado]);
 
   // NUEVO: Preparar datos para Excel según órdenes seleccionadas
   const prepareExportData = () => {
@@ -536,6 +541,7 @@ export default function OrdenesCompraClient({
     setSearchTerm("");
     setSelectedOrdenes([]);
     setFilterInventariable("");
+    setFilterEstado("");
 
   };
 
@@ -1029,6 +1035,28 @@ export default function OrdenesCompraClient({
           </div>
         </div>
 
+        <div className="relative">
+          <label className="block text-gray-700 text-sm mb-1">Estado de Ordenes</label>
+          <div className="relative">
+            <select
+              value={filterEstado}
+              onChange={(e) => setFilterEstado(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10"
+            >
+              <option value="">Todos los estados</option>
+              <option value="En proceso">En proceso</option>
+              <option value="Anulada">Anulada</option>
+              <option value="Confirmada">Confirmada</option>
+            </select>
+            <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+              <Filter className="h-5 w-5 text-gray-400" />
+            </div>
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+              <ChevronDown className="w-4 h-4 text-gray-500" />
+            </div>
+          </div>
+        </div>
+
         <div className="flex items-end">
           <button
             onClick={limpiarFiltros}
@@ -1087,7 +1115,7 @@ export default function OrdenesCompraClient({
           <select
             value={filterProveedor}
             onChange={(e) => setFilterProveedor(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded-md appearance-none"
+            className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10"
           >
             <option value="">Todos los proveedores</option>
             {/* Siempre usamos los proveedores filtrados según la lógica corregida arriba */}
@@ -1097,6 +1125,9 @@ export default function OrdenesCompraClient({
               </option>
             ))}
           </select>
+          <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+            <Filter className="h-5 w-5 text-gray-400" />
+          </div>
           <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
             <ChevronDown className="w-4 h-4 text-gray-500" />
           </div>

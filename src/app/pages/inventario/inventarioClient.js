@@ -429,7 +429,7 @@ export default function InventarioClient({
           <select
             value={filterProveedor}
             onChange={(e) => setFilterProveedor(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded-md appearance-none"
+            className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10"
             
           >
             <option value="">Selecciona Proveedor</option>
@@ -439,6 +439,9 @@ export default function InventarioClient({
               </option>
             ))}
           </select>
+          <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+            <Filter className="h-5 w-5 text-gray-400" />
+          </div>
           <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
             <ChevronDown className="w-4 h-4 text-gray-500" />
           </div>
@@ -448,12 +451,15 @@ export default function InventarioClient({
           <select
             value={filterInventariable}
             onChange={(e) => setFilterInventariable(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded-md appearance-none"
+            className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10"
           >
-            <option value="">Todos</option>
+            <option value="">Todos Inventarible / No Inventariable</option>
             <option value="inventariable">Inventariable</option>
             <option value="no-inventariable">No Inventariable</option>
           </select>
+          <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+            <Filter className="h-5 w-5 text-gray-400" />
+          </div>
           <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
             <ChevronDown className="w-4 h-4 text-gray-500" />
           </div>
