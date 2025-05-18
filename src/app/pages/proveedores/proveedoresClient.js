@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { ChevronDown, Pencil, X, Search, Filter, Plus, Check } from "lucide-react";
+import { ChevronDown, Pencil, X, Search, Filter, Plus, Check, AlertCircle } from "lucide-react";
 import Button from "@/app/components/ui/button";
 import useNotifications from "@/app/hooks/useNotifications";
 import ConfirmationDialog from "@/app/components/ui/confirmation-dialog";
 import useUserDepartamento from "@/app/hooks/useUserDepartamento";
+import { validateNIF, validateProveedorForm } from "@/app/utils/validations";
 
 export default function ProveedoresClient({
   initialProveedores,
@@ -22,7 +23,7 @@ export default function ProveedoresClient({
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState("add"); // 'add' o 'edit'
-  const [formError, setFormError] = useState("");
+  const [formErrors, setFormErrors] = useState({});
   
   // Nuevo estado para el selector de departamentos múltiples
   const [showDepartamentosSelector, setShowDepartamentosSelector] = useState(false);
@@ -191,7 +192,7 @@ export default function ProveedoresClient({
   // Cerrar modal
   const handleCloseModal = () => {
     setShowModal(false);
-    setFormError("");
+    setFormErrors({});
     setShowDepartamentosSelector(false);
   };
 
@@ -207,50 +208,108 @@ export default function ProveedoresClient({
       departamento: "",
       departamentos: []
     });
-    setFormError("");
+    setFormErrors({});
   };
 
-  // Manejar cambios en el formulario
+  // Manejar cambios en el formulario con validación en tiempo real
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     
-    // Si cambia el departamento, también actualizamos el array de departamentos
+    // Actualizar el valor del campo
+    let updatedForm;
     if (name === "departamento") {
-      setFormularioProveedor({
+      updatedForm = {
         ...formularioProveedor,
         [name]: value,
-        // En modo edición, mantenemos los departamentos existentes, en modo añadir solo el seleccionado
         departamentos: modalMode === "add" ? [value] : 
-          // Si el departamento ya está en la lista, lo mantenemos (no cambia nada)
           formularioProveedor.departamentos.includes(value) ? 
             formularioProveedor.departamentos : 
-            // Si no está, lo añadimos al inicio de la lista
             [value, ...formularioProveedor.departamentos.filter(dep => dep !== value)]
-      });
+      };
     } else {
-      setFormularioProveedor({
+      updatedForm = {
         ...formularioProveedor,
         [name]: value,
-      });
+      };
+    }
+    
+    setFormularioProveedor(updatedForm);
+    
+    // Limpiar el error del campo si existe
+    if (formErrors[name]) {
+      const newErrors = { ...formErrors };
+      delete newErrors[name];
+      setFormErrors(newErrors);
+    }
+    
+    // Validación en tiempo real para el NIF
+    if (name === "nif" && value.trim().length > 0) {
+      const nifValidation = validateNIF(value);
+      if (!nifValidation.valid) {
+        setFormErrors(prev => ({ ...prev, nif: nifValidation.error }));
+      } else {
+        // Verificar duplicados
+        const nifExists = proveedores.some(p => 
+          p.NIF && p.NIF.toUpperCase() === nifValidation.formatted && 
+          p.idProveedor !== formularioProveedor.idProveedor
+        );
+        if (nifExists) {
+          setFormErrors(prev => ({ ...prev, nif: "Ya existe un proveedor con este NIF/CIF" }));
+        }
+      }
+    }
+    
+    // Validación en tiempo real para el email
+    if (name === "email" && value.trim().length > 0) {
+      const emailValidation = validateEmail(value);
+      if (!emailValidation.valid) {
+        setFormErrors(prev => ({ ...prev, email: emailValidation.error }));
+      } else {
+        // Verificar duplicados
+        const emailExists = proveedores.some(p => 
+          p.Email && p.Email.toLowerCase() === value.trim().toLowerCase() && 
+          p.idProveedor !== formularioProveedor.idProveedor
+        );
+        if (emailExists) {
+          setFormErrors(prev => ({ ...prev, email: "Ya existe un proveedor con este email" }));
+        }
+      }
+    }
+    
+    // Validación en tiempo real para el teléfono
+    if (name === "telefono" && value.trim().length > 0) {
+      const phoneValidation = validatePhone(value);
+      if (!phoneValidation.valid) {
+        setFormErrors(prev => ({ ...prev, telefono: phoneValidation.error }));
+      } else {
+        // Verificar duplicados
+        const cleanPhone = value.replace(/\s/g, '');
+        const phoneExists = proveedores.some(p => 
+          p.Telefono && p.Telefono.replace(/\s/g, '') === cleanPhone && 
+          p.idProveedor !== formularioProveedor.idProveedor
+        );
+        if (phoneExists) {
+          setFormErrors(prev => ({ ...prev, telefono: "Ya existe un proveedor con este número de teléfono" }));
+        }
+      }
     }
   };
 
   // Validar formulario
   const validarFormulario = () => {
-    if (!formularioProveedor.nombre) {
-      setFormError("Por favor, ingresa el nombre del proveedor");
-      return false;
-    }
-    if (!formularioProveedor.nif) {
-      setFormError("Por favor, ingresa el NIF del proveedor");
-      return false;
-    }
-    if (!formularioProveedor.departamento || formularioProveedor.departamentos.length === 0) {
-      setFormError("Por favor, selecciona al menos un departamento");
+    const validation = validateProveedorForm(
+      formularioProveedor, 
+      proveedores, 
+      modalMode === "edit" ? formularioProveedor.idProveedor : null
+    );
+    
+    if (!validation.isValid) {
+      setFormErrors(validation.errors);
+      addNotification("Por favor, corrige los errores en el formulario", "error");
       return false;
     }
 
-    setFormError("");
+    setFormErrors({});
     return true;
   };
 
@@ -292,19 +351,25 @@ export default function ProveedoresClient({
     setIsLoading(true);
 
     try {
-      // Primero guardamos los datos básicos del proveedor con el departamento principal
-      let response;
-      let proveedorId;
+      // Limpiar errores anteriores
+      setFormErrors({});
+      
+      // Limpiar y formatear el NIF
+      const nifValidation = validateNIF(formularioProveedor.nif);
+      const nifFormateado = nifValidation.formatted;
       
       // Datos del proveedor a enviar
       const proveedorData = {
-        nombre: formularioProveedor.nombre,
-        nif: formularioProveedor.nif,
-        direccion: formularioProveedor.direccion,
-        telefono: formularioProveedor.telefono,
-        email: formularioProveedor.email,
+        nombre: formularioProveedor.nombre.trim(),
+        nif: nifFormateado,
+        direccion: formularioProveedor.direccion?.trim() || "",
+        telefono: formularioProveedor.telefono?.trim() || "",
+        email: formularioProveedor.email?.trim() || "",
         departamento: formularioProveedor.departamento,
       };
+      
+      let response;
+      let proveedorId;
       
       if (modalMode === "add") {
         // Lógica para añadir nuevo proveedor
@@ -322,6 +387,18 @@ export default function ProveedoresClient({
             const contentType = response.headers.get("content-type");
             if (contentType && contentType.includes("application/json")) {
               const errorData = await response.json();
+              
+              // Comprobar si es error de NIF duplicado
+              if (errorData.error && (
+                  errorData.error.includes("duplicate") || 
+                  errorData.error.includes("Duplicate") ||
+                  errorData.error.includes("Ya existe")
+                )) {
+                setFormErrors({ nif: "Ya existe un proveedor con este NIF/CIF" });
+                addNotification("Ya existe un proveedor con este NIF/CIF", "error");
+                return; // Importante: salir de la función aquí
+              }
+              
               throw new Error(errorData.error || `Error del servidor: ${response.status}`);
             } else {
               throw new Error(`Error del servidor: ${response.status} ${response.statusText}`);
@@ -359,6 +436,18 @@ export default function ProveedoresClient({
             const contentType = response.headers.get("content-type");
             if (contentType && contentType.includes("application/json")) {
               const errorData = await response.json();
+              
+              // Comprobar si es error de NIF duplicado
+              if (errorData.error && (
+                  errorData.error.includes("duplicate") || 
+                  errorData.error.includes("Duplicate") ||
+                  errorData.error.includes("Ya existe")
+                )) {
+                setFormErrors({ nif: "Ya existe un proveedor con este NIF/CIF" });
+                addNotification("Ya existe un proveedor con este NIF/CIF", "error");
+                return; // Importante: salir de la función aquí
+              }
+              
               throw new Error(errorData.error || `Error del servidor: ${response.status}`);
             } else {
               throw new Error(`Error del servidor: ${response.status} ${response.statusText}`);
@@ -537,8 +626,6 @@ export default function ProveedoresClient({
     setIsLoading(true);
 
     try {
-      // Aquí implementarías la API para eliminar proveedores
-      // Por ahora solo actualizamos la UI localmente
       const response = await fetch("/api/getProveedores", {
         method: "DELETE",
         headers: {
@@ -548,10 +635,31 @@ export default function ProveedoresClient({
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Error al eliminar proveedores");
+        // Intentar leer como JSON solo si hay contenido
+        let errorMessage = "Error al eliminar proveedores";
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (jsonError) {
+          // Si no es JSON válido, usar mensaje por defecto
+          errorMessage = `Error del servidor: ${response.status} ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
       }
 
+      // Leer la respuesta como texto primero para comprobar si hay contenido
+      const responseText = await response.text();
+      let responseData = {};
+      
+      if (responseText.trim()) {
+        try {
+          responseData = JSON.parse(responseText);
+        } catch (jsonError) {
+          console.warn("Respuesta no es JSON válido:", responseText);
+        }
+      }
+
+      // Actualizar la lista local eliminando los proveedores seleccionados
       setProveedores(proveedores.filter((p) => !selectedProveedores.includes(p.idProveedor)));
       setSelectedProveedores([]);
       addNotification(`${selectedProveedores.length} proveedor(es) eliminados correctamente`, "success");
@@ -757,9 +865,12 @@ export default function ProveedoresClient({
             </div>
 
             {/* Mensaje de error del formulario */}
-            {formError && (
-              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-                {formError}
+            {Object.keys(formErrors).length > 0 && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                <div className="flex items-center text-red-700 text-sm">
+                  <AlertCircle className="w-4 h-4 mr-2" />
+                  <span>Por favor, corrige los errores marcados en rojo</span>
+                </div>
               </div>
             )}
 
@@ -779,13 +890,21 @@ export default function ProveedoresClient({
               <div>
                 <label className="block text-gray-700 mb-1">NIF</label>
                 <input
-                  type="text"
-                  name="nif"
-                  value={formularioProveedor.nif}
-                  onChange={handleInputChange}
-                  className="border border-gray-300 rounded px-3 py-2 w-full"
-                  placeholder="NIF"
-                />
+                type="text"
+                name="nif"
+                value={formularioProveedor.nif}
+                onChange={handleInputChange}
+                className={`border rounded px-3 py-2 w-full uppercase ${
+                  formErrors.nif ? 'border-red-500' : 'border-gray-300'
+                }`}
+                maxLength={20}
+              />
+              {formErrors.nif && (
+                <div className="flex items-center mt-1 text-red-600 text-sm">
+                  <AlertCircle className="w-4 h-4 mr-1" />
+                  {formErrors.nif}
+                </div>
+              )}
               </div>
               <div>
                 <label className="block text-gray-700 mb-1">Dirección</label>

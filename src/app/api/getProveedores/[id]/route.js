@@ -1,39 +1,6 @@
-// File: src/app/api/getProveedores/[id]/route.js
 import { NextResponse } from "next/server";
 import { pool } from "@/app/api/lib/db";
-
-// GET - Obtener un proveedor específico
-export async function GET(request, { params }) {
-  try {
-    const awaitedParams = await params;
-    const proveedorId = awaitedParams.id;
-    
-    const [rows] = await pool.query(`
-      SELECT 
-        p.idProveedor,
-        p.NIF,
-        p.Nombre,
-        p.Direccion,
-        p.Telefono,
-        p.Email,
-        p.Fecha_alta,
-        d.Nombre AS Departamento
-      FROM Proveedor p
-      JOIN Proveedor_Departamento pd ON p.idProveedor = pd.idProveedorFK
-      JOIN Departamento d ON pd.idDepartamentoFK = d.id_Departamento
-      WHERE p.idProveedor = ?
-    `, [proveedorId]);
-    
-    if (rows.length === 0) {
-      return NextResponse.json({ error: "Proveedor no encontrado" }, { status: 404 });
-    }
-    
-    return NextResponse.json(rows[0]);
-  } catch (error) {
-    console.error("Error al obtener proveedor:", error);
-    return NextResponse.json({ error: "Error al obtener proveedor" }, { status: 500 });
-  }
-}
+import { validateNIF, validateEmail, validatePhone } from "@/app/utils/validations";
 
 // PUT - Actualizar un proveedor específico
 export async function PUT(request, { params }) {
@@ -42,11 +9,53 @@ export async function PUT(request, { params }) {
     const proveedorId = awaitedParams.id;
     const data = await request.json();
     
+    // Validar datos obligatorios
     if (!data.nombre || !data.nif || !data.departamento) {
-      return NextResponse.json(
-        { error: "Nombre, NIF y departamento son campos obligatorios" },
-        { status: 400 }
-      );
+      return NextResponse.json({
+        error: "Nombre, NIF y departamento son campos obligatorios"
+      }, { status: 400 });
+    }
+    
+    // Validar longitud del nombre
+    if (data.nombre.trim().length > 100) {
+      return NextResponse.json({ 
+        error: "El nombre es demasiado largo (máximo 100 caracteres)" 
+      }, { status: 400 });
+    }
+    
+    // Validar NIF/CIF
+    const nifValidation = validateNIF(data.nif);
+    if (!nifValidation.valid) {
+      return NextResponse.json({ 
+        error: nifValidation.error 
+      }, { status: 400 });
+    }
+    
+    // Validar email si se proporciona
+    if (data.email) {
+      const emailValidation = validateEmail(data.email);
+      if (!emailValidation.valid) {
+        return NextResponse.json({ 
+          error: emailValidation.error 
+        }, { status: 400 });
+      }
+    }
+    
+    // Validar teléfono si se proporciona
+    if (data.telefono) {
+      const phoneValidation = validatePhone(data.telefono);
+      if (!phoneValidation.valid) {
+        return NextResponse.json({ 
+          error: phoneValidation.error 
+        }, { status: 400 });
+      }
+    }
+    
+    // Validar dirección
+    if (data.direccion && data.direccion.length > 200) {
+      return NextResponse.json({ 
+        error: "La dirección es demasiado larga (máximo 200 caracteres)" 
+      }, { status: 400 });
     }
     
     // Comenzar una transacción
@@ -54,31 +63,42 @@ export async function PUT(request, { params }) {
     await connection.beginTransaction();
     
     try {
-      // 1. Actualizar el proveedor
-      await connection.query(
-        `UPDATE Proveedor 
-         SET NIF = ?, Nombre = ?, Direccion = ?, Telefono = ?, Email = ?
-         WHERE idProveedor = ?`,
-        [data.nif, data.nombre, data.direccion || null, data.telefono || null, data.email || null, proveedorId]
+    // Verificar si ya existe otro proveedor con el mismo email (excluyendo el actual)
+    if (data.email && data.email.trim()) {
+      const [existingEmail] = await connection.query(
+        'SELECT idProveedor FROM Proveedor WHERE Email = ? AND idProveedor != ?',
+        [data.email.trim().toLowerCase(), proveedorId]
       );
       
-      // 2. Obtener el ID del departamento basado en su nombre
-      const [deptResult] = await connection.query(
-        "SELECT id_Departamento FROM Departamento WHERE Nombre = ?",
-        [data.departamento]
-      );
-      
-      if (deptResult.length === 0) {
-        throw new Error(`No se encontró el departamento: ${data.departamento}`);
+      if (existingEmail.length > 0) {
+        await connection.rollback();
+        return NextResponse.json({ 
+          error: "Ya existe otro proveedor con este email" 
+        }, { status: 400 });
       }
+    }
+
+    // Verificar si ya existe otro proveedor con el mismo teléfono (excluyendo el actual)
+    if (data.telefono && data.telefono.trim()) {
+      const cleanPhone = data.telefono.replace(/\s/g, '');
+      const [existingPhone] = await connection.query(
+        'SELECT idProveedor FROM Proveedor WHERE REPLACE(Telefono, " ", "") = ? AND idProveedor != ?',
+        [cleanPhone, proveedorId]
+      );
+      
+      if (existingPhone.length > 0) {
+        await connection.rollback();
+        return NextResponse.json({ 
+          error: "Ya existe otro proveedor con este número de teléfono" 
+        }, { status: 400 });
+      }
+    }
       
       const departamentoId = deptResult[0].id_Departamento;
       
-      // 3. Actualizar en la tabla Proveedor_Departamento
-      // Primero verificamos si existe una relación
+      // Actualizar en la tabla Proveedor_Departamento
       const [existingRelation] = await connection.query(
-        `SELECT * FROM Proveedor_Departamento 
-         WHERE idProveedorFK = ?`,
+        `SELECT * FROM Proveedor_Departamento WHERE idProveedorFK = ?`,
         [proveedorId]
       );
       
@@ -110,6 +130,20 @@ export async function PUT(request, { params }) {
     } catch (error) {
       // Si hay error, hacer rollback
       await connection.rollback();
+      
+      // Manejar errores específicos de la base de datos
+      if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) {
+        return NextResponse.json({ 
+          error: "Ya existe otro proveedor con este NIF/CIF" 
+        }, { status: 400 });
+      }
+      
+      if (error.code === 'ER_DATA_TOO_LONG' || error.errno === 1406) {
+        return NextResponse.json({ 
+          error: "Uno de los datos introducidos es demasiado largo para la base de datos" 
+        }, { status: 400 });
+      }
+      
       throw error;
     } finally {
       // Liberar la conexión
@@ -120,58 +154,6 @@ export async function PUT(request, { params }) {
     console.error("Error al actualizar proveedor:", error);
     return NextResponse.json(
       { error: "Error al actualizar proveedor: " + error.message },
-      { status: 500 }
-    );
-  }
-}
-
-// DELETE - Eliminar un proveedor específico
-export async function DELETE(request, { params }) {
-  try {
-    const awaitedParams = await params;
-    const proveedorId = awaitedParams.id;
-    
-    // Comenzar una transacción
-    const connection = await pool.getConnection();
-    await connection.beginTransaction();
-    
-    try {
-      // 1. Eliminar relaciones en Proveedor_Departamento
-      await connection.query(
-        'DELETE FROM Proveedor_Departamento WHERE idProveedorFK = ?',
-        [proveedorId]
-      );
-      
-      // 2. Eliminar el proveedor
-      const [result] = await connection.query(
-        'DELETE FROM Proveedor WHERE idProveedor = ?',
-        [proveedorId]
-      );
-      
-      // Confirmar la transacción
-      await connection.commit();
-      
-      if (result.affectedRows === 0) {
-        return NextResponse.json({ error: "Proveedor no encontrado" }, { status: 404 });
-      }
-      
-      return NextResponse.json({ 
-        message: "Proveedor eliminado correctamente" 
-      });
-      
-    } catch (error) {
-      // Si hay error, hacer rollback
-      await connection.rollback();
-      throw error;
-    } finally {
-      // Liberar la conexión
-      connection.release();
-    }
-    
-  } catch (error) {
-    console.error("Error al eliminar proveedor:", error);
-    return NextResponse.json(
-      { error: "Error al eliminar proveedor: " + error.message },
       { status: 500 }
     );
   }
