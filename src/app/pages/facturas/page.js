@@ -23,6 +23,7 @@ export default function Facturas() {
     const [filterImporte, setFilterImporte] = useState("")
     const [filterEstado, setFilterEstado] = useState("")
     const [filterProveedor, setFilterProveedor] = useState("")
+    const [filterDepartamento, setFilterDepartamento] = useState("")
 
     const [showPdfViewer, setShowPdfViewer] = useState(false);
     const [selectedPdfUrl, setSelectedPdfUrl] = useState("");
@@ -80,6 +81,7 @@ export default function Facturas() {
         setFilterImporte("");
         setFilterEstado("");
         setFilterProveedor("");
+        setFilterDepartamento("");
         
         // Mostrar notificación opcional
         addNotification("Filtros eliminados", "info");
@@ -222,13 +224,18 @@ export default function Facturas() {
                 const matchesEstado = 
                   filterEstado === "" || 
                   factura.Estado === filterEstado;
+
+                // Filtro por departamento
+                const matchesDepartamento = 
+                  filterDepartamento === "" || 
+                  factura.Departamento === filterDepartamento;  
         
-                return matchesSearch && matchesFecha && matchesImporte && matchesProveedor && matchesEstado;
+                return matchesSearch && matchesFecha && matchesImporte && matchesProveedor && matchesEstado && matchesDepartamento;
             });
         
             setFilteredFacturas(filtered);
         }
-    }, [facturas, searchTerm, filterFecha, filterImporte, filterProveedor, filterEstado]);
+    }, [facturas, searchTerm, filterFecha, filterImporte, filterProveedor, filterEstado, filterDepartamento]);
     
     // Función para formatear fechas para mostrar
     function formatDate(dateString) {
@@ -733,7 +740,17 @@ export default function Facturas() {
                     {error}
                 </div>
             )}
-            
+            <div className="mb-4 grid grid-cols-1 md:grid-cols-1 gap-4">
+                <div className="flex justify-end" >
+                    <button
+                        onClick={handleClearFilters}
+                        className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 transition-colors flex items-center gap-2 cursor-pointer"
+                    >
+                        <X className="w-4 h-4 cursor-pointer" />
+                        Limpiar filtros
+                    </button>
+                </div>
+            </div>
             {/* Filtros y búsqueda */}
             <div className="mb-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="relative">
@@ -788,27 +805,44 @@ export default function Facturas() {
                     <select
                         value={filterEstado}
                         onChange={(e) => setFilterEstado(e.target.value)}
-                        className="w-full p-2 border border-gray-300 rounded-md appearance-none"
+                        className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10"
                     >
                         <option value="">Todos los estados</option>
                         <option value="Contabilizada">Contabilizada</option>
                         <option value="Pendiente">Pendiente</option>
                         <option value="Anulada">Anulada</option>
                     </select>
+                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                        <Filter className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                        <ChevronDown className="w-4 h-4 text-gray-500" />
+                    </div>
+                </div>
+
+                <div className="relative">
+                    <select
+                        value={filterDepartamento}
+                        onChange={(e) => setFilterDepartamento(e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-md appearance-none pl-10"
+                        disabled={userRole === "Jefe de Departamento"} // Deshabilitar si es jefe de departamento
+                    >
+                        <option value="">Todos los departamentos</option>
+                        {departamentosList.map((departamento, index) => (
+                            <option key={`dep-${index}`} value={departamento}>
+                                {departamento}
+                            </option>
+                        ))}
+                    </select>
+                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                        <Filter className="h-5 w-5 text-gray-400" />
+                    </div>
                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                         <ChevronDown className="w-4 h-4 text-gray-500" />
                     </div>
                 </div>
                 
-                <div className="flex justify-end">
-                    <button
-                        onClick={handleClearFilters}
-                        className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 transition-colors flex items-center gap-2 cursor-pointer"
-                    >
-                        <X className="w-4 h-4 cursor-pointer" />
-                        Limpiar filtros
-                    </button>
-                </div>
+                
             </div>
             
             {/* Indicador de resultados */}
