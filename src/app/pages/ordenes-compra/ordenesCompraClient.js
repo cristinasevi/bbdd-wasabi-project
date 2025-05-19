@@ -13,8 +13,8 @@ export default function OrdenesCompraClient({
   initialProveedores,
 }) {
   // Obtener el departamento del usuario
-  const { departamento, isLoading: isDepartamentoLoading } = useUserDepartamento();
-  const [userRole, setUserRole] = useState(null);
+  const { departamento, userRole, isLoading: isDepartamentoLoading } = useUserDepartamento();
+  const canEdit = userRole !== "Contable";
 
   // Obtener el año actual
   const currentYear = new Date().getFullYear().toString().substring(2); // Solo tomamos los 2 últimos dígitos
@@ -95,37 +95,22 @@ export default function OrdenesCompraClient({
 
   // 3. Asegurarnos que el useEffect para establecer el departamento del Jefe funciona correctamente
   useEffect(() => {
-    async function fetchUserRole() {
-      try {
-        const response = await fetch('/api/getSessionUser');
-        if (response.ok) {
-          const data = await response.json();
-          const userRol = data.usuario?.rol || '';
-          setUserRole(userRol);
+    // Si es Jefe de Departamento, establecer el filtro automáticamente
+    if (userRole === "Jefe de Departamento" && departamento) {
+      setFilterDepartamento(departamento);
 
-          // Si es Jefe de Departamento, establecer el filtro automáticamente
-          if (userRol === "Jefe de Departamento" && departamento) {
-            setFilterDepartamento(departamento);
+      // También hay que asegurar que se mantenga esta selección
+      // Esto es importante por si la app se reinicia o cambia de estado
+      const handleBeforeUnload = () => {
+        localStorage.setItem('selectedDepartamento', departamento);
+      };
 
-            // También hay que asegurar que se mantenga esta selección
-            // Esto es importante por si la app se reinicia o cambia de estado
-            const handleBeforeUnload = () => {
-              localStorage.setItem('selectedDepartamento', departamento);
-            };
-
-            window.addEventListener('beforeunload', handleBeforeUnload);
-            return () => {
-              window.removeEventListener('beforeunload', handleBeforeUnload);
-            };
-          }
-        }
-      } catch (error) {
-        console.error("Error obteniendo información del usuario:", error);
-      }
+      window.addEventListener('beforeunload', handleBeforeUnload);
+      return () => {
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+      };
     }
-
-    fetchUserRole();
-  }, [departamento]);
+  }, [userRole, departamento]);
 
   // Obtenemos el siguiente número de orden para un departamento
   const getNextNumeroOrden = (departamentoCodigo) => {
@@ -1318,15 +1303,17 @@ export default function OrdenesCompraClient({
 
                     {/* Editar */}
                     <td className="py-3 px-3 text-center w-12">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenEditModal(orden);
-                        }}
-                        className="text-gray-500 hover:text-red-600 p-1 cursor-pointer"
-                      >
-                        <Pencil className="w-5 h-5" />
-                      </button>
+                      {canEdit && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenEditModal(orden);
+                          }}
+                          className="text-gray-500 hover:text-red-600 p-1 cursor-pointer"
+                        >
+                          <Pencil className="w-5 h-5" />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -1348,7 +1335,7 @@ export default function OrdenesCompraClient({
       {/* Botones de acción */}
       <div className="flex justify-between mt-4">
         <div className="flex gap-4">
-          <Button onClick={handleOpenAddModal}>Nueva Orden</Button>
+          {canEdit && <Button onClick={handleOpenAddModal}>Nueva Orden</Button>}
 
           {/* NUEVO: Botón de exportar */}
           <Button
@@ -1362,14 +1349,16 @@ export default function OrdenesCompraClient({
           </Button>
         </div>
 
-        <Button
-          onClick={handleEliminarOrdenes}
-          disabled={selectedOrdenes.length === 0 || isLoading}
-        >
-          {isLoading
-            ? "Procesando..."
-            : `Eliminar ${selectedOrdenes.length > 0 ? `(${selectedOrdenes.length})` : ""}`}
-        </Button>
+        {canEdit && (
+          <Button
+            onClick={handleEliminarOrdenes}
+            disabled={selectedOrdenes.length === 0 || isLoading}
+          >
+            {isLoading
+              ? "Procesando..."
+              : `Eliminar ${selectedOrdenes.length > 0 ? `(${selectedOrdenes.length})` : ""}`}
+          </Button>
+        )}
       </div>
 
       {/* Modal para añadir/editar orden */}

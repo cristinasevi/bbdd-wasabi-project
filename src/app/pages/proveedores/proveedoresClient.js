@@ -13,8 +13,8 @@ export default function ProveedoresClient({
   initialDepartamentos,
 }) {
   // Agregamos el hook para obtener el departamento del usuario
-  const { departamento, isLoading: isDepartamentoLoading } = useUserDepartamento();
-  const [userRole, setUserRole] = useState(null); // Añadimos estado para el rol
+  const { departamento, userRole, isLoading: isDepartamentoLoading } = useUserDepartamento();
+  const canEdit = userRole !== "Contable";
 
   // Estados principales
   const [proveedores, setProveedores] = useState([]);
@@ -34,26 +34,10 @@ export default function ProveedoresClient({
 
   // Efecto para obtener el rol del usuario
   useEffect(() => {
-    async function fetchUserRole() {
-      try {
-        const response = await fetch('/api/getSessionUser');
-        if (response.ok) {
-          const data = await response.json();
-          const role = data.usuario?.rol || '';
-          setUserRole(role);
-
-          // Si es Jefe de Departamento, establecer el filtro automáticamente
-          if (role === "Jefe de Departamento" && departamento) {
-            setFilterDepartamento(departamento);
-          }
-        }
-      } catch (error) {
-        console.error("Error obteniendo rol del usuario:", error);
-      }
+    if (userRole === "Jefe de Departamento" && departamento) {
+      setFilterDepartamento(departamento);
     }
-
-    fetchUserRole();
-  }, [departamento]);
+  }, [userRole, departamento]);
 
   // Procesamiento para eliminar duplicados de proveedores y agrupar sus departamentos
   useEffect(() => {
@@ -779,7 +763,7 @@ export default function ProveedoresClient({
             <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
                 <th className="py-3 px-4 w-10">
-                  {filteredProveedores.length > 0 && (
+                  {filteredProveedores.length > 0 && canEdit && (
                     <input
                       type="checkbox"
                       checked={
@@ -810,12 +794,14 @@ export default function ProveedoresClient({
                     onClick={() => toggleSelectProveedor(proveedor.idProveedor)}
                   >
                     <td className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={selectedProveedores.includes(proveedor.idProveedor)}
-                        onChange={() => toggleSelectProveedor(proveedor.idProveedor)}
-                        className="h-4 w-4 text-red-600 border-gray-300 rounded cursor-pointer"
-                      />
+                      {canEdit && (
+                        <input
+                          type="checkbox"
+                          checked={selectedProveedores.includes(proveedor.idProveedor)}
+                          onChange={() => toggleSelectProveedor(proveedor.idProveedor)}
+                          className="h-4 w-4 text-red-600 border-gray-300 rounded cursor-pointer"
+                        />
+                      )}
                     </td>
                     <td className="py-3 px-4">{proveedor.Nombre}</td>
                     <td className="py-3 px-4">{proveedor.NIF}</td>
@@ -832,15 +818,17 @@ export default function ProveedoresClient({
                       </div>
                     </td>
                     <td className="py-3 px-4 text-center cursor-pointer">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenEditModal(proveedor);
-                        }}
-                        className="text-gray-500 hover:text-red-600 cursor-pointer"
-                      >
-                        <Pencil className="w-5 h-5" />
-                      </button>
+                      {canEdit && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenEditModal(proveedor);
+                          }}
+                          className="text-gray-500 hover:text-red-600 cursor-pointer"
+                        >
+                          <Pencil className="w-5 h-5" />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -861,16 +849,18 @@ export default function ProveedoresClient({
 
       {/* Botones de acción - Ajustamos los márgenes y usamos flex justify-between */}
       <div className="flex justify-between mt-4">
-        <Button onClick={handleOpenAddModal}>Nuevo Proveedor</Button>
-        <Button
-          onClick={handleEliminarProveedores}
-          disabled={selectedProveedores.length === 0 || isLoading}
-        >
-          {isLoading
-            ? "Procesando..."
-            : `Eliminar ${selectedProveedores.length > 0 ? `(${selectedProveedores.length})` : ""
-            }`}
-        </Button>
+        {canEdit && <Button onClick={handleOpenAddModal}>Nuevo Proveedor</Button>}
+        <div></div> {/* Espaciador para mantener el layout */}
+        {canEdit && (
+          <Button
+            onClick={handleEliminarProveedores}
+            disabled={selectedProveedores.length === 0 || isLoading}
+          >
+            {isLoading
+              ? "Procesando..."
+              : `Eliminar ${selectedProveedores.length > 0 ? `(${selectedProveedores.length})` : ""}`}
+          </Button>
+        )}
       </div>
 
       {/* Modal para añadir/editar proveedor */}
