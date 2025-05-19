@@ -75,12 +75,12 @@ export default function OrdenesCompraClient({
   const [formularioOrden, setFormularioOrden] = useState({
     idOrden: null,
     numero: "",
-    esInversion: false,
+    esInversion: false, // ← ASEGURAR que siempre tenga un valor inicial definido
     numInversion: "",
     importe: "",
     fecha: "",
     descripcion: "",
-    inventariable: false,
+    inventariable: false, // ← ASEGURAR que siempre tenga un valor inicial definido
     cantidad: "",
     departamento: "",
     proveedor: "",
@@ -222,8 +222,11 @@ export default function OrdenesCompraClient({
     // Determinar el siguiente número
     let siguienteNumero = inversionesDepartamento.length + 1;
 
-    // Formato: [ID_DEPARTAMENTO][00000X] - 7 dígitos en total
-    return `${idDepartamento}${siguienteNumero.toString().padStart(6, '0')}`;
+    // CORREGIDO: Formato numérico de 7 dígitos: [ID_DEPARTAMENTO][000000X]
+    // Por ejemplo: 1000001, 2000001, etc.
+    const numeroInversion = parseInt(`${idDepartamento}${siguienteNumero.toString().padStart(6, '0')}`);
+
+    return numeroInversion;
   };
 
   // Actualizar número de inversión cuando se activa la casilla
@@ -563,7 +566,9 @@ export default function OrdenesCompraClient({
     if (userRole === "Jefe de Departamento" && departamento) {
       setFormularioOrden(prev => ({
         ...prev,
-        departamento: departamento
+        departamento: departamento,
+        esInversion: false, // ← Asegurar que esté definido
+        inventariable: false // ← Asegurar que esté definido
       }));
     }
 
@@ -573,22 +578,29 @@ export default function OrdenesCompraClient({
 
   // Añade la propiedad estadoOrden al objeto
   const handleOpenEditModal = (orden) => {
-    const esInventariable = orden.Inventariable === 1 || orden.Inventariable === true;
-    const esInversion = orden.Num_inversion ? true : false;
+    const esInventariable = !!(orden.Inventariable === 1 || orden.Inventariable === true);
+    const esInversion = !!(orden.Num_inversion && orden.Num_inversion !== null);
+
+    console.log("🔍 Abriendo modal de edición:", {
+      orden: orden.Num_orden,
+      Num_inversion: orden.Num_inversion,
+      esInversion: esInversion,
+      esInventariable: esInventariable
+    });
 
     setFormularioOrden({
       idOrden: orden.idOrden,
       numero: orden.Num_orden || "",
-      esInversion: esInversion,
+      esInversion: esInversion, // ← Garantiza que sea booleano
       numInversion: orden.Num_inversion || "",
       importe: orden.Importe || "",
       fecha: formatDateForInput(orden.Fecha) || "",
       descripcion: orden.Descripcion || "",
-      inventariable: esInventariable,
+      inventariable: esInventariable, // ← Garantiza que sea booleano
       cantidad: orden.Cantidad || "",
       departamento: orden.Departamento || "",
       proveedor: orden.Proveedor || "",
-      estadoOrden: orden.Estado || "En proceso", // Aseguramos que cargue el estado actual
+      estadoOrden: orden.Estado || "En proceso",
     });
     setModalMode("edit");
     setShowModal(true);
@@ -627,7 +639,7 @@ export default function OrdenesCompraClient({
       fecha: formatDateForInput(new Date()), // fecha actual por defecto
       descripcion: "",
       inventariable: false,
-      cantidad: "", // Cambiado a "0" como valor inicial
+      cantidad: "",
       departamento: "",
       proveedor: "",
       estadoOrden: "En proceso",
@@ -639,15 +651,18 @@ export default function OrdenesCompraClient({
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
 
-    // Para inputs de checkbox
+    console.log(`📝 Input change: ${name} = ${type === 'checkbox' ? checked : value}`);
+
+    // Para inputs de checkbox - asegurar que siempre sean booleanos
     if (type === 'checkbox') {
-      setFormularioOrden({
-        ...formularioOrden,
-        [name]: checked,
-      });
+      setFormularioOrden(prev => ({
+        ...prev,
+        [name]: Boolean(checked), // ← Asegurar que sea booleano
+      }));
       return;
     }
-    // Añadir esta validación para el campo de fecha
+
+    // Validaciones para el campo de fecha
     if (name === 'fecha') {
       const fechaSeleccionada = new Date(value);
       if (fechaSeleccionada < fechaLimite) {
@@ -670,6 +685,7 @@ export default function OrdenesCompraClient({
         return;
       }
     }
+
     // Validación para cantidad - solo permitir números enteros
     if (name === 'cantidad') {
       // Regex que solo permite números enteros positivos
@@ -685,10 +701,12 @@ export default function OrdenesCompraClient({
         return;
       }
     }
-    setFormularioOrden({
-      ...formularioOrden,
+
+    // Para todos los demás inputs
+    setFormularioOrden(prev => ({
+      ...prev,
       [name]: value,
-    });
+    }));
   };
 
   // Validar formulario
@@ -736,14 +754,6 @@ export default function OrdenesCompraClient({
   const handleGuardarOrden = async () => {
     if (!validarFormulario()) return;
 
-    // Asegurar que el número de orden se genera
-    if (!formularioOrden.numero) {
-      setFormularioOrden({
-        ...formularioOrden,
-        numero: generarNumeroOrden()
-      });
-    }
-
     setIsLoading(true);
 
     try {
@@ -769,9 +779,9 @@ export default function OrdenesCompraClient({
         throw new Error("No se encontró el estado seleccionado");
       }
 
-      // Preparar los datos para enviar
+      // Preparar los datos base para enviar
       const ordenData = {
-        Num_orden: formularioOrden.numero,
+        Num_orden: formularioOrden.numero || generarNumeroOrden(),
         Importe: parseFloat(formularioOrden.importe),
         Fecha: formularioOrden.fecha,
         Descripcion: formularioOrden.descripcion,
@@ -779,25 +789,37 @@ export default function OrdenesCompraClient({
         Cantidad: parseInt(formularioOrden.cantidad),
         id_DepartamentoFK: departamentoSeleccionado.id_Departamento,
         id_ProveedorFK: proveedorSeleccionado.idProveedor,
-        id_UsuarioFK: 1, // Aquí deberías obtener el usuario actual
-        id_EstadoOrdenFK: estadoSeleccionado.id_EstadoOrden, // Usar el ID del estado seleccionado
+        id_UsuarioFK: 1, // TODO: Obtener el usuario actual de la sesión
+        id_EstadoOrdenFK: estadoSeleccionado.id_EstadoOrden,
       };
 
-      // Añadir datos de inversión si es necesario
-      if (formularioOrden.esInversion) {
-        ordenData.Num_inversion = formularioOrden.numInversion;
+      // LÓGICA PARA INVERSIÓN vs ORDEN NORMAL
+      console.log("🔍 Verificando tipo de orden:", {
+        esInversion: formularioOrden.esInversion,
+        numInversion: formularioOrden.numInversion
+      });
 
-        // Buscar ID de la bolsa de inversión para este departamento
-        // Aquí podrías hacer una llamada a la API para obtener este ID
-        ordenData.id_InversionFK = departamentoSeleccionado.id_Departamento; // Simplificación
+      const esInversion = formularioOrden.esInversion && formularioOrden.numInversion && formularioOrden.numInversion.toString().trim() !== '';
+
+      if (esInversion) {
+        // ES UNA INVERSIÓN
+        console.log("💰 Configurando como inversión");
+        ordenData.Num_inversion = formularioOrden.numInversion;
+        ordenData.id_InversionFK = null; // El backend lo calculará
+        ordenData.id_PresupuestoFK = null;
       } else {
-        // Si no es inversión, podría ir a presupuesto
-        ordenData.id_PresupuestoFK = departamentoSeleccionado.id_Departamento; // Simplificación
+        // ES UNA ORDEN NORMAL (NO INVERSIÓN)
+        console.log("📋 Configurando como orden normal");
+        ordenData.Num_inversion = null;
+        ordenData.id_InversionFK = null;
+        ordenData.id_PresupuestoFK = null; // El backend lo calculará
       }
+
+      console.log("📤 Datos a enviar:", ordenData);
 
       let response;
       if (modalMode === "add") {
-        // Lógica para añadir nueva orden
+        // Crear nueva orden
         response = await fetch("/api/getOrden", {
           method: "POST",
           headers: {
@@ -806,7 +828,7 @@ export default function OrdenesCompraClient({
           body: JSON.stringify(ordenData),
         });
       } else {
-        // Lógica para editar orden existente
+        // Editar orden existente
         ordenData.idOrden = formularioOrden.idOrden;
         response = await fetch(`/api/getOrden/${formularioOrden.idOrden}`, {
           method: "PUT",
@@ -819,87 +841,69 @@ export default function OrdenesCompraClient({
 
       if (!response.ok) {
         let errorMessage = `Error del servidor: ${response.status}`;
-
-        // Intentar obtener detalles del error si están disponibles
         try {
           const contentType = response.headers.get("content-type");
           if (contentType && contentType.includes("application/json")) {
             const errorData = await response.json();
             errorMessage = errorData.error || errorMessage;
-          } else {
-            // Si no es JSON, intentar obtener el texto del error
-            const errorText = await response.text();
-            if (errorText) {
-              errorMessage = errorText;
-            }
+            console.error("❌ Error detallado:", errorData);
           }
         } catch (parseError) {
-          console.error("Error al analizar la respuesta:", parseError);
-          // Usamos el mensaje de error general que ya tenemos
+          console.error("❌ Error al parsear respuesta:", parseError);
         }
-
         throw new Error(errorMessage);
       }
 
-      // Intentar analizar la respuesta como JSON si existe
+      // Procesar respuesta exitosa
       let responseData = {};
       try {
         const contentType = response.headers.get("content-type");
         if (contentType && contentType.includes("application/json")) {
           responseData = await response.json();
+          console.log("✅ Respuesta del servidor:", responseData);
         }
       } catch (parseError) {
-        console.warn("No se pudo analizar la respuesta como JSON:", parseError);
-        // No es crítico, continuamos con un objeto vacío
+        console.warn("⚠️ No se pudo parsear respuesta JSON:", parseError);
       }
 
+      // ACTUALIZACIÓN INMEDIATA DEL ESTADO LOCAL ANTES DE RECARGAR
+      if (modalMode === "edit") {
+        console.log("🔄 Actualizando estado local inmediatamente...");
+        setOrdenes(ordenes.map((orden) =>
+          orden.idOrden === formularioOrden.idOrden
+            ? {
+              ...orden,
+              Num_orden: ordenData.Num_orden,
+              Importe: ordenData.Importe,
+              Fecha: ordenData.Fecha,
+              Descripcion: ordenData.Descripcion,
+              Inventariable: ordenData.Inventariable,
+              Cantidad: ordenData.Cantidad,
+              Departamento: formularioOrden.departamento,
+              Proveedor: formularioOrden.proveedor,
+              Num_inversion: esInversion ? formularioOrden.numInversion : null, // ← CLAVE: Actualizar Num_inversion
+              Estado: formularioOrden.estadoOrden,
+            }
+            : orden
+        ));
+      }
 
-      // Actualizar lista de órdenes
-      if (modalMode === "add") {
-        // Recargar órdenes desde el servidor para mayor consistencia
-        const updatedOrdersResponse = await fetch("/api/getOrden");
-        if (updatedOrdersResponse.ok) {
-          const updatedOrders = await updatedOrdersResponse.json();
+      // Recargar órdenes desde servidor para garantizar consistencia (pero sin bloquear la UI)
+      console.log("🔄 Recargando órdenes desde servidor en segundo plano...");
+      fetch("/api/getOrden")
+        .then(response => {
+          if (response.ok) {
+            return response.json();
+          }
+          throw new Error('Error al recargar');
+        })
+        .then(updatedOrders => {
           setOrdenes(updatedOrders);
-        } else {
-          // Crear una versión local de la nueva orden para actualizar la UI
-          const nuevaOrden = {
-            idOrden: responseData.insertedId,
-            Num_orden: ordenData.Num_orden,
-            Importe: ordenData.Importe,
-            Fecha: ordenData.Fecha,
-            Descripcion: ordenData.Descripcion,
-            Inventariable: ordenData.Inventariable,
-            Cantidad: ordenData.Cantidad,
-            Departamento: formularioOrden.departamento,
-            Proveedor: formularioOrden.proveedor,
-            Num_inversion: formularioOrden.esInversion ? formularioOrden.numInversion : null,
-            Estado: formularioOrden.estadoOrden, // Incluir el estado
-          };
-          setOrdenes([...ordenes, nuevaOrden]);
-        }
-      } else {
-        // Actualizar orden existente en la lista local
-        setOrdenes(
-          ordenes.map((orden) =>
-            orden.idOrden === formularioOrden.idOrden
-              ? {
-                ...orden,
-                Num_orden: ordenData.Num_orden,
-                Importe: ordenData.Importe,
-                Fecha: ordenData.Fecha,
-                Descripcion: ordenData.Descripcion,
-                Inventariable: ordenData.Inventariable,
-                Cantidad: ordenData.Cantidad,
-                Departamento: formularioOrden.departamento,
-                Proveedor: formularioOrden.proveedor,
-                Num_inversion: formularioOrden.esInversion ? formularioOrden.numInversion : null,
-                Estado: formularioOrden.estadoOrden, // Actualizar el estado en la UI
-              }
-              : orden
-          )
-        );
-      }
+          console.log("✅ Órdenes recargadas desde servidor");
+        })
+        .catch(error => {
+          console.warn("⚠️ Error recargando desde servidor (usando estado local):", error);
+        });
 
       addNotification(
         modalMode === "add" ? "Orden creada correctamente" : "Orden actualizada correctamente",
@@ -908,10 +912,50 @@ export default function OrdenesCompraClient({
 
       handleCloseModal();
     } catch (error) {
-      console.error("Error al guardar la orden:", error);
+      console.error("❌ Error al guardar la orden:", error);
       addNotification(`Error al guardar la orden: ${error.message}`, "error");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Función auxiliar para actualización local (fallback)
+  const updateLocalOrders = (ordenData, responseData) => {
+    if (modalMode === "add") {
+      const nuevaOrden = {
+        idOrden: responseData.insertedId || Date.now(), // Fallback temporal
+        Num_orden: ordenData.Num_orden,
+        Importe: ordenData.Importe,
+        Fecha: ordenData.Fecha,
+        Descripcion: ordenData.Descripcion,
+        Inventariable: ordenData.Inventariable,
+        Cantidad: ordenData.Cantidad,
+        Departamento: formularioOrden.departamento,
+        Proveedor: formularioOrden.proveedor,
+        Num_inversion: ordenData.Num_inversion,
+        Estado: formularioOrden.estadoOrden,
+      };
+      setOrdenes([...ordenes, nuevaOrden]);
+    } else {
+      setOrdenes(
+        ordenes.map((orden) =>
+          orden.idOrden === formularioOrden.idOrden
+            ? {
+              ...orden,
+              Num_orden: ordenData.Num_orden,
+              Importe: ordenData.Importe,
+              Fecha: ordenData.Fecha,
+              Descripcion: ordenData.Descripcion,
+              Inventariable: ordenData.Inventariable,
+              Cantidad: ordenData.Cantidad,
+              Departamento: formularioOrden.departamento,
+              Proveedor: formularioOrden.proveedor,
+              Num_inversion: ordenData.Num_inversion,
+              Estado: formularioOrden.estadoOrden,
+            }
+            : orden
+        )
+      );
     }
   };
 

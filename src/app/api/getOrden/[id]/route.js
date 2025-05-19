@@ -1,5 +1,3 @@
-// En src/app/api/getOrden/[id]/route.js
-
 import { pool } from '@/app/api/lib/db';
 
 export async function PUT(request, { params }) {
@@ -7,6 +5,8 @@ export async function PUT(request, { params }) {
     const awaitedParams = await params;
     const ordenId = awaitedParams.id;
     const data = await request.json();
+
+    console.log("📥 Datos recibidos para actualizar orden:", data);
 
     const {
       Num_orden,
@@ -18,7 +18,7 @@ export async function PUT(request, { params }) {
       id_DepartamentoFK,
       id_ProveedorFK,
       id_UsuarioFK,
-      id_EstadoOrdenFK, // Asegurarnos de recibir este campo
+      id_EstadoOrdenFK,
       Num_inversion,
       id_InversionFK,
       id_PresupuestoFK
@@ -29,7 +29,8 @@ export async function PUT(request, { params }) {
     await connection.beginTransaction();
 
     try {
-      // 1. Actualizar la orden - modificamos esta consulta para incluir id_EstadoOrdenFK
+      // 1. Actualizar la orden principal
+      console.log("🔄 Actualizando orden principal...");
       await connection.query(
         `UPDATE Orden 
          SET Num_orden = ?, id_ProveedorFK = ?, id_DepartamentoFK = ?, id_UsuarioFK = ?,
@@ -45,19 +46,87 @@ export async function PUT(request, { params }) {
           Descripcion,
           Inventariable,
           Cantidad,
-          id_EstadoOrdenFK, // Usar el ID del estado pasado desde el cliente
+          id_EstadoOrdenFK,
           ordenId
         ]
       );
 
-      // El resto de la función permanece igual...
-      
+      // 2. LIMPIAR registros previos
+      console.log("🧹 Limpiando registros previos...");
+      await connection.query('DELETE FROM Orden_Inversion WHERE idOrden = ?', [ordenId]);
+      await connection.query('DELETE FROM Orden_Compra WHERE idOrden = ?', [ordenId]);
+
+      // 3. MANEJAR INVERSIONES
+      console.log("💰 Procesando inversión...", { Num_inversion, id_InversionFK });
+      if (Num_inversion && Num_inversion.toString().trim() !== '') {
+        // Es una inversión
+        
+        // Buscar el idBolsa correspondiente a la inversión del departamento
+        const [bolsaInversion] = await connection.query(`
+          SELECT bi.idBolsa 
+          FROM Bolsa_Inversion bi 
+          JOIN Bolsa b ON bi.id_BolsaFK = b.id_Bolsa 
+          WHERE b.id_DepartamentoFK = ?
+        `, [id_DepartamentoFK]);
+        
+        if (bolsaInversion.length === 0) {
+          throw new Error(`No se encontró bolsa de inversión para el departamento ${id_DepartamentoFK}`);
+        }
+        
+        const bolsaInversionId = bolsaInversion[0].idBolsa;
+        
+        console.log("✅ Insertando en Orden_Inversion:", {
+          idOrden: ordenId,
+          id_InversionFK: bolsaInversionId,
+          Num_inversion: parseInt(Num_inversion) // Convertir a entero
+        });
+        
+        await connection.query(
+          'INSERT INTO Orden_Inversion (idOrden, id_InversionFK, Num_inversion) VALUES (?, ?, ?)',
+          [ordenId, bolsaInversionId, parseInt(Num_inversion)]
+        );
+      } else {
+        // NO es inversión - insertar en Orden_Compra
+        
+        // Buscar el idBolsa correspondiente al presupuesto del departamento
+        const [bolsaPresupuesto] = await connection.query(`
+          SELECT bp.idBolsa 
+          FROM Bolsa_Presupuesto bp 
+          JOIN Bolsa b ON bp.id_BolsaFK = b.id_Bolsa 
+          WHERE b.id_DepartamentoFK = ?
+        `, [id_DepartamentoFK]);
+        
+        if (bolsaPresupuesto.length === 0) {
+          throw new Error(`No se encontró bolsa de presupuesto para el departamento ${id_DepartamentoFK}`);
+        }
+        
+        const bolsaPresupuestoId = bolsaPresupuesto[0].idBolsa;
+        
+        console.log("📋 Insertando en Orden_Compra:", {
+          idOrden: ordenId,
+          id_PresupuestoFK: bolsaPresupuestoId
+        });
+        
+        await connection.query(
+          'INSERT INTO Orden_Compra (idOrden, id_PresupuestoFK) VALUES (?, ?)',
+          [ordenId, bolsaPresupuestoId]
+        );
+      }
+
       // Confirmar transacción
       await connection.commit();
+      console.log("✅ Orden actualizada correctamente");
 
       return new Response(JSON.stringify({ 
         success: true, 
-        message: "Orden actualizada correctamente" 
+        message: "Orden actualizada correctamente",
+        updatedId: ordenId,
+        isInversion: !!(Num_inversion && Num_inversion.toString().trim() !== ''),
+        debug: {
+          Num_inversion: Num_inversion,
+          tipo: Num_inversion ? 'Inversión' : 'Orden normal',
+          id_DepartamentoFK
+        }
       }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
@@ -66,6 +135,7 @@ export async function PUT(request, { params }) {
     } catch (error) {
       // Si hay error, rollback
       await connection.rollback();
+      console.error("❌ Error en la transacción de actualización:", error);
       throw error;
     } finally {
       // Liberar conexión
@@ -73,10 +143,11 @@ export async function PUT(request, { params }) {
     }
 
   } catch (error) {
-    console.error("Error actualizando orden:", error);
+    console.error("❌ Error actualizando orden:", error);
     return new Response(JSON.stringify({ 
       success: false, 
-      error: error.message || "Error al actualizar la orden" 
+      error: error.message || "Error al actualizar la orden",
+      stack: error.stack
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

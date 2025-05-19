@@ -1,11 +1,9 @@
 import { pool } from '@/app/api/lib/db'
 
-// En src/app/api/getOrden/route.js
-// Busca el método POST y modifica la consulta para incluir id_EstadoOrdenFK
-
 export async function POST(req) {
   try {
     const data = await req.json()
+    console.log("📥 Datos recibidos para crear orden:", data);
 
     const {
       Num_orden,
@@ -17,57 +15,130 @@ export async function POST(req) {
       id_DepartamentoFK,
       id_ProveedorFK,
       id_UsuarioFK,
-      id_EstadoOrdenFK, // Asegúrate de que este parámetro se extraiga
-      Num_inversion,    // extra del form
-      id_InversionFK,    // extra del form o buscado
-      id_PresupuestoFK   // extra del form o buscado
+      id_EstadoOrdenFK,
+      Num_inversion,
+      id_InversionFK,
+      id_PresupuestoFK
     } = data
 
-    // 1. Insertamos en Orden
-    const [ordenResult] = await pool.query(
-      `INSERT INTO Orden (
-        Num_orden, id_ProveedorFK, id_DepartamentoFK, id_UsuarioFK,
-        Importe, Fecha, Descripcion, Inventariable, Cantidad, id_EstadoOrdenFK
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        Num_orden,
-        id_ProveedorFK,
-        id_DepartamentoFK,
-        id_UsuarioFK,
-        Importe,
-        Fecha,
-        Descripcion,
-        Inventariable,
-        Cantidad,
-        id_EstadoOrdenFK || 1 // Usar 1 (En proceso) como valor predeterminado si no se proporciona
-      ]
-    )
+    // Iniciar transacción
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
 
-    // El resto del código sigue igual...
-
-    const idOrdenNuevo = ordenResult.insertId
-
-    // 2. Insertamos en Orden_Inversion (si hay inversión)
-    if (id_InversionFK) {
-      await pool.query(
-        `INSERT INTO Orden_Inversion (idOrden, id_InversionFK, Num_inversion)
-         VALUES (?, ?, ?)`,
-        [idOrdenNuevo, id_InversionFK, Num_inversion]
+    try {
+      // 1. Insertamos en Orden
+      console.log("➕ Creando nueva orden...");
+      const [ordenResult] = await connection.query(
+        `INSERT INTO Orden (
+          Num_orden, id_ProveedorFK, id_DepartamentoFK, id_UsuarioFK,
+          Importe, Fecha, Descripcion, Inventariable, Cantidad, id_EstadoOrdenFK
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          Num_orden,
+          id_ProveedorFK,
+          id_DepartamentoFK,
+          id_UsuarioFK,
+          Importe,
+          Fecha,
+          Descripcion,
+          Inventariable,
+          Cantidad,
+          id_EstadoOrdenFK || 1 // Usar 1 (En proceso) como valor predeterminado
+        ]
       )
+
+      const idOrdenNuevo = ordenResult.insertId;
+      console.log("✅ Orden creada con ID:", idOrdenNuevo);
+
+      // 2. MANEJAR INVERSIONES vs ÓRDENES NORMALES
+      console.log("💰 Procesando tipo de orden...", { Num_inversion, id_InversionFK });
+      
+      if (Num_inversion && Num_inversion.toString().trim() !== '') {
+        // Es una inversión
+        
+        // Buscar el idBolsa correspondiente a la inversión del departamento
+        const [bolsaInversion] = await connection.query(`
+          SELECT bi.idBolsa 
+          FROM Bolsa_Inversion bi 
+          JOIN Bolsa b ON bi.id_BolsaFK = b.id_Bolsa 
+          WHERE b.id_DepartamentoFK = ?
+        `, [id_DepartamentoFK]);
+        
+        if (bolsaInversion.length === 0) {
+          throw new Error(`No se encontró bolsa de inversión para el departamento ${id_DepartamentoFK}`);
+        }
+        
+        const bolsaInversionId = bolsaInversion[0].idBolsa;
+        
+        console.log("✅ Insertando en Orden_Inversion:", {
+          idOrden: idOrdenNuevo,
+          id_InversionFK: bolsaInversionId,
+          Num_inversion: parseInt(Num_inversion)
+        });
+        
+        await connection.query(
+          `INSERT INTO Orden_Inversion (idOrden, id_InversionFK, Num_inversion)
+           VALUES (?, ?, ?)`,
+          [idOrdenNuevo, bolsaInversionId, parseInt(Num_inversion)]
+        );
+      } else {
+        // NO es inversión - insertar en Orden_Compra
+        
+        // Buscar el idBolsa correspondiente al presupuesto del departamento
+        const [bolsaPresupuesto] = await connection.query(`
+          SELECT bp.idBolsa 
+          FROM Bolsa_Presupuesto bp 
+          JOIN Bolsa b ON bp.id_BolsaFK = b.id_Bolsa 
+          WHERE b.id_DepartamentoFK = ?
+        `, [id_DepartamentoFK]);
+        
+        if (bolsaPresupuesto.length === 0) {
+          throw new Error(`No se encontró bolsa de presupuesto para el departamento ${id_DepartamentoFK}`);
+        }
+        
+        const bolsaPresupuestoId = bolsaPresupuesto[0].idBolsa;
+        
+        console.log("📋 Insertando en Orden_Compra:", {
+          idOrden: idOrdenNuevo,
+          id_PresupuestoFK: bolsaPresupuestoId
+        });
+        
+        await connection.query(
+          `INSERT INTO Orden_Compra (idOrden, id_PresupuestoFK)
+           VALUES (?, ?)`,
+          [idOrdenNuevo, bolsaPresupuestoId]
+        );
+      }
+
+      // Confirmar transacción
+      await connection.commit();
+      console.log("✅ Orden creada correctamente");
+
+      return Response.json({ 
+        success: true, 
+        insertedId: idOrdenNuevo,
+        isInversion: !!(Num_inversion && Num_inversion.toString().trim() !== ''),
+        debug: {
+          Num_inversion: Num_inversion,
+          tipo: Num_inversion ? 'Inversión' : 'Orden normal'
+        }
+      });
+      
+    } catch (error) {
+      // Si hay error, rollback
+      await connection.rollback();
+      console.error("❌ Error en la transacción de creación:", error);
+      throw error;
+    } finally {
+      // Liberar conexión
+      connection.release();
     }
 
-    // 3. Insertamos en Orden_Compra (si hay presupuesto)
-    if (id_PresupuestoFK) {
-      await pool.query(
-        `INSERT INTO Orden_Compra (idOrden, id_PresupuestoFK)
-         VALUES (?, ?)`,
-        [idOrdenNuevo, id_PresupuestoFK]
-      )
-    }
-
-    return Response.json({ success: true, insertedId: idOrdenNuevo })
   } catch (err) {
-    console.error("Error al insertar orden:", err)
-    return new Response(JSON.stringify({ success: false, error: err.message }), { status: 500 })
+    console.error("❌ Error al crear orden:", err);
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: err.message || "Error al crear la orden"
+    }), { status: 500 });
   }
 }
