@@ -441,31 +441,36 @@ export default function PresupuestoClient({
               </Link>
             </div>
 
-            <div className="overflow-hidden mb-8 max-h-[480px] overflow-y-auto">
+            <div className="overflow-hidden max-h-[480px] overflow-y-auto">
               <table className="w-full table-fixed">
                 <thead className="bg-white sticky top-0 z-10">
                   <tr className="text-left">
-                    <th className="pb-2 font-normal text-gray-500 w-1/3">Número</th>
-                    <th className="pb-2 font-normal text-gray-500 w-1/2">Descripción</th>
-                    <th className="pb-2 font-normal text-gray-500 text-right w-1/6">Total</th>
+                    <th className="pb-2 font-normal text-gray-500 w-1/3 px-3">Número</th>
+                    <th className="pb-2 font-normal text-gray-500 w-1/2 px-3">Descripción</th>
+                    <th className="pb-2 font-normal text-gray-500 text-right w-1/6 px-3">Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredOrdenes && filteredOrdenes.length > 0 ? (
                     filteredOrdenes.map((item, index) => (
                       <tr key={`${item.idOrden}-${index}`} className="border-t border-gray-200">
-                        <td className="py-2 w-1/3">{item.Num_orden}</td>
+                        <td className="py-2 px-3 w-1/3">{item.Num_orden}</td>
                         <td className="py-2 w-1/2">
                           <div className="truncate" title={item.Descripcion}>
                             {item.Descripcion || "-"}
                           </div>
                         </td>
-                        <td className="py-2 text-right w-1/6">{item.Importe}€</td>
+                        <td className="py-2 px-3 text-right w-1/6">
+                          {parseFloat(item.Importe).toLocaleString("es-ES", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2
+                          })}€
+                        </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="3" className="py-4 text-center text-gray-400">
+                      <td colSpan="3" className="py-4 px-3 text-center text-gray-400">
                         {filteredOrdenes.length === 0 && allDepartmentOrders.length > 0
                           ? `No hay órdenes para ${selectedMes} ${selectedAño}`
                           : allDepartmentOrders.length === 0
