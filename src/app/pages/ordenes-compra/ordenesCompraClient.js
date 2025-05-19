@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect, useRef } from "react"
-import { ChevronDown, Pencil, X, Search, Filter, Check, Info, Calendar, Download, Share2, FileText } from "lucide-react";
+import { ChevronDown, Pencil, X, Search, Filter, Check, Info, Calendar, Download, FileText } from "lucide-react";
 import Button from "@/app/components/ui/button"
 import useNotifications from "@/app/hooks/useNotifications"
 import ConfirmationDialog from "@/app/components/ui/confirmation-dialog"
@@ -53,12 +53,8 @@ export default function OrdenesCompraClient({
   // NUEVO: Estados para exportación a Excel
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportData, setExportData] = useState([]);
-  const [exportLoading, setExportLoading] = useState(false);
   const [excelFileName, setExcelFileName] = useState("ordenes_compra");
   const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
-
-  // NUEVO: Referencia para la biblioteca SheetJS
-  const sheetJSRef = useRef(null);
 
   // Estado para diálogo de confirmación
   const [confirmDialog, setConfirmDialog] = useState({
@@ -96,22 +92,6 @@ export default function OrdenesCompraClient({
 
   const fechaLimite = getFechaLimite();
   const fechaLimiteFormatted = fechaLimite.toISOString().split('T')[0];
-
-  // NUEVO: Efecto para cargar la biblioteca SheetJS cuando sea necesaria
-  useEffect(() => {
-    if (showExportModal && !sheetJSRef.current) {
-      const loadSheetJS = async () => {
-        try {
-          sheetJSRef.current = true;
-        } catch (error) {
-          console.error("Error al cargar SheetJS:", error);
-          addNotification("Error al cargar las herramientas de exportación", "error");
-        }
-      };
-
-      loadSheetJS();
-    }
-  }, [showExportModal, addNotification]);
 
   // 3. Asegurarnos que el useEffect para establecer el departamento del Jefe funciona correctamente
   useEffect(() => {
@@ -279,25 +259,6 @@ export default function OrdenesCompraClient({
     if (value === 0 || value === "0" || value === false) return "No";
     return value || "-";
   }
-
-  // Obtener todas las fechas disponibles de las órdenes
-  const fechasDisponibles = useMemo(() => {
-    const meses = new Set();
-    const años = new Set();
-
-    ordenes.forEach(orden => {
-      if (orden.Fecha) {
-        const { mes, año } = getDateParts(orden.Fecha);
-        meses.add(mes);
-        años.add(año);
-      }
-    });
-
-    return {
-      meses: Array.from(meses).sort((a, b) => parseInt(a) - parseInt(b)),
-      años: Array.from(años).sort((a, b) => parseInt(a) - parseInt(b))
-    };
-  }, [ordenes]);
 
   // Obtener fechas filtradas según las selecciones actuales
   const fechasFiltradas = useMemo(() => {
@@ -581,13 +542,6 @@ export default function OrdenesCompraClient({
     const esInventariable = !!(orden.Inventariable === 1 || orden.Inventariable === true);
     const esInversion = !!(orden.Num_inversion && orden.Num_inversion !== null);
 
-    console.log("🔍 Abriendo modal de edición:", {
-      orden: orden.Num_orden,
-      Num_inversion: orden.Num_inversion,
-      esInversion: esInversion,
-      esInventariable: esInventariable
-    });
-
     setFormularioOrden({
       idOrden: orden.idOrden,
       numero: orden.Num_orden || "",
@@ -651,8 +605,6 @@ export default function OrdenesCompraClient({
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
 
-    console.log(`📝 Input change: ${name} = ${type === 'checkbox' ? checked : value}`);
-
     // Para inputs de checkbox - asegurar que siempre sean booleanos
     if (type === 'checkbox') {
       setFormularioOrden(prev => ({
@@ -672,11 +624,11 @@ export default function OrdenesCompraClient({
 
     // Validación para el campo de importe
     if (name === 'importe') {
-      // Regex que solo permite números y hasta dos decimales (punto como separador)
-      const importeRegex = /^(\d{1,6}(\.\d{0,2})?)?$/;
+      // Regex que solo permite números mayor que 0 y hasta dos decimales (punto como separador)
+      const importeRegex = /^([1-9]\d{0,5}(\.\d{0,2})?|0\.[1-9]\d?|0\.0[1-9])$/;
 
       // Si no cumple el formato, no actualizar
-      if (!importeRegex.test(value)) {
+      if (value !== '' && !importeRegex.test(value)) {
         return;
       }
 
@@ -684,20 +636,30 @@ export default function OrdenesCompraClient({
       if (value !== '' && parseFloat(value) > 100000) {
         return;
       }
+
+      // Verificar que sea mayor que 0
+      if (value !== '' && parseFloat(value) <= 0) {
+        return;
+      }
     }
 
     // Validación para cantidad - solo permitir números enteros
     if (name === 'cantidad') {
-      // Regex que solo permite números enteros positivos
-      const cantidadRegex = /^(\d{1,6})?$/;
+      // Regex que solo permite números enteros positivos (mayor que 0)
+      const cantidadRegex = /^[1-9]\d{0,5}$/;
 
       // Si no cumple el formato, no actualizar
-      if (!cantidadRegex.test(value)) {
+      if (value !== '' && !cantidadRegex.test(value)) {
         return;
       }
 
       // Verificar que no exceda el máximo cuando hay un valor numérico
       if (value !== '' && parseInt(value) > 100000) {
+        return;
+      }
+
+      // Verificar que sea mayor que 0
+      if (value !== '' && parseInt(value) <= 0) {
         return;
       }
     }
@@ -723,6 +685,11 @@ export default function OrdenesCompraClient({
       setFormError("Por favor, ingresa el importe");
       return false;
     }
+    // NUEVA VALIDACIÓN: Importe debe ser mayor que 0
+    if (parseFloat(formularioOrden.importe) <= 0) {
+      setFormError("El importe debe ser mayor que 0");
+      return false;
+    }
     if (!formularioOrden.fecha) {
       setFormError("Por favor, ingresa la fecha");
       return false;
@@ -733,6 +700,11 @@ export default function OrdenesCompraClient({
     }
     if (!formularioOrden.cantidad) {
       setFormError("Por favor, ingresa la cantidad");
+      return false;
+    }
+    // NUEVA VALIDACIÓN: Cantidad debe ser mayor que 0
+    if (parseInt(formularioOrden.cantidad) <= 0) {
+      setFormError("La cantidad debe ser mayor que 0");
       return false;
     }
     if (formularioOrden.esInversion && !formularioOrden.numInversion) {
@@ -793,29 +765,19 @@ export default function OrdenesCompraClient({
         id_EstadoOrdenFK: estadoSeleccionado.id_EstadoOrden,
       };
 
-      // LÓGICA PARA INVERSIÓN vs ORDEN NORMAL
-      console.log("🔍 Verificando tipo de orden:", {
-        esInversion: formularioOrden.esInversion,
-        numInversion: formularioOrden.numInversion
-      });
-
       const esInversion = formularioOrden.esInversion && formularioOrden.numInversion && formularioOrden.numInversion.toString().trim() !== '';
 
       if (esInversion) {
         // ES UNA INVERSIÓN
-        console.log("💰 Configurando como inversión");
         ordenData.Num_inversion = formularioOrden.numInversion;
         ordenData.id_InversionFK = null; // El backend lo calculará
         ordenData.id_PresupuestoFK = null;
       } else {
         // ES UNA ORDEN NORMAL (NO INVERSIÓN)
-        console.log("📋 Configurando como orden normal");
         ordenData.Num_inversion = null;
         ordenData.id_InversionFK = null;
         ordenData.id_PresupuestoFK = null; // El backend lo calculará
       }
-
-      console.log("📤 Datos a enviar:", ordenData);
 
       let response;
       if (modalMode === "add") {
@@ -860,7 +822,6 @@ export default function OrdenesCompraClient({
         const contentType = response.headers.get("content-type");
         if (contentType && contentType.includes("application/json")) {
           responseData = await response.json();
-          console.log("✅ Respuesta del servidor:", responseData);
         }
       } catch (parseError) {
         console.warn("⚠️ No se pudo parsear respuesta JSON:", parseError);
@@ -868,7 +829,6 @@ export default function OrdenesCompraClient({
 
       // ACTUALIZACIÓN INMEDIATA DEL ESTADO LOCAL ANTES DE RECARGAR
       if (modalMode === "edit") {
-        console.log("🔄 Actualizando estado local inmediatamente...");
         setOrdenes(ordenes.map((orden) =>
           orden.idOrden === formularioOrden.idOrden
             ? {
@@ -881,15 +841,30 @@ export default function OrdenesCompraClient({
               Cantidad: ordenData.Cantidad,
               Departamento: formularioOrden.departamento,
               Proveedor: formularioOrden.proveedor,
-              Num_inversion: esInversion ? formularioOrden.numInversion : null, // ← CLAVE: Actualizar Num_inversion
+              Num_inversion: esInversion ? formularioOrden.numInversion : null,
               Estado: formularioOrden.estadoOrden,
             }
             : orden
         ));
+      } else if (modalMode === "add") {
+        // NUEVA FUNCIONALIDAD: Actualizar estado local cuando se añade una nueva orden
+        const nuevaOrden = {
+          idOrden: responseData.insertedId || Date.now(), // Usar ID del servidor si está disponible
+          Num_orden: ordenData.Num_orden,
+          Importe: ordenData.Importe,
+          Fecha: ordenData.Fecha,
+          Descripcion: ordenData.Descripcion,
+          Inventariable: ordenData.Inventariable,
+          Cantidad: ordenData.Cantidad,
+          Departamento: formularioOrden.departamento,
+          Proveedor: formularioOrden.proveedor,
+          Num_inversion: esInversion ? formularioOrden.numInversion : null,
+          Estado: formularioOrden.estadoOrden,
+        };
+        setOrdenes([...ordenes, nuevaOrden]);
       }
 
       // Recargar órdenes desde servidor para garantizar consistencia (pero sin bloquear la UI)
-      console.log("🔄 Recargando órdenes desde servidor en segundo plano...");
       fetch("/api/getOrden")
         .then(response => {
           if (response.ok) {
@@ -899,7 +874,6 @@ export default function OrdenesCompraClient({
         })
         .then(updatedOrders => {
           setOrdenes(updatedOrders);
-          console.log("✅ Órdenes recargadas desde servidor");
         })
         .catch(error => {
           console.warn("⚠️ Error recargando desde servidor (usando estado local):", error);
@@ -916,46 +890,6 @@ export default function OrdenesCompraClient({
       addNotification(`Error al guardar la orden: ${error.message}`, "error");
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  // Función auxiliar para actualización local (fallback)
-  const updateLocalOrders = (ordenData, responseData) => {
-    if (modalMode === "add") {
-      const nuevaOrden = {
-        idOrden: responseData.insertedId || Date.now(), // Fallback temporal
-        Num_orden: ordenData.Num_orden,
-        Importe: ordenData.Importe,
-        Fecha: ordenData.Fecha,
-        Descripcion: ordenData.Descripcion,
-        Inventariable: ordenData.Inventariable,
-        Cantidad: ordenData.Cantidad,
-        Departamento: formularioOrden.departamento,
-        Proveedor: formularioOrden.proveedor,
-        Num_inversion: ordenData.Num_inversion,
-        Estado: formularioOrden.estadoOrden,
-      };
-      setOrdenes([...ordenes, nuevaOrden]);
-    } else {
-      setOrdenes(
-        ordenes.map((orden) =>
-          orden.idOrden === formularioOrden.idOrden
-            ? {
-              ...orden,
-              Num_orden: ordenData.Num_orden,
-              Importe: ordenData.Importe,
-              Fecha: ordenData.Fecha,
-              Descripcion: ordenData.Descripcion,
-              Inventariable: ordenData.Inventariable,
-              Cantidad: ordenData.Cantidad,
-              Departamento: formularioOrden.departamento,
-              Proveedor: formularioOrden.proveedor,
-              Num_inversion: ordenData.Num_inversion,
-              Estado: formularioOrden.estadoOrden,
-            }
-            : orden
-        )
-      );
     }
   };
 
@@ -1529,11 +1463,14 @@ export default function OrdenesCompraClient({
                   value={formularioOrden.importe}
                   onChange={handleInputChange}
                   className="border border-gray-300 rounded px-3 py-2 w-full"
-                  placeholder="0.00"
-                  pattern="^\d{1,6}(\.\d{0,2})?$"
-                  title="Ingrese un importe válido (máximo 100.000€, hasta 2 decimales)"
+                  placeholder=""
+                  pattern="^([1-9]\d{0,5}(\.\d{0,2})?|0\.[1-9]\d?|0\.0[1-9])$"
+                  title="Ingrese un importe válido mayor que 0 (máximo 100.000€, hasta 2 decimales)"
                   required
                 />
+                {formularioOrden.importe && parseFloat(formularioOrden.importe) <= 0 && (
+                  <p className="text-red-500 text-xs mt-1">El importe debe ser mayor que 0</p>
+                )}
                 {parseFloat(formularioOrden.importe) > 100000 && (
                   <p className="text-red-500 text-xs mt-1">El importe máximo permitido es 100.000€</p>
                 )}
@@ -1577,10 +1514,14 @@ export default function OrdenesCompraClient({
                   value={formularioOrden.cantidad}
                   onChange={handleInputChange}
                   className="border border-gray-300 rounded px-3 py-2 w-full"
-                  placeholder="0"
-                  title="Cantidad máxima: 100000"
+                  placeholder=""
+                  pattern="^[1-9]\d{0,5}$"
+                  title="Cantidad debe ser mayor que 0 (máximo: 100000)"
                   required
                 />
+                {formularioOrden.cantidad && parseInt(formularioOrden.cantidad) <= 0 && (
+                  <p className="text-red-500 text-xs mt-1">La cantidad debe ser mayor que 0</p>
+                )}
                 {parseInt(formularioOrden.cantidad) > 100000 && (
                   <p className="text-red-500 text-xs mt-1">La cantidad máxima permitida es 100.000</p>
                 )}
@@ -1597,7 +1538,7 @@ export default function OrdenesCompraClient({
                       name="inventariable"
                       checked={formularioOrden.inventariable}
                       onChange={handleInputChange}
-                      className="form-checkbox h-5 w-5 text-red-600"
+                      className="form-checkbox h-5 w-5 text-red-600 cursor-pointer"
                     />
                     <span className="ml-2">Inventariable</span>
                   </label>
@@ -1634,7 +1575,7 @@ export default function OrdenesCompraClient({
                       name="esInversion"
                       checked={formularioOrden.esInversion}
                       onChange={handleInputChange}
-                      className="form-checkbox h-5 w-5 text-red-600"
+                      className="form-checkbox h-5 w-5 text-red-600 cursor-pointer"
                     />
                     <span className="ml-2">Es inversión</span>
                   </label>
@@ -1730,7 +1671,7 @@ export default function OrdenesCompraClient({
                 className="text-gray-500 hover:text-red-600"
                 disabled={isGeneratingExcel}
               >
-                <X className="w-6 h-6" />
+                <X className="w-6 h-6 cursor-pointer" />
               </button>
             </div>
 
@@ -1807,7 +1748,7 @@ export default function OrdenesCompraClient({
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowExportModal(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
+                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100 cursor-pointer"
                 disabled={isGeneratingExcel}
               >
                 Cancelar
@@ -1817,7 +1758,7 @@ export default function OrdenesCompraClient({
               <button
                 onClick={downloadExcel}
                 disabled={isGeneratingExcel || exportData.length === 0}
-                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
               >
                 {isGeneratingExcel ? (
                   <>
