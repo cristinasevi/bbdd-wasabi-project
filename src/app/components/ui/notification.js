@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { X } from "lucide-react"
 
-export default function Notification({ type = "info", message, duration = 5000, onClose }) {
+export default function Notification({ type = "info", message, duration = 3000, onClose }) {
   const [visible, setVisible] = useState(true)
 
   useEffect(() => {
