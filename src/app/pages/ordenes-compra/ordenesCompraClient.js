@@ -666,7 +666,7 @@ export default function OrdenesCompraClient({
       }
     
       // Verificar que no exceda el máximo cuando hay un valor numérico
-      if (value !== '' && parseFloat(value) > 10000) {
+      if (value !== '' && parseFloat(value) > 100000) {
         return;
       }
     }
