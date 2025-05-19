@@ -86,6 +86,16 @@ export default function OrdenesCompraClient({
     proveedor: "",
     estadoOrden: "En proceso",
   });
+  // Calcular la fecha límite (5 años atrás)
+  const getFechaLimite = () => {
+    const hoy = new Date();
+    const fechaLimite = new Date();
+    fechaLimite.setFullYear(hoy.getFullYear() - 5);
+    return fechaLimite;
+  };
+
+  const fechaLimite = getFechaLimite();
+  const fechaLimiteFormatted = fechaLimite.toISOString().split('T')[0];
   
   // NUEVO: Efecto para cargar la biblioteca SheetJS cuando sea necesaria
   useEffect(() => {
@@ -606,6 +616,7 @@ export default function OrdenesCompraClient({
 
   // Limpiar el formulario
   // Añade la propiedad estadoOrden al objeto que se resetea
+  // Actualizar el estado inicial del formulario
   const limpiarFormulario = () => {
     setFormularioOrden({
       idOrden: null,
@@ -613,13 +624,13 @@ export default function OrdenesCompraClient({
       esInversion: false,
       numInversion: "",
       importe: "",
-      fecha: formatDateForInput(new Date()),
+      fecha: formatDateForInput(new Date()), // fecha actual por defecto
       descripcion: "",
       inventariable: false,
-      cantidad: "",
+      cantidad: "", // Cambiado a "0" como valor inicial
       departamento: "",
       proveedor: "",
-      estadoOrden: "En proceso", // Añade esta línea
+      estadoOrden: "En proceso",
     });
     setFormError("");
   };
@@ -636,7 +647,39 @@ export default function OrdenesCompraClient({
       });
       return;
     }
+    // Añadir esta validación para el campo de fecha
+    if (name === 'fecha') {
+      const fechaSeleccionada = new Date(value);
+      if (fechaSeleccionada < fechaLimite) {
+        return; // No actualizar si la fecha es anterior al límite
+      }
+    }
+     // Validación especial para el importe
+    // Validación para el campo de importe
+    if (name === 'importe') {
+      // Regex que solo permite números y hasta dos decimales (punto como separador)
+      const importeRegex = /^(\d{1,5}(\.\d{0,2})?)?$/;
+      
+      // Si no cumple el formato, no actualizar
+      if (!importeRegex.test(value)) {
+        return;
+      }
     
+      // Verificar que no exceda el máximo cuando hay un valor numérico
+      if (value !== '' && parseFloat(value) > 10000) {
+        return;
+      }
+    }
+    // Validación para cantidad - solo permitir números enteros
+      if (name === 'cantidad') {
+      // Regex que solo permite números enteros positivos
+      const cantidadRegex = /^(\d{1,})?$/;
+      
+      // Si no cumple el formato, no actualizar
+      if (!cantidadRegex.test(value)) {
+        return;
+      }
+    }
     setFormularioOrden({
       ...formularioOrden,
       [name]: value,
@@ -673,7 +716,13 @@ export default function OrdenesCompraClient({
       setFormError("Por favor, ingresa el número de inversión");
       return false;
     }
-
+    if (formularioOrden.fecha) {
+      const fechaSeleccionada = new Date(formularioOrden.fecha);
+      if (fechaSeleccionada < fechaLimite) {
+        setFormError("La fecha de la orden no puede ser anterior a 5 años desde hoy");
+        return false;
+      }
+    }
     setFormError("");
     return true;
   };
@@ -1427,15 +1476,20 @@ export default function OrdenesCompraClient({
               <div>
                 <label className="block text-gray-700 mb-1">Importe (€) *</label>
                 <input
-                  type="number"
-                  step="0.01"
+                  type="text"
                   name="importe"
                   value={formularioOrden.importe}
                   onChange={handleInputChange}
                   className="border border-gray-300 rounded px-3 py-2 w-full"
                   placeholder="0.00"
+                  // Agregamos el pattern para validación HTML nativa adicional
+                  pattern="^\d{1,5}(\.\d{0,2})?$"
+                  title="Ingrese un importe válido (máximo 10000€, hasta 2 decimales)"
                   required
                 />
+                {parseFloat(formularioOrden.importe) > 10000 && (
+                  <p className="text-red-500 text-xs mt-1">El importe máximo permitido es 10000€</p>
+                )}
               </div>
               
               <div>
@@ -1446,8 +1500,12 @@ export default function OrdenesCompraClient({
                   value={formularioOrden.fecha}
                   onChange={handleInputChange}
                   className="border border-gray-300 rounded px-3 py-2 w-full text-gray-500"
+                  min={fechaLimiteFormatted}
                   required
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  La fecha no puede ser anterior a {new Date(fechaLimiteFormatted).toLocaleDateString()}
+                </p>
               </div>
               
               <div className="md:col-span-2">
@@ -1466,16 +1524,17 @@ export default function OrdenesCompraClient({
               <div>
                 <label className="block text-gray-700 mb-1">Cantidad *</label>
                 <input
-                  type="number"
+                  type="text"
                   min="1"
                   name="cantidad"
-                  value={formularioOrden.cantidad}
+                  value={formularioOrden.cantidad} // Valor inicial 0
                   onChange={handleInputChange}
                   className="border border-gray-300 rounded px-3 py-2 w-full"
-                  placeholder="1"
+                  placeholder="0"
                   required
                 />
               </div>
+              
               
               {/* Campos para tipo y número de orden */}
               <div className="flex flex-col">
