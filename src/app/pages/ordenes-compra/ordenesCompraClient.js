@@ -45,7 +45,7 @@ export default function OrdenesCompraClient({
   const [filterProveedor, setFilterProveedor] = useState("");
   const [filterInventariable, setFilterInventariable] = useState("");
   const [filterEstado, setFilterEstado] = useState("");
-  
+
   // Estados para los filtros de fecha
   const [filterMes, setFilterMes] = useState("");
   const [filterAño, setFilterAño] = useState("");
@@ -56,7 +56,7 @@ export default function OrdenesCompraClient({
   const [exportLoading, setExportLoading] = useState(false);
   const [excelFileName, setExcelFileName] = useState("ordenes_compra");
   const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
-  
+
   // NUEVO: Referencia para la biblioteca SheetJS
   const sheetJSRef = useRef(null);
 
@@ -65,9 +65,9 @@ export default function OrdenesCompraClient({
     isOpen: false,
     title: "",
     message: "",
-    onConfirm: () => {},
+    onConfirm: () => { },
   });
-  
+
   // Hook de notificaciones
   const { addNotification, notificationComponents } = useNotifications();
 
@@ -96,7 +96,7 @@ export default function OrdenesCompraClient({
 
   const fechaLimite = getFechaLimite();
   const fechaLimiteFormatted = fechaLimite.toISOString().split('T')[0];
-  
+
   // NUEVO: Efecto para cargar la biblioteca SheetJS cuando sea necesaria
   useEffect(() => {
     if (showExportModal && !sheetJSRef.current) {
@@ -108,11 +108,11 @@ export default function OrdenesCompraClient({
           addNotification("Error al cargar las herramientas de exportación", "error");
         }
       };
-      
+
       loadSheetJS();
     }
   }, [showExportModal, addNotification]);
-  
+
   // 3. Asegurarnos que el useEffect para establecer el departamento del Jefe funciona correctamente
   useEffect(() => {
     async function fetchUserRole() {
@@ -122,17 +122,17 @@ export default function OrdenesCompraClient({
           const data = await response.json();
           const userRol = data.usuario?.rol || '';
           setUserRole(userRol);
-          
+
           // Si es Jefe de Departamento, establecer el filtro automáticamente
           if (userRol === "Jefe de Departamento" && departamento) {
             setFilterDepartamento(departamento);
-            
+
             // También hay que asegurar que se mantenga esta selección
             // Esto es importante por si la app se reinicia o cambia de estado
             const handleBeforeUnload = () => {
               localStorage.setItem('selectedDepartamento', departamento);
             };
-            
+
             window.addEventListener('beforeunload', handleBeforeUnload);
             return () => {
               window.removeEventListener('beforeunload', handleBeforeUnload);
@@ -155,12 +155,12 @@ export default function OrdenesCompraClient({
       const ordenDepCodigo = orden.Num_orden?.split('/')[0];
       return ordenDepCodigo === departamentoCodigo;
     });
-    
+
     // Si no hay órdenes previas, empezar con 001
     if (ordenesDelDepartamento.length === 0) {
       return '001';
     }
-    
+
     // Buscar el número más alto y sumar 1
     let maxNumero = 0;
     ordenesDelDepartamento.forEach(orden => {
@@ -170,7 +170,7 @@ export default function OrdenesCompraClient({
         maxNumero = numOrden;
       }
     });
-    
+
     // Incrementar y formatear con leading zeros
     return (maxNumero + 1).toString().padStart(3, '0');
   };
@@ -178,13 +178,13 @@ export default function OrdenesCompraClient({
   // Generar el código de orden automáticamente
   const generarNumeroOrden = () => {
     if (!formularioOrden.departamento) return "";
-    
+
     // Obtener las primeras 3 letras del departamento para el código
     const departamentoCodigo = formularioOrden.departamento.substring(0, 3).toUpperCase();
-    
+
     const numeroOrden = getNextNumeroOrden(departamentoCodigo);
     const esInventariable = formularioOrden.inventariable ? "1" : "0";
-    
+
     // Formato: [DEPCOD]/[NUMORDEN]/[AÑO]/[0-1]
     return `${departamentoCodigo}/${numeroOrden}/${currentYear}/${esInventariable}`;
   };
@@ -203,25 +203,25 @@ export default function OrdenesCompraClient({
   // Generar número de inversión automáticamente
   const generarNumeroInversion = () => {
     if (!formularioOrden.departamento || !formularioOrden.esInversion) return "";
-    
+
     // Buscar el departamento seleccionado para obtener su ID
     const departamentoSeleccionado = departamentos.find(
       dep => dep.Nombre === formularioOrden.departamento
     );
-    
+
     if (!departamentoSeleccionado) return "";
-    
+
     const idDepartamento = departamentoSeleccionado.id_Departamento;
-    
+
     // Filtrar inversiones previas del mismo departamento
     const inversionesDepartamento = ordenes.filter(orden => {
       const ordenDep = orden.Departamento === formularioOrden.departamento;
       return ordenDep && orden.Num_inversion;
     });
-    
+
     // Determinar el siguiente número
     let siguienteNumero = inversionesDepartamento.length + 1;
-    
+
     // Formato: [ID_DEPARTAMENTO][00000X] - 7 dígitos en total
     return `${idDepartamento}${siguienteNumero.toString().padStart(6, '0')}`;
   };
@@ -265,8 +265,8 @@ export default function OrdenesCompraClient({
         año: date.getFullYear().toString()
       };
     } catch (error) {
-      return {mes: '', año: ''};
-      
+      return { mes: '', año: '' };
+
     }
   }
 
@@ -281,7 +281,7 @@ export default function OrdenesCompraClient({
   const fechasDisponibles = useMemo(() => {
     const meses = new Set();
     const años = new Set();
-    
+
     ordenes.forEach(orden => {
       if (orden.Fecha) {
         const { mes, año } = getDateParts(orden.Fecha);
@@ -289,52 +289,52 @@ export default function OrdenesCompraClient({
         años.add(año);
       }
     });
-    
+
     return {
       meses: Array.from(meses).sort((a, b) => parseInt(a) - parseInt(b)),
       años: Array.from(años).sort((a, b) => parseInt(a) - parseInt(b))
     };
   }, [ordenes]);
-  
+
   // Obtener fechas filtradas según las selecciones actuales
   const fechasFiltradas = useMemo(() => {
     // Filtrar órdenes según los filtros de fecha seleccionados
     const ordenesFiltradas = ordenes.filter(orden => {
       if (!orden.Fecha) return false;
-      
+
       const { mes, año } = getDateParts(orden.Fecha);
-        
+
       if (filterMes && mes !== filterMes) return false;
       if (filterAño && año !== filterAño) return false;
-      
+
       return true;
     });
-    
+
     // Extraer meses y años disponibles de las órdenes filtradas
     const meses = new Set();
     const años = new Set();
-    
+
     ordenesFiltradas.forEach(orden => {
       const { mes, año } = getDateParts(orden.Fecha);
       meses.add(mes);
       años.add(año);
     });
-    
+
     return {
       meses: Array.from(meses).sort((a, b) => parseInt(a) - parseInt(b)),
       años: Array.from(años).sort((a, b) => parseInt(a) - parseInt(b))
     };
-  }, [ordenes, filterMes, filterAño]); 
+  }, [ordenes, filterMes, filterAño]);
 
   // Obtener proveedores filtrados por departamento
   const proveedoresFiltrados = useMemo(() => {
     // Para todos los roles, mostrar solo proveedores que estén en órdenes
     let proveedoresDisponibles = [];
-    
+
     // Si hay departamento seleccionado, mostrar solo proveedores de ese departamento
     if (filterDepartamento) {
       proveedoresDisponibles = proveedores.filter(proveedor => {
-        return initialOrdenes.some(orden => 
+        return initialOrdenes.some(orden =>
           orden.Proveedor === proveedor.Nombre && orden.Departamento === filterDepartamento
         );
       });
@@ -345,12 +345,12 @@ export default function OrdenesCompraClient({
       initialOrdenes.forEach(orden => {
         proveedoresEnOrdenes.add(orden.Proveedor);
       });
-      
-      proveedoresDisponibles = proveedores.filter(proveedor => 
+
+      proveedoresDisponibles = proveedores.filter(proveedor =>
         proveedoresEnOrdenes.has(proveedor.Nombre)
       );
     }
-    
+
     return proveedoresDisponibles;
   }, [filterDepartamento, proveedores, initialOrdenes]);
 
@@ -373,29 +373,29 @@ export default function OrdenesCompraClient({
         (orden.Num_inversion?.toString() || '').toLowerCase().includes(searchTerm.toLowerCase());
 
       // Filtro por departamento
-      const matchesDepartamento = filterDepartamento === "" || 
+      const matchesDepartamento = filterDepartamento === "" ||
         orden.Departamento === filterDepartamento;
 
       // Filtro por proveedor
-      const matchesProveedor = filterProveedor === "" || 
+      const matchesProveedor = filterProveedor === "" ||
         orden.Proveedor === filterProveedor;
 
       // Filtro por estado
       const matchesEstado = filterEstado === "" ||
-       orden.Estado === filterEstado;  
+        orden.Estado === filterEstado;
 
       // Filtro por inventariable
-      const matchesInventariable = filterInventariable === "" || 
+      const matchesInventariable = filterInventariable === "" ||
         (filterInventariable === "inventariable" && orden.Inventariable === 1) ||
         (filterInventariable === "no-inventariable" && orden.Inventariable === 0);
-      
+
       // Filtro por fecha
       let matchesFecha = true;
       if (filterMes || filterAño) {
         if (!orden.Fecha) return false;
-        
+
         const { mes, año } = getDateParts(orden.Fecha);
-        
+
         if (filterMes && mes !== filterMes) matchesFecha = false;
         if (filterAño && año !== filterAño) matchesFecha = false;
       }
@@ -410,7 +410,7 @@ export default function OrdenesCompraClient({
     const ordenesToExport = selectedOrdenes.length > 0
       ? ordenes.filter(o => selectedOrdenes.includes(o.idOrden))
       : filteredOrdenes;
-    
+
     // Crear la estructura de datos para Excel
     const data = ordenesToExport.map(orden => ({
       'Número Orden': orden.Num_orden || '',
@@ -424,45 +424,45 @@ export default function OrdenesCompraClient({
       'Número Inversión': orden.Num_inversion || '',
       'Estado': orden.Estado || 'En proceso'
     }));
-    
+
     return data;
   };
-  
+
   // NUEVO: Función para generar Excel
   // Función para generar CSV
   const generateExcel = async () => {
     try {
       setIsGeneratingExcel(true);
-      
+
       // Crear cabeceras del CSV
       const headers = Object.keys(exportData[0]);
       let csvContent = headers.join(',') + '\n';
-      
+
       // Añadir filas de datos
       exportData.forEach(row => {
         const values = headers.map(header => {
           const cellValue = row[header] || '';
           // Escapar comillas y encerrar en comillas cualquier valor que contenga comas
-          return typeof cellValue === 'string' && (cellValue.includes(',') || cellValue.includes('"')) 
-            ? `"${cellValue.replace(/"/g, '""')}"` 
+          return typeof cellValue === 'string' && (cellValue.includes(',') || cellValue.includes('"'))
+            ? `"${cellValue.replace(/"/g, '""')}"`
             : cellValue;
         });
         csvContent += values.join(',') + '\n';
       });
-      
+
       // Convertir a Blob para descargar
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      
+
       // Crear URL para previsualización
       const url = URL.createObjectURL(blob);
-      
+
       // Configurar opciones para descarga
       return {
         url,
         blob,
         filename: `${excelFileName}.csv`
       };
-      
+
     } catch (error) {
       console.error("Error generando archivo CSV:", error);
       addNotification("Error al generar el archivo CSV", "error");
@@ -471,13 +471,13 @@ export default function OrdenesCompraClient({
       setIsGeneratingExcel(false);
     }
   };
-  
+
   // NUEVO: Función para descargar el Excel generado
   const downloadExcel = async () => {
     const excelData = await generateExcel();
-    
+
     if (!excelData) return;
-    
+
     // Crear enlace para descarga y hacer clic
     const downloadLink = document.createElement('a');
     downloadLink.href = excelData.url;
@@ -485,16 +485,16 @@ export default function OrdenesCompraClient({
     document.body.appendChild(downloadLink);
     downloadLink.click();
     document.body.removeChild(downloadLink);
-    
+
     // Liberar URL
     URL.revokeObjectURL(excelData.url);
-    
+
     // Cerrar modal
     setShowExportModal(false);
-    
+
     addNotification("Archivo Excel descargado correctamente", "success");
   };
-  
+
   // NUEVO: Manejar apertura del modal de exportación
   const handleExportClick = () => {
     // Si no hay órdenes seleccionadas y el usuario presionó el botón Exportar
@@ -503,22 +503,22 @@ export default function OrdenesCompraClient({
       addNotification("Por favor, selecciona al menos una orden de compra para exportar", "warning");
       return;
     }
-    
+
     // Si hay órdenes filtradas pero ninguna seleccionada específicamente
     if (selectedOrdenes.length === 0 && filteredOrdenes.length === 0) {
       addNotification("No hay órdenes para exportar", "warning");
       return;
     }
-    
+
     // Preparar datos para exportación
     const data = prepareExportData();
     setExportData(data);
-    
+
     // Generar nombre de archivo con fecha actual
     const today = new Date();
     const formattedDate = `${today.getFullYear()}${(today.getMonth() + 1).toString().padStart(2, '0')}${today.getDate().toString().padStart(2, '0')}`;
     setExcelFileName(`ordenes_compra_${formattedDate}`);
-    
+
     // Mostrar modal
     setShowExportModal(true);
   };
@@ -558,7 +558,7 @@ export default function OrdenesCompraClient({
   // Abrir modal de añadir orden
   const handleOpenAddModal = () => {
     limpiarFormulario();
-    
+
     // Si es Jefe de Departamento, preseleccionamos su departamento
     if (userRole === "Jefe de Departamento" && departamento) {
       setFormularioOrden(prev => ({
@@ -566,7 +566,7 @@ export default function OrdenesCompraClient({
         departamento: departamento
       }));
     }
-    
+
     setModalMode("add");
     setShowModal(true);
   };
@@ -575,7 +575,7 @@ export default function OrdenesCompraClient({
   const handleOpenEditModal = (orden) => {
     const esInventariable = orden.Inventariable === 1 || orden.Inventariable === true;
     const esInversion = orden.Num_inversion ? true : false;
-    
+
     setFormularioOrden({
       idOrden: orden.idOrden,
       numero: orden.Num_orden || "",
@@ -638,7 +638,7 @@ export default function OrdenesCompraClient({
   // Manejar cambios en el formulario
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    
+
     // Para inputs de checkbox
     if (type === 'checkbox') {
       setFormularioOrden({
@@ -654,29 +654,34 @@ export default function OrdenesCompraClient({
         return; // No actualizar si la fecha es anterior al límite
       }
     }
-     // Validación especial para el importe
+
     // Validación para el campo de importe
     if (name === 'importe') {
       // Regex que solo permite números y hasta dos decimales (punto como separador)
-      const importeRegex = /^(\d{1,5}(\.\d{0,2})?)?$/;
-      
+      const importeRegex = /^(\d{1,6}(\.\d{0,2})?)?$/;
+
       // Si no cumple el formato, no actualizar
       if (!importeRegex.test(value)) {
         return;
       }
-    
+
       // Verificar que no exceda el máximo cuando hay un valor numérico
       if (value !== '' && parseFloat(value) > 100000) {
         return;
       }
     }
     // Validación para cantidad - solo permitir números enteros
-      if (name === 'cantidad') {
+    if (name === 'cantidad') {
       // Regex que solo permite números enteros positivos
-      const cantidadRegex = /^(\d{1,})?$/;
-      
+      const cantidadRegex = /^(\d{1,6})?$/;
+
       // Si no cumple el formato, no actualizar
       if (!cantidadRegex.test(value)) {
+        return;
+      }
+
+      // Verificar que no exceda el máximo cuando hay un valor numérico
+      if (value !== '' && parseInt(value) > 100000) {
         return;
       }
     }
@@ -746,24 +751,24 @@ export default function OrdenesCompraClient({
       const departamentoSeleccionado = departamentos.find(
         dep => dep.Nombre === formularioOrden.departamento
       );
-      
+
       const proveedorSeleccionado = proveedores.find(
         prov => prov.Nombre === formularioOrden.proveedor
       );
-      
+
       if (!departamentoSeleccionado || !proveedorSeleccionado) {
         throw new Error("No se encontró el departamento o proveedor seleccionado");
       }
-      
+
       // Encontrar el ID del estado según su tipo
       const estadoSeleccionado = estadosOrden.find(
         estado => estado.tipo === formularioOrden.estadoOrden
       );
-      
+
       if (!estadoSeleccionado) {
         throw new Error("No se encontró el estado seleccionado");
       }
-      
+
       // Preparar los datos para enviar
       const ordenData = {
         Num_orden: formularioOrden.numero,
@@ -777,11 +782,11 @@ export default function OrdenesCompraClient({
         id_UsuarioFK: 1, // Aquí deberías obtener el usuario actual
         id_EstadoOrdenFK: estadoSeleccionado.id_EstadoOrden, // Usar el ID del estado seleccionado
       };
-      
+
       // Añadir datos de inversión si es necesario
       if (formularioOrden.esInversion) {
         ordenData.Num_inversion = formularioOrden.numInversion;
-        
+
         // Buscar ID de la bolsa de inversión para este departamento
         // Aquí podrías hacer una llamada a la API para obtener este ID
         ordenData.id_InversionFK = departamentoSeleccionado.id_Departamento; // Simplificación
@@ -814,7 +819,7 @@ export default function OrdenesCompraClient({
 
       if (!response.ok) {
         let errorMessage = `Error del servidor: ${response.status}`;
-        
+
         // Intentar obtener detalles del error si están disponibles
         try {
           const contentType = response.headers.get("content-type");
@@ -832,12 +837,12 @@ export default function OrdenesCompraClient({
           console.error("Error al analizar la respuesta:", parseError);
           // Usamos el mensaje de error general que ya tenemos
         }
-        
+
         throw new Error(errorMessage);
       }
 
       // Intentar analizar la respuesta como JSON si existe
-      let responseData = {}; 
+      let responseData = {};
       try {
         const contentType = response.headers.get("content-type");
         if (contentType && contentType.includes("application/json")) {
@@ -848,7 +853,7 @@ export default function OrdenesCompraClient({
         // No es crítico, continuamos con un objeto vacío
       }
 
-      
+
       // Actualizar lista de órdenes
       if (modalMode === "add") {
         // Recargar órdenes desde el servidor para mayor consistencia
@@ -879,18 +884,18 @@ export default function OrdenesCompraClient({
           ordenes.map((orden) =>
             orden.idOrden === formularioOrden.idOrden
               ? {
-                  ...orden,
-                  Num_orden: ordenData.Num_orden,
-                  Importe: ordenData.Importe,
-                  Fecha: ordenData.Fecha,
-                  Descripcion: ordenData.Descripcion,
-                  Inventariable: ordenData.Inventariable,
-                  Cantidad: ordenData.Cantidad,
-                  Departamento: formularioOrden.departamento,
-                  Proveedor: formularioOrden.proveedor,
-                  Num_inversion: formularioOrden.esInversion ? formularioOrden.numInversion : null,
-                  Estado: formularioOrden.estadoOrden, // Actualizar el estado en la UI
-                }
+                ...orden,
+                Num_orden: ordenData.Num_orden,
+                Importe: ordenData.Importe,
+                Fecha: ordenData.Fecha,
+                Descripcion: ordenData.Descripcion,
+                Inventariable: ordenData.Inventariable,
+                Cantidad: ordenData.Cantidad,
+                Departamento: formularioOrden.departamento,
+                Proveedor: formularioOrden.proveedor,
+                Num_inversion: formularioOrden.esInversion ? formularioOrden.numInversion : null,
+                Estado: formularioOrden.estadoOrden, // Actualizar el estado en la UI
+              }
               : orden
           )
         );
@@ -928,7 +933,7 @@ export default function OrdenesCompraClient({
   // Confirmar eliminación de órdenes
   const confirmDeleteOrdenes = async () => {
     setIsLoading(true);
-  
+
     try {
       // Cambiar a POST con un parámetro de acción
       const response = await fetch("/api/getOrden/eliminar", {
@@ -936,17 +941,17 @@ export default function OrdenesCompraClient({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           action: "delete",
-          ids: selectedOrdenes 
+          ids: selectedOrdenes
         }),
       });
-  
+
       if (!response.ok) {
         let errorMessage = `Error del servidor: ${response.status}`;
         throw new Error(errorMessage);
       }
-  
+
       // Procesar respuesta
       let data;
       try {
@@ -955,14 +960,14 @@ export default function OrdenesCompraClient({
         console.error("Error al parsear la respuesta:", parseError);
         data = { deletedCount: selectedOrdenes.length };
       }
-  
+
       // Actualizar lista local
       setOrdenes(ordenes.filter((o) => !selectedOrdenes.includes(o.idOrden)));
       setSelectedOrdenes([]);
-      
+
       // Mostrar notificación de éxito
       addNotification(
-        `${data?.deletedCount || selectedOrdenes.length} orden(es) eliminadas correctamente`, 
+        `${data?.deletedCount || selectedOrdenes.length} orden(es) eliminadas correctamente`,
         "success"
       );
     } catch (error) {
@@ -972,12 +977,12 @@ export default function OrdenesCompraClient({
       setIsLoading(false);
     }
   };
-  
+
   // Manejar cambio en filtro de mes
   const handleMesChange = (e) => {
     const nuevoMes = e.target.value;
     setFilterMes(nuevoMes);
-    
+
     // Si hay un mes seleccionado, filtrar años disponibles para ese mes
     if (nuevoMes) {
       // No reseteamos los otros filtros para permitir refinamiento
@@ -985,12 +990,12 @@ export default function OrdenesCompraClient({
       // Si se limpia el mes, mantener los filtros de año
     }
   };
-  
+
   // Manejar cambio en filtro de año
   const handleAñoChange = (e) => {
     const nuevoAño = e.target.value;
     setFilterAño(nuevoAño);
-    
+
     // Si hay un año seleccionado, filtrar meses disponibles para ese año
     if (nuevoAño) {
       // No reseteamos los otros filtros para permitir refinamiento
@@ -1005,7 +1010,7 @@ export default function OrdenesCompraClient({
       "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
       "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
     ];
-    
+
     return meses[parseInt(numeroMes) - 1] || numeroMes;
   };
 
@@ -1211,7 +1216,7 @@ export default function OrdenesCompraClient({
               <tr className="border-b border-gray-200">
                 <th className="py-3 px-3 w-12">
                   {filteredOrdenes.length > 0 && (
-                    <div className="flex justify-center"> 
+                    <div className="flex justify-center">
                       <input
                         type="checkbox"
                         checked={
@@ -1233,7 +1238,7 @@ export default function OrdenesCompraClient({
                 <th className="text-center py-3 px-3 font-medium text-gray-600">Cant.</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-600">Dep./Prov.</th>
                 <th className="text-center py-3 px-4 font-medium text-gray-600">Estado</th>
-                <th className="py-3 px-3 w-12"></th> 
+                <th className="py-3 px-3 w-12"></th>
               </tr>
             </thead>
             <tbody>
@@ -1241,9 +1246,8 @@ export default function OrdenesCompraClient({
                 filteredOrdenes.map((orden) => (
                   <tr
                     key={orden.idOrden}
-                    className={`border-t border-gray-200 cursor-pointer hover:bg-gray-50 ${
-                      selectedOrdenes.includes(orden.idOrden) ? "bg-red-50 hover:bg-red-100" : ""
-                    }`}
+                    className={`border-t border-gray-200 cursor-pointer hover:bg-gray-50 ${selectedOrdenes.includes(orden.idOrden) ? "bg-red-50 hover:bg-red-100" : ""
+                      }`}
                     onClick={() => toggleSelectOrden(orden.idOrden)}
                   >
                     <td className="py-3 px-3 w-12" onClick={(e) => e.stopPropagation()}>
@@ -1262,11 +1266,11 @@ export default function OrdenesCompraClient({
                       <div className="flex items-center">
                         <span className="truncate max-w-[120px]" title={orden.Num_orden}>{orden.Num_orden}</span>
                         {orden.Num_inversion && (
-                          <div className="ml-2 relative" 
-                               onMouseEnter={() => setActiveTooltip(`inv-${orden.idOrden}`)}
-                               onMouseLeave={() => setActiveTooltip(null)}>
+                          <div className="ml-2 relative"
+                            onMouseEnter={() => setActiveTooltip(`inv-${orden.idOrden}`)}
+                            onMouseLeave={() => setActiveTooltip(null)}>
                             <Info className="h-4 w-4 text-blue-500" />
-                            
+
                             {activeTooltip === `inv-${orden.idOrden}` && (
                               <div className="absolute z-50 top-6 left-0 bg-white border border-gray-200 rounded p-3 shadow-lg w-48">
                                 <p className="font-semibold">Núm. Inversión:</p>
@@ -1277,43 +1281,43 @@ export default function OrdenesCompraClient({
                         )}
                       </div>
                     </td>
-                    
+
                     {/* Descripción */}
                     <td className="py-3 px-4">
                       <div className="truncate max-w-[200px]" title={orden.Descripcion}>{orden.Descripcion}</div>
                     </td>
-                    
+
                     {/* Fecha */}
                     <td className="py-2 px-2 text-center">
                       {formatDate(orden.Fecha)}
                     </td>
-                    
+
                     {/* Importe */}
                     <td className="py-3 px-4 text-center font-medium">
                       {orden.Importe}€
                     </td>
-                    
+
                     {/* Inventariable */}
                     <td className="py-3 px-3 text-center">
                       <div className="flex justify-center">
-                      {orden.Inventariable === 1 || orden.Inventariable === true ? (
+                        {orden.Inventariable === 1 || orden.Inventariable === true ? (
                           <Check className="w-5 h-5 text-green-500" />
-                      ) : (
+                        ) : (
                           <X className="w-5 h-5 text-red-500" />
-                      )}
+                        )}
                       </div>
                     </td>
-                    
+
                     {/* Cantidad */}
                     <td className="py-3 px-3 text-center">
                       {orden.Cantidad}
                     </td>
-                    
+
                     {/* Departamento y Proveedor (combinados) */}
                     <td className="py-3 px-4 relative">
                       <div className="flex flex-col">
-                        <span className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-xs truncate max-w-[120px]" 
-                              title={orden.Departamento}>
+                        <span className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-xs truncate max-w-[120px]"
+                          title={orden.Departamento}>
                           {orden.Departamento}
                         </span>
                         <span className="text-xs mt-1 truncate max-w-[120px]" title={orden.Proveedor}>
@@ -1321,19 +1325,19 @@ export default function OrdenesCompraClient({
                         </span>
                       </div>
                     </td>
-                    
+
                     {/* Estado */}
                     <td className="py-2 px-2 text-center">
-                      <span 
+                      <span
                         className={`px-2 py-1 rounded-full text-xs font-medium inline-block
-                          ${orden.Estado === 'En proceso' ? 'bg-yellow-200 text-yellow-800' : 
-                            orden.Estado === 'Anulada' ? 'bg-red-100 text-red-800' : 
-                            'bg-green-100 text-green-800'}`}
+                          ${orden.Estado === 'En proceso' ? 'bg-yellow-200 text-yellow-800' :
+                            orden.Estado === 'Anulada' ? 'bg-red-100 text-red-800' :
+                              'bg-green-100 text-green-800'}`}
                       >
                         {orden.Estado || "En proceso"}
                       </span>
                     </td>
-                    
+
                     {/* Editar */}
                     <td className="py-3 px-3 text-center w-12">
                       <button
@@ -1362,14 +1366,14 @@ export default function OrdenesCompraClient({
           </table>
         </div>
       </div>
-      
+
       {/* Botones de acción */}
       <div className="flex justify-between mt-4">
         <div className="flex gap-4">
           <Button onClick={handleOpenAddModal}>Nueva Orden</Button>
-          
+
           {/* NUEVO: Botón de exportar */}
-          <Button 
+          <Button
             onClick={handleExportClick}
             disabled={filteredOrdenes.length === 0}
           >
@@ -1379,7 +1383,7 @@ export default function OrdenesCompraClient({
             </div>
           </Button>
         </div>
-        
+
         <Button
           onClick={handleEliminarOrdenes}
           disabled={selectedOrdenes.length === 0 || isLoading}
@@ -1445,7 +1449,7 @@ export default function OrdenesCompraClient({
                   </div>
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-gray-700 mb-1">Proveedor *</label>
                 <div className="relative">
@@ -1472,7 +1476,7 @@ export default function OrdenesCompraClient({
                   </div>
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-gray-700 mb-1">Importe (€) *</label>
                 <input
@@ -1482,16 +1486,15 @@ export default function OrdenesCompraClient({
                   onChange={handleInputChange}
                   className="border border-gray-300 rounded px-3 py-2 w-full"
                   placeholder="0.00"
-                  // Agregamos el pattern para validación HTML nativa adicional
-                  pattern="^\d{1,5}(\.\d{0,2})?$"
-                  title="Ingrese un importe válido (máximo 10000€, hasta 2 decimales)"
+                  pattern="^\d{1,6}(\.\d{0,2})?$"
+                  title="Ingrese un importe válido (máximo 100.000€, hasta 2 decimales)"
                   required
                 />
-                {parseFloat(formularioOrden.importe) > 10000 && (
-                  <p className="text-red-500 text-xs mt-1">El importe máximo permitido es 10000€</p>
+                {parseFloat(formularioOrden.importe) > 100000 && (
+                  <p className="text-red-500 text-xs mt-1">El importe máximo permitido es 100.000€</p>
                 )}
               </div>
-              
+
               <div>
                 <label className="block text-gray-700 mb-1">Fecha *</label>
                 <input
@@ -1507,7 +1510,7 @@ export default function OrdenesCompraClient({
                   La fecha no puede ser anterior a {new Date(fechaLimiteFormatted).toLocaleDateString()}
                 </p>
               </div>
-              
+
               <div className="md:col-span-2">
                 <label className="block text-gray-700 mb-1">Descripción *</label>
                 <input
@@ -1520,22 +1523,26 @@ export default function OrdenesCompraClient({
                   required
                 />
               </div>
-              
+
               <div>
                 <label className="block text-gray-700 mb-1">Cantidad *</label>
                 <input
                   type="text"
                   min="1"
                   name="cantidad"
-                  value={formularioOrden.cantidad} // Valor inicial 0
+                  value={formularioOrden.cantidad}
                   onChange={handleInputChange}
                   className="border border-gray-300 rounded px-3 py-2 w-full"
                   placeholder="0"
+                  title="Cantidad máxima: 100000"
                   required
                 />
+                {parseInt(formularioOrden.cantidad) > 100000 && (
+                  <p className="text-red-500 text-xs mt-1">La cantidad máxima permitida es 100.000</p>
+                )}
               </div>
-              
-              
+
+
               {/* Campos para tipo y número de orden */}
               <div className="flex flex-col">
                 <label className="block text-gray-700 mb-1">Tipo *</label>
@@ -1555,7 +1562,7 @@ export default function OrdenesCompraClient({
                   </span>
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-gray-700 mb-1">
                   Número Orden
@@ -1572,7 +1579,7 @@ export default function OrdenesCompraClient({
                   disabled
                 />
               </div>
-              
+
               {/* Casilla y campo para inversión */}
               <div className="flex flex-col">
                 <label className="block text-gray-700 mb-1">Inversión</label>
@@ -1597,7 +1604,7 @@ export default function OrdenesCompraClient({
                   )}
                 </div>
               </div>
-              
+
               {formularioOrden.esInversion && (
                 <div>
                   <label className="block text-gray-700 mb-1">
@@ -1617,7 +1624,7 @@ export default function OrdenesCompraClient({
                   />
                 </div>
               )}
-              
+
               {/* Estado de la orden */}
               <div>
                 <label className="block text-gray-700 mb-1">Estado</label>
@@ -1661,7 +1668,7 @@ export default function OrdenesCompraClient({
           </div>
         </div>
       )}
-      
+
       {/* NUEVO: Modal para previsualizar y exportar Excel */}
       {showExportModal && (
         <div
@@ -1682,7 +1689,7 @@ export default function OrdenesCompraClient({
                 <X className="w-6 h-6" />
               </button>
             </div>
-            
+
             {/* Nombre del archivo */}
             <div className="mb-6">
               <label className="block text-gray-700 mb-1">Nombre del archivo</label>
@@ -1697,7 +1704,7 @@ export default function OrdenesCompraClient({
                 <span className="bg-gray-100 text-gray-600 border border-gray-200 rounded px-3 py-2">.csv</span>
               </div>
             </div>
-            
+
             {/* Vista previa de los datos */}
             <div className="mb-6">
               <h3 className="font-medium text-gray-700 mb-2">Vista previa de los datos</h3>
@@ -1737,21 +1744,21 @@ export default function OrdenesCompraClient({
                 Se exportarán {exportData.length} órdenes {selectedOrdenes.length > 0 ? 'seleccionadas' : 'filtradas'}.
               </p>
             </div>
-            
+
             {/* Información sobre qué se exportará */}
             <div className="mb-6 bg-blue-50 p-4 rounded-md text-blue-700 text-sm">
               <p className="font-medium mb-1">Información sobre la exportación:</p>
               <ul className="list-disc list-inside">
                 <li>Se exportarán {exportData.length} órdenes en formato Excel (.csv)</li>
                 <li>
-                  {selectedOrdenes.length > 0 
-                    ? `Has seleccionado ${selectedOrdenes.length} órdenes para exportar` 
+                  {selectedOrdenes.length > 0
+                    ? `Has seleccionado ${selectedOrdenes.length} órdenes para exportar`
                     : 'Se exportarán todas las órdenes visibles según los filtros aplicados'}
                 </li>
                 <li>El archivo incluirá todos los campos mostrados en la vista previa</li>
               </ul>
             </div>
-            
+
             {/* Botones de acción */}
             <div className="flex justify-end gap-3">
               <button
@@ -1761,7 +1768,7 @@ export default function OrdenesCompraClient({
               >
                 Cancelar
               </button>
-              
+
               {/* Botón descargar */}
               <button
                 onClick={downloadExcel}
