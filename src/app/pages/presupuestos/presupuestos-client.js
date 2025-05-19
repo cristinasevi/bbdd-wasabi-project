@@ -18,6 +18,7 @@ export default function PresupuestoClient({
   const [departamento, setDepartamento] = useState("")
   const [departamentoId, setDepartamentoId] = useState(null)
   const [presupuestoMensual, setPresupuestoMensual] = useState(0)
+  const [presupuestoTotal, setPresupuestoTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
 
   // Estados para los filtros de fecha - inicializados con valores actuales
@@ -39,24 +40,20 @@ export default function PresupuestoClient({
           if (data.usuario?.rol === "Jefe de Departamento") {
             setDepartamento(userDep)
           } else if (data.usuario?.rol === "Administrador") {
-            // Siempre establece Informática para el administrador
             setDepartamento("Informática")
           } else if (data.usuario?.rol === "Contable") {
-            // Para contable, verifica si hay un departamento guardado, si no, establece Informática
             if (typeof window !== 'undefined' && window.selectedDepartamento) {
               setDepartamento(window.selectedDepartamento)
             } else {
               setDepartamento("Informática")
             }
           } else {
-            // Para cualquier otro rol, considera el departamento guardado o el primero
             if (typeof window !== 'undefined' && window.selectedDepartamento) {
               setDepartamento(window.selectedDepartamento)
             } else if (initialDepartamentos.length > 0) {
               setDepartamento(initialDepartamentos[0].Nombre)
             }
           }
-
         }
       } catch (error) {
         console.error("Error obteniendo información del usuario:", error)
@@ -78,15 +75,29 @@ export default function PresupuestoClient({
     }
   }, [departamento, initialDepartamentos])
 
-  // Filtrar todas las órdenes por departamento (para el cálculo de gastos totales)
-  const allDepartmentOrders = useMemo(() => {
-    if (!departamento || !initialOrden.length) return [];
+  // CORREGIDO: Calcular gasto total del año actual (sin filtro de año)
+  const gastoTotalDelAñoActual = useMemo(() => {
+    if (!departamento || !initialOrden.length) return 0;
 
-    return initialOrden.filter(o => {
+    // Filtrar órdenes del departamento sin inversión y del año actual
+    const ordenesDelAño = initialOrden.filter(orden => {
       // Solo órdenes del departamento y que NO tengan número de inversión
-      return o.Departamento === departamento && !o.Num_inversion;
+      if (orden.Departamento !== departamento || orden.Num_inversion) {
+        return false;
+      }
+
+      // Solo del año actual
+      if (orden.Fecha) {
+        const ordenDate = new Date(orden.Fecha);
+        const ordenAño = ordenDate.getFullYear();
+        return ordenAño === parseInt(selectedAño); // año seleccionado
+      }
+
+      return false;
     });
-  }, [departamento, initialOrden]);
+
+    return ordenesDelAño.reduce((sum, orden) => sum + (parseFloat(orden.Importe) || 0), 0);
+  }, [departamento, initialOrden, selectedAño]);
 
   // Filtrar las órdenes por departamento, mes y año (solo presupuesto, no inversión)
   const filteredOrdenes = useMemo(() => {
@@ -160,89 +171,44 @@ export default function PresupuestoClient({
     return filteredOrdenes.reduce((sum, orden) => sum + (parseFloat(orden.Importe) || 0), 0);
   }, [filteredOrdenes]);
 
-  // Calcular gasto total acumulado (total de todas las órdenes de presupuesto)
-  const gastoTotalAcumulado = useMemo(() => {
-    // Solo considerar órdenes del año seleccionado
-    const ordenesDelAño = allDepartmentOrders.filter(orden => {
-      if (!orden.Fecha) return false;
-      const ordenDate = new Date(orden.Fecha);
-      const ordenAño = ordenDate.getFullYear().toString();
-      return ordenAño === selectedAño;
-    });
-
-    return ordenesDelAño.reduce((sum, orden) => sum + (parseFloat(orden.Importe) || 0), 0);
-  }, [allDepartmentOrders, selectedAño]);
-
   // Cargar datos cuando cambie el departamento
   useEffect(() => {
     if (!departamentoId) return
 
     try {
-      // Obtener datos de presupuesto
+      // Obtener datos de presupuesto desde presupuestosPorDepartamento
       const presupuestoData = presupuestosPorDepartamento[departamentoId] || [];
 
-      // Calcular presupuesto mensual
-      const presupMensual = presupuestoData[0]?.presupuesto_mensual || 0;
-      setPresupuestoMensual(presupMensual);
+      // CORREGIDO: Usar el presupuesto total anual directamente desde la API
+      // Si hay datos en presupuestosPorDepartamento, usar esos datos
+      if (presupuestoData.length > 0) {
+        const presupMensual = presupuestoData[0]?.presupuesto_mensual || 0;
+        setPresupuestoMensual(presupMensual);
+
+        // Calcular presupuesto total anual (12 meses)
+        setPresupuestoTotal(presupMensual * 12);
+      } else {
+        // Si no hay datos, intentar obtener desde gastosPorDepartamento (si existe)
+        const gastoData = gastosPorDepartamento[departamentoId] || [];
+        // Esto sería un fallback, pero idealmente deberíamos tener los datos de presupuesto
+        setPresupuestoMensual(0);
+        setPresupuestoTotal(0);
+      }
     } catch (error) {
       console.error("Error cargando datos de presupuesto:", error);
     }
-  }, [departamentoId, presupuestosPorDepartamento]);
+  }, [departamentoId, presupuestosPorDepartamento, gastosPorDepartamento]);
 
-  // Calcular presupuesto anual para el año seleccionado
-  const presupuestoAnual = useMemo(() => {
-    // Si no hay datos de presupuesto mensual, retornar 0
-    if (!presupuestoMensual) return 0;
-
-    // Si el año seleccionado es diferente al año actual, ajustar según la fecha del presupuesto
-    const presupuestoData = departamentoId ? presupuestosPorDepartamento[departamentoId] || [] : [];
-    const fechaInicio = presupuestoData[0]?.fecha_inicio ? new Date(presupuestoData[0]?.fecha_inicio) : null;
-    const fechaFinal = presupuestoData[0]?.fecha_final ? new Date(presupuestoData[0]?.fecha_final) : null;
-
-    // Si no hay fechas o el presupuesto incluye el año seleccionado, usar valor completo
-    if (!fechaInicio || !fechaFinal ||
-      (fechaInicio.getFullYear() <= parseInt(selectedAño) &&
-        fechaFinal.getFullYear() >= parseInt(selectedAño))) {
-      return presupuestoMensual * 12;
-    }
-
-    // Si no coincide el año, retornar 0
-    return 0;
-  }, [presupuestoMensual, departamentoId, presupuestosPorDepartamento, selectedAño]);
-
-  // Calcular saldo actual en tiempo real (presupuesto anual - gasto acumulado)
-  const saldoActual = useMemo(() => {
-    return presupuestoAnual - gastoTotalAcumulado;
-  }, [presupuestoAnual, gastoTotalAcumulado]);
-
-  // Calcular presupuesto total (para toda la vigencia del presupuesto)
-  const presupuestoTotal = useMemo(() => {
-    if (!departamentoId || !presupuestosPorDepartamento[departamentoId]) return 0;
-
-    const presupuestoData = presupuestosPorDepartamento[departamentoId][0];
-    return presupuestoData?.total_presupuesto || (presupuestoMensual * 12);
-  }, [departamentoId, presupuestosPorDepartamento, presupuestoMensual]);
-
-  // Presupuesto actual es el mismo que saldoActual
-  const presupuestoActual = saldoActual;
+  // CORREGIDO: Calcular presupuesto actual = presupuesto total - gasto del año actual
+  const presupuestoActual = useMemo(() => {
+    return presupuestoTotal - gastoTotalDelAñoActual;
+  }, [presupuestoTotal, gastoTotalDelAñoActual]);
 
   // Calcular presupuesto mensual disponible para el mes y año seleccionados
   const presupuestoMensualDisponible = useMemo(() => {
-    // Si el año seleccionado es diferente al año del presupuesto, no hay disponible
-    const presupuestoData = departamentoId ? presupuestosPorDepartamento[departamentoId] || [] : [];
-    const fechaInicio = presupuestoData[0]?.fecha_inicio ? new Date(presupuestoData[0]?.fecha_inicio) : null;
-    const fechaFinal = presupuestoData[0]?.fecha_final ? new Date(presupuestoData[0]?.fecha_final) : null;
-
-    // Si no hay fechas o el presupuesto incluye el año y mes seleccionados, calcular disponible
-    if (!fechaInicio || !fechaFinal ||
-      (fechaInicio.getFullYear() <= parseInt(selectedAño) &&
-        fechaFinal.getFullYear() >= parseInt(selectedAño))) {
-      return presupuestoMensual - gastoDelMes;
-    }
-
-    // Si no coincide el año, no hay disponible
-    return 0;
-  }, [presupuestoMensual, gastoDelMes, departamentoId, presupuestosPorDepartamento, selectedAño]);
+    // Calcular disponible = presupuesto mensual - gasto del mes (para cualquier año)
+    return presupuestoMensual - gastoDelMes;
+  }, [presupuestoMensual, gastoDelMes]);
 
   // Función para cambiar el departamento (solo para admin/contable)
   const handleChangeDepartamento = (newDepartamento) => {
@@ -384,26 +350,27 @@ export default function PresupuestoClient({
                 <div className="w-1/2 pr-4">
                   <h3 className="text-gray-500 mb-2 text-xl">Presupuesto total anual</h3>
                   <div className="text-4xl font-bold text-gray-400">
-                    {presupuestoTotal?.toLocaleString("es-ES", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2
-                    })} €
+                    {formatCurrency(presupuestoTotal)}
                   </div>
                 </div>
                 <div className="w-1/2 pl-4">
                   <h3 className="text-gray-500 mb-2 text-xl">Presupuesto actual</h3>
                   <div className={`text-4xl font-bold ${getTextColorClass(presupuestoActual)}`}>
-                    {presupuestoActual.toLocaleString("es-ES", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2
-                    })} €
+                    {formatCurrency(presupuestoActual)}
                   </div>
                 </div>
               </div>
-              <div className="flex justify-end">
+              <div className="flex justify-between items-center mt-5">
+                <div className="w-full">
+                  <h3 className="text-gray-500 text-mb">Gasto acumulado {selectedAño}</h3>
+                  <div className={`text-2xl font-bold ${gastoTotalDelAñoActual > 0 ? "text-red-600" : "text-gray-900"}`}>
+                    {formatCurrency(gastoTotalDelAñoActual)}
+                  </div>
+                </div>
                 <div className={`w-4 h-4 rounded-full ${getIndicatorColor(presupuestoActual, presupuestoTotal)}`}></div>
               </div>
             </div>
+
             {/* Presupuesto mensual disponible del mes seleccionado */}
             <div className="bg-white border border-gray-200 rounded-lg p-6">
               <h3 className="text-gray-500 mb-2 text-mb">Presupuesto mensual recomendado</h3>
@@ -461,19 +428,16 @@ export default function PresupuestoClient({
                           </div>
                         </td>
                         <td className="py-2 px-3 text-right w-1/6">
-                          {parseFloat(item.Importe).toLocaleString("es-ES", {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2
-                          })}€
+                          {formatCurrency(parseFloat(item.Importe))}
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
                       <td colSpan="3" className="py-4 px-3 text-center text-gray-400">
-                        {filteredOrdenes.length === 0 && allDepartmentOrders.length > 0
+                        {filteredOrdenes.length === 0 && gastoTotalDelAñoActual > 0
                           ? `No hay órdenes para ${selectedMes} ${selectedAño}`
-                          : allDepartmentOrders.length === 0
+                          : gastoTotalDelAñoActual === 0
                             ? "No hay órdenes registradas para este departamento"
                             : "No hay órdenes que cumplan con los filtros seleccionados"}
                       </td>

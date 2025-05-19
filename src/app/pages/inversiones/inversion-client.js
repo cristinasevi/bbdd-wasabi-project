@@ -173,17 +173,28 @@ export default function InversionClient({
   }, [filteredOrdenes]);
 
   // Calcular gasto total acumulado en inversiones (todas las órdenes de inversión)
-  const gastoTotalInversion = useMemo(() => {
-    // Solo considerar órdenes del año seleccionado
-    const ordenesDelAño = allInvestmentOrders.filter(orden => {
-      if (!orden.Fecha) return false;
-      const ordenDate = new Date(orden.Fecha);
-      const ordenAño = ordenDate.getFullYear().toString();
-      return ordenAño === selectedAño;
+  const gastoTotalDelAñoSeleccionado = useMemo(() => {
+    if (!departamento || !initialOrden.length) return 0;
+
+    // Filtrar órdenes del departamento con inversión y del año seleccionado
+    const ordenesDelAño = initialOrden.filter(orden => {
+      // Solo órdenes del departamento y que TENGAN número de inversión
+      if (orden.Departamento !== departamento || !orden.Num_inversion) {
+        return false;
+      }
+
+      // Solo del año seleccionado
+      if (orden.Fecha) {
+        const ordenDate = new Date(orden.Fecha);
+        const ordenAño = ordenDate.getFullYear();
+        return ordenAño === parseInt(selectedAño);
+      }
+
+      return false;
     });
 
     return ordenesDelAño.reduce((sum, orden) => sum + (parseFloat(orden.Importe) || 0), 0);
-  }, [allInvestmentOrders, selectedAño]);
+  }, [departamento, initialOrden, selectedAño]);
 
   // Cargar datos cuando cambie el departamento o el año seleccionado
   useEffect(() => {
@@ -235,8 +246,8 @@ export default function InversionClient({
 
   // Calcular saldo actual en tiempo real (inversión total - gasto acumulado)
   const saldoActual = useMemo(() => {
-    return inversionTotalAnual - gastoTotalInversion;
-  }, [inversionTotalAnual, gastoTotalInversion]);
+    return inversionTotalAnual - gastoTotalDelAñoSeleccionado;
+  }, [inversionTotalAnual, gastoTotalDelAñoSeleccionado]);
 
   const inversionTotal = inversionTotalAnual; // Total disponible para el año
   const inversionActual = saldoActual; // Lo que queda disponible (total - gastado)
@@ -415,7 +426,13 @@ export default function InversionClient({
                   </div>
                 </div>
               </div>
-              <div className="flex justify-end">
+              <div className="flex justify-between items-center mt-5">
+                <div className="w-full">
+                  <h3 className="text-gray-500 text-mb">Gasto acumulado {selectedAño}</h3>
+                  <div className={`text-2xl font-bold ${gastoTotalDelAñoSeleccionado > 0 ? "text-red-600" : "text-gray-900"}`}>
+                    {formatCurrency(gastoTotalDelAñoSeleccionado)}
+                  </div>
+                </div>
                 <div className={`w-4 h-4 rounded-full ${getIndicatorColor(inversionActual, inversionTotal)}`}></div>
               </div>
             </div>
@@ -507,9 +524,9 @@ export default function InversionClient({
                   ) : (
                     <tr>
                       <td colSpan="3" className="py-4 text-center text-gray-400">
-                        {filteredOrdenes.length === 0 && allInvestmentOrders.length > 0
+                        {filteredOrdenes.length === 0 && gastoTotalDelAñoSeleccionado > 0
                           ? `No hay órdenes de inversión para ${selectedMes} ${selectedAño}`
-                          : allInvestmentOrders.length === 0
+                          : gastoTotalDelAñoSeleccionado === 0
                             ? "No hay órdenes de inversión registradas para este departamento"
                             : "No hay órdenes de inversión que cumplan con los filtros seleccionados"}
                       </td>
