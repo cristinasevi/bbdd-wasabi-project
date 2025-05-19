@@ -1159,7 +1159,7 @@ export default function Facturas() {
                                     <td colSpan="9" className="py-6 text-center text-gray-500">
                                         {userRole === "Jefe de Departamento"
                                             ? `No se encontraron facturas para el departamento de ${departamento}`
-                                            : searchTerm || filterFecha || filterImporte || filterProveedor || filterEstado
+                                            : searchTerm || filterMes || filterAño || filterImporte || filterProveedor || filterEstado
                                                 ? "No se encontraron facturas con los criterios de búsqueda actuales"
                                                 : "No se encontraron facturas."}
                                     </td>

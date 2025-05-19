@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Calendar } from "lucide-react"
+import { Calendar, Info } from "lucide-react"
 import Link from "next/link"
 
 export default function ResumenClient({ 
@@ -134,7 +134,16 @@ export default function ResumenClient({
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex justify-end">
+                            <div className="flex justify-between items-center mt-5">
+                                <div className="w-full">
+                                    <h3 className="text-gray-500 text-mb">Gasto en presupuesto acumulado</h3>
+                                    <div className={`text-2xl font-bold ${gastoPresupuestoCalculado > 0 ? "text-red-600" : "text-gray-900"}`}>
+                                        {gastoPresupuestoCalculado?.toLocaleString("es-ES", {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2
+                                        })} €
+                                    </div>
+                                </div>
                                 <div className={`w-4 h-4 rounded-full ${getIndicatorColor(presupuestoActual, presupuestoTotal)}`}></div>
                             </div>
                         </div>
@@ -161,30 +170,17 @@ export default function ResumenClient({
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex justify-end">
+                            <div className="flex justify-between items-center mt-5">
+                                <div className="w-full">
+                                    <h3 className="text-gray-500 text-mb">Inversión acumulada anual</h3>
+                                    <div className={`text-2xl font-bold ${gastoInversion > 0 ? "text-red-600" : "text-gray-900"}`}>
+                                        {gastoInversion?.toLocaleString("es-ES", {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2
+                                        })} €
+                                    </div>
+                                </div>
                                 <div className={`w-4 h-4 rounded-full ${getIndicatorColor(inversionActual, inversionTotal)}`}></div>
-                            </div>
-                        </div>
-
-                        {/* Gasto acumulado anual */}
-                        <div className="bg-white rounded-lg p-6 shadow-sm">
-                            <h3 className="text-gray-500 mb-2 text-xl">Gasto en presupuesto acumulado</h3>
-                            <div className={`text-4xl font-bold ${gastoPresupuestoCalculado > 0 ? "text-red-600" : "text-gray-900"}`}>
-                                {gastoPresupuestoCalculado?.toLocaleString("es-ES", {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2
-                                })} €
-                            </div>
-                        </div>
-
-                        {/* Inversión acumulada anual */}
-                        <div className="bg-white rounded-lg p-6 shadow-sm">
-                            <h3 className="text-gray-500 mb-2 text-xl">Inversión acumulada anual</h3>
-                            <div className={`text-4xl font-bold ${gastoInversion > 0 ? "text-red-600" : "text-gray-900"}`}>
-                                {gastoInversion?.toLocaleString("es-ES", {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2
-                                })} €
                             </div>
                         </div>
                     </div>
@@ -203,23 +199,40 @@ export default function ResumenClient({
                         </div>
 
                         <div className="overflow-hidden mb-8 max-h-[480px] overflow-y-auto">
-                            <table className="w-full">
+                            <table className="w-full table-fixed">
                                 <thead className="bg-white sticky top-0 z-10">
-                                    <tr className="text-left">
-                                        <th className="pb-2 font-normal text-gray-500">Número</th>
-                                        <th className="pb-2 font-normal text-gray-500">Num Inversión</th>
-                                        <th className="pb-2 font-normal text-gray-500">Fecha</th>
-                                        <th className="pb-2 font-normal text-gray-500 text-right">Total</th>
+                                    <tr>
+                                        <th className="pb-2 font-normal text-gray-500 text-left w-1/4">Número</th>
+                                        <th className="pb-2 font-normal text-gray-500 text-left w-2/5">Descripción</th>
+                                        <th className="pb-2 font-normal text-gray-500 text-left w-1/4">Fecha</th>
+                                        <th className="pb-2 font-normal text-gray-500 text-right w-1/5">Total</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                 {filteredOrdenes?.length > 0 ? (
                                     filteredOrdenes.map((item) => (
                                     <tr key={`${item.idOrden}`} className="border-t border-gray-200">
-                                        <td className="py-3 px-4">{item.Num_orden}</td>
-                                        <td className="py-3 px-4">{item.Num_inversion || "-"}</td>
-                                        <td className="py-3 px-4">{formatDate(item.Fecha)}</td>
-                                        <td className="py-3 px-4 text-right">
+                                        <td className="py-3 px-0 text-left w-1/4">
+                                            <div className="flex items-center gap-2">
+                                                <span>{item.Num_orden}</span>
+                                                {item.Inventariable === 1 && item.Num_inversion && (
+                                                    <div className="relative group">
+                                                        <Info className="w-4 h-4 text-blue-500 cursor-help" />
+                                                        <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 whitespace-nowrap z-10 shadow-lg">
+                                                            Número de inversión: {item.Num_inversion}
+                                                            <div className="absolute top-full left-3 w-0 h-0 border-l-2 border-r-2 border-t-4 border-transparent border-t-gray-800"></div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="py-3 px-0 text-left w-2/5">
+                                            <div className="truncate" title={item.Descripcion}>
+                                                {item.Descripcion || "-"}
+                                            </div>
+                                        </td>
+                                        <td className="py-3 px-0 text-left w-1/4">{formatDate(item.Fecha)}</td>
+                                        <td className="py-3 px-0 text-right w-1/5">
                                             {parseFloat(item.Importe).toLocaleString("es-ES", {
                                                 minimumFractionDigits: 2,
                                                 maximumFractionDigits: 2
