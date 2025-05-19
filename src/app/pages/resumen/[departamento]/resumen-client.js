@@ -220,7 +220,7 @@ export default function ResumenClient({
                             </Link>
                         </div>
 
-                        <div className="overflow-hidden mb-8 max-h-[480px] overflow-y-auto">
+                        <div className="overflow-hidden max-h-[470px] overflow-y-auto">
                             <table className="w-full table-fixed">
                                 <thead className="bg-white sticky top-0 z-10">
                                     <tr>
