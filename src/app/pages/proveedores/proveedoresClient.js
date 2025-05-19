@@ -243,23 +243,9 @@ export default function ProveedoresClient({
       }
     }
 
-    // Validación en tiempo real para el teléfono
-    if (name === "telefono" && value.trim().length > 0) {
-      const telefonoExists = proveedores.some(p =>
-        p.Telefono &&
-        String(p.Telefono).trim() === String(value).trim() &&
-        p.idProveedor !== formularioProveedor.idProveedor
-      );
-      if (telefonoExists) {
-        setFormErrors(prev => ({ ...prev, telefono: "Ya existe un proveedor con este teléfono" }));
-      } else {
-        // Si no hay error, quitar el error de teléfono si existía
-        const newErrors = { ...formErrors };
-        delete newErrors.telefono;
-        setFormErrors(newErrors);
-      }
-    } else if (name === "telefono") {
-      // Si se borra el teléfono, quitar el error
+    // Teléfonos pueden repetirse, no hay validación
+    if (name === "telefono") {
+      // Si se modifica el teléfono, quitar cualquier error anterior
       const newErrors = { ...formErrors };
       delete newErrors.telefono;
       setFormErrors(newErrors);

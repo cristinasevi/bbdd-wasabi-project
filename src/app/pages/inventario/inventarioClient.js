@@ -720,7 +720,7 @@ export default function InventarioClient({
                   className="text-gray-500 hover:text-red-600"
                   disabled={isGeneratingExcel}
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-6 h-6 cursor-pointer" />
                 </button>
               </div>
               
@@ -798,7 +798,7 @@ export default function InventarioClient({
               <div className="flex justify-end gap-3">
                 <button
                   onClick={() => setShowExportModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
+                  className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100 cursor-pointer"
                   disabled={isGeneratingExcel}
                 >
                   Cancelar
@@ -808,7 +808,7 @@ export default function InventarioClient({
                 <button
                   onClick={downloadExcel}
                   disabled={isGeneratingExcel || exportData.length === 0}
-                  className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
                 >
                   {isGeneratingExcel ? (
                     <>

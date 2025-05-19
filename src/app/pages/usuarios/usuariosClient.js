@@ -34,6 +34,37 @@ export default function UsuariosClient({
   const [emailError, setEmailError] = useState("");
 
   // Agregar esta función para validar DNI duplicado:
+  // Función para validar formato de DNI español
+  const validateDniFormat = (dni) => {
+    if (!dni || dni.trim() === "") {
+      return { valid: false, error: "" }; // DNI vacío, no mostramos error aquí
+    }
+
+    // Eliminar espacios y convertir a mayúsculas
+    const cleanDNI = dni.trim().toUpperCase();
+
+    // Verificar que tenga el formato correcto (8 números + 1 letra)
+    const dniPattern = /^[0-9]{8}[A-Z]$/;
+    if (!dniPattern.test(cleanDNI)) {
+      return { valid: false, error: "El DNI debe tener 8 números seguidos de una letra (ej: 12345678A)" };
+    }
+
+    // Extraer números y letra
+    const numbers = cleanDNI.substring(0, 8);
+    const letter = cleanDNI.substring(8, 9);
+
+    // Letras de control para validar DNI
+    const controlLetters = "TRWAGMYFPDXBNJZSQVHLCKE";
+    const expectedLetter = controlLetters[parseInt(numbers) % 23];
+
+    if (letter !== expectedLetter) {
+      return { valid: false, error: `La letra del DNI no es correcta.` };
+    }
+
+    return { valid: true, error: "" };
+  };
+
+  // Modificar la función validateDniDuplicate:
   const validateDniDuplicate = async (dni) => {
     if (!dni || dni.trim() === "") {
       setDniError("");
@@ -41,19 +72,31 @@ export default function UsuariosClient({
     }
 
     try {
-      // Validar si el DNI ya existe (excluyendo el usuario actual en modo edición)
-      const existingUser = usuarios.find(user =>
-        user.DNI && user.DNI.toUpperCase() === dni.toUpperCase() &&
-        user.idUsuario !== formularioUsuario.idUsuario
-      );
+      // Primero validar el formato del DNI
+      const formatValidation = validateDniFormat(dni);
+      if (!formatValidation.valid) {
+        setDniError(formatValidation.error);
+        return;
+      }
+
+      // Si el formato es correcto, verificar si ya existe
+      const cleanDNI = dni.trim().toUpperCase();
+      const existingUser = usuarios.find(user => {
+        if (modalMode === "edit" && user.idUsuario === formularioUsuario.idUsuario) {
+          return false; // Excluir el usuario actual cuando editamos
+        }
+
+        return user.DNI && user.DNI.toUpperCase() === cleanDNI;
+      });
 
       if (existingUser) {
         setDniError("Este DNI ya está registrado en el sistema");
       } else {
-        setDniError("");
+        setDniError(""); // DNI válido y no duplicado
       }
     } catch (error) {
       console.error("Error validando DNI:", error);
+      setDniError("Error al validar el DNI");
     }
   };
 
