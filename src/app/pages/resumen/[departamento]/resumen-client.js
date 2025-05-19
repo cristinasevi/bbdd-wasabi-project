@@ -1,76 +1,58 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo } from "react"
 import { Calendar } from "lucide-react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 
-
-export default function ResumenClient({
-    departamento,
-    resumenprep,
-    resumeninv,
-    resumenord,
-    resumengasto,
-    resumeninvacum
+export default function ResumenClient({ 
+  departamento, 
+  resumenprep, 
+  resumeninv, 
+  resumenord, 
+  resumengasto, 
+  resumeninvacum 
 }) {
     // Estados para los filtros de fecha
-    const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-
+    const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
+                  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    
     const mesActual = meses[new Date().getMonth()];
     const añoActual = new Date().getFullYear();
-    const router = useRouter();
-
-    // Añadir estados para mes y año seleccionados
-    const [selectedMes, setSelectedMes] = useState(mesActual);
-    const [selectedAño, setSelectedAño] = useState(añoActual.toString());
-
-    // Cargar valores de localStorage si existen
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const storedMes = localStorage.getItem('selectedMes');
-            const storedAño = localStorage.getItem('selectedAño');
-
-            if (storedMes) setSelectedMes(storedMes);
-            if (storedAño) setSelectedAño(storedAño);
-        }
-    }, []);
-
+    
     // Calcular presupuesto actual e inversión actual - CORREGIDO
     const presupuestoTotal = resumenprep?.[0]?.total_presupuesto || 0;
-
+    
     // NUEVO: Calcular gasto en presupuesto sumando todas las órdenes SIN Num_inversion
     const gastoPresupuestoCalculado = useMemo(() => {
         if (!resumenord || resumenord.length === 0) return 0;
-
+        
         // Filtrar órdenes que NO tengan Num_inversion (son de presupuesto, no inversión)
         const ordenesPresupuesto = resumenord.filter(orden => !orden.Num_inversion);
-
+        
         // Sumar todos los importes
         return ordenesPresupuesto.reduce((total, orden) => {
             return total + (parseFloat(orden.Importe) || 0);
         }, 0);
     }, [resumenord]);
-
+    
     // El presupuesto actual es presupuesto total menos gasto acumulado
     const presupuestoActual = presupuestoTotal - gastoPresupuestoCalculado;
-
+    
     const inversionTotal = resumeninv?.[0]?.total_inversion || 0;
     const gastoInversion = resumeninvacum?.[0]?.Total_Importe || 0;
     const inversionActual = inversionTotal - gastoInversion;
-
+    
     // Determinar el color del indicador según el saldo restante
     const getIndicatorColor = (actual, total) => {
         if (!total) return "bg-gray-400"; // Si no hay total, gris
-
+        
         const porcentaje = (actual / total) * 100;
-
+        
         if (porcentaje < 25) return "bg-red-500";      // Menos del 25% - Rojo
         if (porcentaje < 50) return "bg-yellow-500";   // Entre 25% y 50% - Amarillo
         return "bg-green-500";                         // Más del 50% - Verde
     };
-
+    
     // Determinar el color del texto para valores negativos
     const getTextColorClass = (valor) => {
         return valor < 0 ? "text-red-600" : "";
@@ -79,23 +61,23 @@ export default function ResumenClient({
     // Filtrar órdenes solo para el mes actual (sin estados para filtros)
     const filteredOrdenes = useMemo(() => {
         if (!resumenord || resumenord.length === 0) return [];
-
+        
         return resumenord.filter(orden => {
             if (!orden.Fecha) return false;
-
+            
             const ordenDate = new Date(orden.Fecha);
             const ordenMes = meses[ordenDate.getMonth()];
             const ordenAño = ordenDate.getFullYear().toString();
-
+            
             // Solo mostrar órdenes del mes y año actual
-            return ordenMes === selectedMes && ordenAño === selectedAño;
+            return ordenMes === mesActual && ordenAño === añoActual.toString();
         });
-    }, [resumenord, selectedMes, selectedAño, meses]);
+    }, [resumenord, mesActual, añoActual, meses]);
 
     // Función para formatear fechas
     const formatDate = (dateString) => {
         if (!dateString) return "-";
-
+        
         try {
             const date = new Date(dateString);
             return date.toLocaleDateString('es-ES', {
@@ -118,37 +100,10 @@ export default function ResumenClient({
 
             {/* Fecha */}
             <div className="flex justify-end my-2">
-                <div className="flex gap-4">
-                    {/* Selector de mes */}
-                    <div className="relative">
-                        <select
-                            value={selectedMes}
-                            onChange={(e) => setSelectedMes(e.target.value)}
-                            className="appearance-none bg-gray-100 border border-gray-200 rounded-md px-4 py-2 pr-8 cursor-pointer"
-                        >
-                            {meses.map(mes => (
-                                <option key={mes} value={mes}>{mes}</option>
-                            ))}
-                        </select>
-                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                            <Calendar className="w-4 h-4" />
-                        </div>
-                    </div>
-
-                    {/* Selector de año */}
-                    <div className="relative">
-                        <select
-                            value={selectedAño}
-                            onChange={(e) => setSelectedAño(e.target.value)}
-                            className="appearance-none bg-gray-100 border border-gray-200 rounded-md px-4 py-2 pr-8 cursor-pointer"
-                        >
-                            {[añoActual.toString(), (añoActual - 1).toString(), (añoActual - 2).toString()].map(año => (
-                                <option key={año} value={año}>{año}</option>
-                            ))}
-                        </select>
-                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                            <Calendar className="w-4 h-4" />
-                        </div>
+                <div className="relative">
+                    <div className="appearance-none bg-gray-100 border border-gray-200 rounded-full px-4 py-2 flex items-center gap-2">
+                        <Calendar className="w-4 h-4" />
+                        <span>{`${mesActual} ${añoActual}`}</span>
                     </div>
                 </div>
             </div>
@@ -216,8 +171,8 @@ export default function ResumenClient({
                             <h3 className="text-gray-500 mb-2 text-xl">Gasto en presupuesto acumulado</h3>
                             <div className={`text-4xl font-bold ${gastoPresupuestoCalculado > 0 ? "text-red-600" : "text-gray-900"}`}>
                                 {gastoPresupuestoCalculado?.toLocaleString("es-ES", {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
                                 })} €
                             </div>
                         </div>
@@ -227,8 +182,8 @@ export default function ResumenClient({
                             <h3 className="text-gray-500 mb-2 text-xl">Inversión acumulada anual</h3>
                             <div className={`text-4xl font-bold ${gastoInversion > 0 ? "text-red-600" : "text-gray-900"}`}>
                                 {gastoInversion?.toLocaleString("es-ES", {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
                                 })} €
                             </div>
                         </div>
@@ -258,27 +213,27 @@ export default function ResumenClient({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filteredOrdenes?.length > 0 ? (
-                                        filteredOrdenes.map((item) => (
-                                            <tr key={`${item.idOrden}`} className="border-t border-gray-200">
-                                                <td className="py-3 px-4">{item.Num_orden}</td>
-                                                <td className="py-3 px-4">{item.Num_inversion || "-"}</td>
-                                                <td className="py-3 px-4">{formatDate(item.Fecha)}</td>
-                                                <td className="py-3 px-4 text-right">
-                                                    {parseFloat(item.Importe).toLocaleString("es-ES", {
-                                                        minimumFractionDigits: 2,
-                                                        maximumFractionDigits: 2
-                                                    })}€
-                                                </td>
-                                            </tr>
-                                        ))
-                                    ) : (
-                                        <tr>
-                                            <td colSpan="4" className="py-4 text-center text-gray-400">
-                                                No hay órdenes para {selectedMes} {selectedAño}
-                                            </td>
-                                        </tr>
-                                    )}
+                                {filteredOrdenes?.length > 0 ? (
+                                    filteredOrdenes.map((item) => (
+                                    <tr key={`${item.idOrden}`} className="border-t border-gray-200">
+                                        <td className="py-3 px-4">{item.Num_orden}</td>
+                                        <td className="py-3 px-4">{item.Num_inversion || "-"}</td>
+                                        <td className="py-3 px-4">{formatDate(item.Fecha)}</td>
+                                        <td className="py-3 px-4 text-right">
+                                            {parseFloat(item.Importe).toLocaleString("es-ES", {
+                                                minimumFractionDigits: 2,
+                                                maximumFractionDigits: 2
+                                            })}€
+                                        </td>
+                                    </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                    <td colSpan="4" className="py-4 text-center text-gray-400">
+                                        No hay órdenes para {mesActual} {añoActual}
+                                    </td>
+                                    </tr>
+                                )}
                                 </tbody>
                             </table>
                         </div>
