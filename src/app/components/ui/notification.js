@@ -38,7 +38,7 @@ export default function Notification({ type = "info", message, duration = 3000, 
           onClick={handleClose}
           className="ml-4 text-gray-400 hover:text-gray-600"
         >
-          <X className="h-4 w-4" />
+          <X className="h-4 w-4 cursor-pointer" />
         </button>
       </div>
     </div>

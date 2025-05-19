@@ -1408,7 +1408,7 @@ export default function OrdenesCompraClient({
                 onClick={handleCloseModal}
                 className="text-gray-500 hover:text-red-600"
               >
-                <X className="w-6 h-6" />
+                <X className="w-6 h-6 cursor-pointer" />
               </button>
             </div>
 
@@ -1646,7 +1646,7 @@ export default function OrdenesCompraClient({
               <button
                 type="button"
                 onClick={handleCloseModal}
-                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
+                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100 cursor-pointer"
                 disabled={isLoading}
               >
                 Cancelar

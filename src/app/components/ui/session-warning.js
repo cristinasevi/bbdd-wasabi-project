@@ -59,7 +59,7 @@ export default function SessionWarning() {
               className="bg-yellow-50 rounded-md inline-flex text-yellow-400 hover:text-yellow-500"
               onClick={() => setShowWarning(false)}
             >
-              <X className="h-5 w-5" />
+              <X className="h-5 w-5 cursor-pointer" />
             </button>
           </div>
         </div>
