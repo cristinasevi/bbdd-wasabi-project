@@ -39,8 +39,30 @@ export default function ResumenClient({
     const presupuestoActual = presupuestoTotal - gastoPresupuestoCalculado;
     
     const inversionTotal = resumeninv?.[0]?.total_inversion || 0;
-    const gastoInversion = resumeninvacum?.[0]?.Total_Importe || 0;
-    const inversionActual = inversionTotal - gastoInversion;
+    
+    // CORREGIDO: Calcular gasto de inversión solo del año actual
+    const gastoInversionDelAño = useMemo(() => {
+        if (!resumenord || resumenord.length === 0) return 0;
+        
+        // Filtrar órdenes que SÍ tengan Num_inversion y sean del año actual
+        const ordenesInversionAñoActual = resumenord.filter(orden => {
+            if (!orden.Num_inversion) return false;
+            
+            if (!orden.Fecha) return false;
+            const ordenDate = new Date(orden.Fecha);
+            const ordenAño = ordenDate.getFullYear();
+            
+            return ordenAño === añoActual;
+        });
+        
+        // Sumar todos los importes
+        return ordenesInversionAñoActual.reduce((total, orden) => {
+            return total + (parseFloat(orden.Importe) || 0);
+        }, 0);
+    }, [resumenord, añoActual]);
+    
+    // Ahora usar el gasto filtrado por año
+    const inversionActual = inversionTotal - gastoInversionDelAño;
     
     // Determinar el color del indicador según el saldo restante
     const getIndicatorColor = (actual, total) => {
@@ -67,10 +89,10 @@ export default function ResumenClient({
             
             const ordenDate = new Date(orden.Fecha);
             const ordenMes = meses[ordenDate.getMonth()];
-            const ordenAño = ordenDate.getFullYear().toString();
+            const ordenAño = ordenDate.getFullYear();
             
             // Solo mostrar órdenes del mes y año actual
-            return ordenMes === mesActual && ordenAño === añoActual.toString();
+            return ordenMes === mesActual && ordenAño === añoActual;
         });
     }, [resumenord, mesActual, añoActual, meses]);
 
@@ -172,9 +194,9 @@ export default function ResumenClient({
                             </div>
                             <div className="flex justify-between items-center mt-5">
                                 <div className="w-full">
-                                    <h3 className="text-gray-500 text-mb">Inversión acumulada anual</h3>
-                                    <div className={`text-2xl font-bold ${gastoInversion > 0 ? "text-red-600" : "text-gray-900"}`}>
-                                        {gastoInversion?.toLocaleString("es-ES", {
+                                    <h3 className="text-gray-500 text-mb">Inversión acumulada {añoActual}</h3>
+                                    <div className={`text-2xl font-bold ${gastoInversionDelAño > 0 ? "text-red-600" : "text-gray-900"}`}>
+                                        {gastoInversionDelAño?.toLocaleString("es-ES", {
                                             minimumFractionDigits: 2,
                                             maximumFractionDigits: 2
                                         })} €
@@ -202,37 +224,41 @@ export default function ResumenClient({
                             <table className="w-full table-fixed">
                                 <thead className="bg-white sticky top-0 z-10">
                                     <tr>
-                                        <th className="pb-2 font-normal text-gray-500 text-left w-1/4">Número</th>
-                                        <th className="pb-2 font-normal text-gray-500 text-left w-2/5">Descripción</th>
-                                        <th className="pb-2 font-normal text-gray-500 text-left w-1/4">Fecha</th>
-                                        <th className="pb-2 font-normal text-gray-500 text-right w-1/5">Total</th>
+                                        <th className="pb-2 font-normal text-gray-500 text-left w-1/4 px-3">Número</th>
+                                        <th className="pb-2 font-normal text-gray-500 text-left w-2/5 px-3">Descripción</th>
+                                        <th className="pb-2 font-normal text-gray-500 text-left w-1/4 px-3">Fecha</th>
+                                        <th className="pb-2 font-normal text-gray-500 text-right w-1/5 px-3">Total</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                 {filteredOrdenes?.length > 0 ? (
                                     filteredOrdenes.map((item) => (
                                     <tr key={`${item.idOrden}`} className="border-t border-gray-200">
-                                        <td className="py-3 px-0 text-left w-1/4">
+                                        <td className="py-3 px-3 text-left w-1/4">
                                             <div className="flex items-center gap-2">
                                                 <span>{item.Num_orden}</span>
-                                                {item.Inventariable === 1 && item.Num_inversion && (
+                                                {item.Num_inversion && (
                                                     <div className="relative group">
-                                                        <Info className="w-4 h-4 text-blue-500 cursor-help" />
-                                                        <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 whitespace-nowrap z-10 shadow-lg">
-                                                            Número de inversión: {item.Num_inversion}
-                                                            <div className="absolute top-full left-3 w-0 h-0 border-l-2 border-r-2 border-t-4 border-transparent border-t-gray-800"></div>
+                                                        <Info className="w-4 h-4 text-blue-500" />
+                                                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 rounded p-3 shadow-lg whitespace-nowrap z-50">
+                                                            <div className="text-xs">
+                                                                <p className="font-semibold">Núm. Inversión:</p>
+                                                                <p>{item.Num_inversion}</p>
+                                                            </div>
+                                                            {/* Flecha apuntando hacia abajo */}
+                                                            <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-200"></div>
                                                         </div>
                                                     </div>
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="py-3 px-0 text-left w-2/5">
+                                        <td className="py-3 px-3 text-left w-2/5">
                                             <div className="truncate" title={item.Descripcion}>
                                                 {item.Descripcion || "-"}
                                             </div>
                                         </td>
-                                        <td className="py-3 px-0 text-left w-1/4">{formatDate(item.Fecha)}</td>
-                                        <td className="py-3 px-0 text-right w-1/5">
+                                        <td className="py-3 px-3 text-left w-1/4">{formatDate(item.Fecha)}</td>
+                                        <td className="py-3 px-3 text-right w-1/5">
                                             {parseFloat(item.Importe).toLocaleString("es-ES", {
                                                 minimumFractionDigits: 2,
                                                 maximumFractionDigits: 2
@@ -242,7 +268,7 @@ export default function ResumenClient({
                                     ))
                                 ) : (
                                     <tr>
-                                    <td colSpan="4" className="py-4 text-center text-gray-400">
+                                    <td colSpan="4" className="py-4 px-3 text-center text-gray-400">
                                         No hay órdenes para {mesActual} {añoActual}
                                     </td>
                                     </tr>

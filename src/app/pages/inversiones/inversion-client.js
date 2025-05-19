@@ -238,6 +238,9 @@ export default function InversionClient({
     return inversionTotalAnual - gastoTotalInversion;
   }, [inversionTotalAnual, gastoTotalInversion]);
 
+  const inversionTotal = inversionTotalAnual; // Total disponible para el año
+  const inversionActual = saldoActual; // Lo que queda disponible (total - gastado)
+
   // Calcular inversión mensual disponible para el mes y año seleccionados
   const inversionMensualDisponible = useMemo(() => {
     // Verificar si la inversión aplica para el año y mes seleccionados
@@ -390,14 +393,30 @@ export default function InversionClient({
         {/* Columna izquierda: Tarjetas financieras */}
         <div className="col-span-1">
           <div className="grid gap-6">
-            {/* Saldo actual */}
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <h3 className="text-gray-500 mb-2 text-xl">Saldo actual</h3>
-              <div className="flex justify-between items-center">
-                <div className={`w-4 h-4 rounded-full ${getIndicatorColor(saldoActual, inversionTotalAnual)}`}></div>
-                <div>
-                  <div className={`text-5xl font-bold ${getTextColorClass(saldoActual)}`}>{formatCurrency(saldoActual)}</div>
+            {/* Inversión total anual */}
+            <div className="bg-white rounded-lg p-6 shadow-sm">
+              <div className="flex justify-between items-start">
+                <div className="w-1/2 pr-4">
+                  <h3 className="text-gray-500 mb-2 text-xl">Inversión total anual</h3>
+                  <div className="text-4xl font-bold text-gray-400">
+                    {inversionTotal?.toLocaleString("es-ES", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2
+                    })} €
+                  </div>
                 </div>
+                <div className="w-1/2 pl-4">
+                  <h3 className="text-gray-500 mb-2 text-xl">Inversión actual</h3>
+                  <div className={`text-4xl font-bold ${getTextColorClass(inversionActual)}`}>
+                    {inversionActual.toLocaleString("es-ES", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2
+                    })} €
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <div className={`w-4 h-4 rounded-full ${getIndicatorColor(inversionActual, inversionTotal)}`}></div>
               </div>
             </div>
 
@@ -457,7 +476,7 @@ export default function InversionClient({
                             <span className="truncate max-w-[120px]" title={item.Num_orden}>{item.Num_orden}</span>
                             {item.Num_inversion && (
                               <div className="ml-2 relative group">
-                                <Info className="h-4 w-4 text-blue-500 cursor-help" />
+                                <Info className="h-4 w-4 text-blue-500" />
 
                                 {/* Tooltip que aparece hacia arriba para evitar scroll */}
                                 <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 hidden group-hover:block bg-white border border-gray-200 rounded p-3 shadow-lg whitespace-nowrap z-50">
