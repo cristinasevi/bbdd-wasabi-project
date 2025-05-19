@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { ChevronDown, Calendar } from "lucide-react"
+import { ChevronDown, Calendar, Info } from "lucide-react"
 import Link from "next/link"
 import useUserDepartamento from "@/app/hooks/useUserDepartamento"
 
@@ -439,21 +439,50 @@ export default function InversionClient({
             </div>
 
             <div className="overflow-hidden mb-8 max-h-[480px] overflow-y-auto">
-              <table className="w-full">
+              <table className="w-full table-fixed">
                 <thead className="bg-white sticky top-0 z-10">
-                  <tr className="text-left">
-                    <th className="pb-2 font-normal text-gray-500">Número</th>
-                    <th className="pb-2 font-normal text-gray-500">Núm. Inversión</th>
-                    <th className="pb-2 font-normal text-gray-500 text-right">Total</th>
+                  <tr>
+                    <th className="pb-2 font-normal text-gray-500 text-left w-1/3">Número</th>
+                    <th className="pb-2 font-normal text-gray-500 text-left w-1/2">Descripción</th>
+                    <th className="pb-2 font-normal text-gray-500 text-right w-1/6">Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredOrdenes && filteredOrdenes.length > 0 ? (
                     filteredOrdenes.map((item, index) => (
                       <tr key={`${item.idOrden}-${index}`} className="border-t border-gray-200">
-                        <td className="py-2">{item.Num_orden}</td>
-                        <td className="py-2">{item.Num_inversion || "-"}</td>
-                        <td className="py-2 text-right">{item.Importe}€</td>
+                        {/* Número de Orden con tooltip para Inversión */}
+                        <td className="py-3 w-1/3">
+                          <div className="flex items-center">
+                            <span className="truncate max-w-[120px]" title={item.Num_orden}>{item.Num_orden}</span>
+                            {item.Num_inversion && (
+                              <div className="ml-2 relative group">
+                                <Info className="h-4 w-4 text-blue-500 cursor-help" />
+
+                                {/* Tooltip que aparece hacia arriba para evitar scroll */}
+                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 hidden group-hover:block bg-white border border-gray-200 rounded p-3 shadow-lg whitespace-nowrap z-50">
+                                  <div className="text-xs">
+                                    <p className="font-semibold">Núm. Inversión:</p>
+                                    <p>{item.Num_inversion}</p>
+                                  </div>
+                                  {/* Flecha apuntando hacia abajo */}
+                                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-200"></div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 w-1/2">
+                          <div className="truncate pr-2" title={item.Descripcion}>
+                            {item.Descripcion || "-"}
+                          </div>
+                        </td>
+                        <td className="py-3 text-right w-1/6">
+                          {parseFloat(item.Importe || 0).toLocaleString("es-ES", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                          })}€
+                        </td>
                       </tr>
                     ))
                   ) : (
