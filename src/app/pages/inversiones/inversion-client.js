@@ -252,23 +252,32 @@ export default function InversionClient({
   const inversionTotal = inversionTotalAnual; // Total disponible para el año
   const inversionActual = saldoActual; // Lo que queda disponible (total - gastado)
 
-  // Calcular inversión mensual disponible para el mes y año seleccionados
+  // Calcular inversión mensual recomendada basada en lo que queda por gastar
+  const inversionMensualRecomendada = useMemo(() => {
+    // Si no hay inversión actual restante, no hay recomendación
+    if (inversionActual <= 0) return 0;
+
+    // SIEMPRE calcular desde el mes actual hasta diciembre del año actual
+    const mesActual = new Date().getMonth() + 1; // JavaScript cuenta desde 0 (enero = 0)
+    const mesesRestantes = 12 - mesActual + 1; // +1 para incluir el mes actual
+
+    console.log(`📅 Cálculo de meses restantes: Mes actual: ${mesActual}, Meses restantes: ${mesesRestantes}`);
+
+    // Evitar división por cero (aunque no debería pasar)
+    if (mesesRestantes <= 0) return 0;
+
+    // Calcular recomendación: inversión restante / meses restantes del año actual
+    const recomendacion = inversionActual / mesesRestantes;
+
+    console.log(`💰 Inversión restante: ${inversionActual}, Meses restantes: ${mesesRestantes}, Recomendación mensual: ${recomendacion}`);
+
+    return recomendacion;
+  }, [inversionActual]);
+
+  // Calcular inversión mensual disponible para el mes específico
   const inversionMensualDisponible = useMemo(() => {
-    // Verificar si la inversión aplica para el año y mes seleccionados
-    const inversionData = inversionesPorDepartamento[departamentoId] || [];
-    const fechaInicio = inversionData[0]?.fecha_inicio ? new Date(inversionData[0]?.fecha_inicio) : null;
-    const fechaFinal = inversionData[0]?.fecha_final ? new Date(inversionData[0]?.fecha_final) : null;
-
-    // Si no hay fechas o la inversión incluye el año seleccionado, calcular disponible
-    if (!fechaInicio || !fechaFinal ||
-      (fechaInicio.getFullYear() <= parseInt(selectedAño) &&
-        fechaFinal.getFullYear() >= parseInt(selectedAño))) {
-      return inversionMensual - gastoDelMes;
-    }
-
-    // Si no coincide el año, no hay disponible
-    return 0;
-  }, [inversionMensual, gastoDelMes, departamentoId, inversionesPorDepartamento, selectedAño]);
+    return inversionMensualRecomendada - gastoDelMes;
+  }, [inversionMensualRecomendada, gastoDelMes]);
 
   // Función para cambiar el departamento (solo para admin/contable)
   const handleChangeDepartamento = (newDepartamento) => {
@@ -437,9 +446,33 @@ export default function InversionClient({
               </div>
             </div>
 
-            {/* Inversión mensual disponible del mes seleccionado */}
+            {/* Inversión mensual recomendada del mes seleccionado */}
             <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <h3 className="text-gray-500 mb-2 text-xl">Inversión mensual disponible</h3>
+              <div className="flex items-center gap-2 mb-2">
+                <h3 className="text-gray-500 text-xl">Inversión mensual recomendada</h3>
+                <div className="relative group">
+                  <Info className="w-4 h-4 text-blue-500 cursor-pointer" />
+                  {/* Tooltip más ancho y con texto más corto */}
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 rounded p-3 shadow-lg z-50 w-80">
+                    <div className="text-xs">
+                      <p className="font-semibold mb-1">Cálculo dinámico:</p>
+                      <p className="mb-2">
+                        Se divide la inversión restante entre los meses que quedan del año actual.
+                      </p>
+                      <div className="bg-gray-50 p-2 rounded text-xs">
+                        <p className="font-mono">
+                          {formatCurrency(inversionActual)} ÷ {12 - new Date().getMonth() + 1} meses = {formatCurrency(inversionMensualRecomendada)}
+                        </p>
+                      </div>
+                      <p className="mt-2 text-gray-600 text-xs">
+                        Esto te ayuda a planificar el gasto mensual restante.
+                      </p>
+                    </div>
+                    {/* Flecha apuntando hacia abajo */}
+                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-200"></div>
+                  </div>
+                </div>
+              </div>
               <div className="text-right">
                 <div className={`text-5xl font-bold ${getTextColorClass(inversionMensualDisponible)}`}>
                   {formatCurrency(inversionMensualDisponible)}
@@ -447,6 +480,12 @@ export default function InversionClient({
               </div>
               <div className="text-sm text-gray-400 mt-2">
                 {selectedMes} {selectedAño}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Recomendación: {formatCurrency(inversionMensualRecomendada)}/mes
+                {/* <span className="text-gray-400 ml-1">
+                  (calculado desde hoy hasta diciembre)
+                </span> */}
               </div>
             </div>
 

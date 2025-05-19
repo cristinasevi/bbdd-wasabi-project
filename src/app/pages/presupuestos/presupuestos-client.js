@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { ChevronDown, Calendar } from "lucide-react"
+import { ChevronDown, Calendar, Info } from "lucide-react"
 import Link from "next/link"
 import useUserDepartamento from "@/app/hooks/useUserDepartamento"
 
@@ -204,11 +204,33 @@ export default function PresupuestoClient({
     return presupuestoTotal - gastoTotalDelAñoActual;
   }, [presupuestoTotal, gastoTotalDelAñoActual]);
 
+  // NUEVO: Calcular presupuesto mensual recomendado basado en lo que queda por gastar
+  const presupuestoMensualRecomendado = useMemo(() => {
+    // Si no hay presupuesto actual restante, no hay recomendación
+    if (presupuestoActual <= 0) return 0;
+
+    // SIEMPRE calcular desde el mes actual hasta diciembre del año actual
+    const mesActual = new Date().getMonth() + 1; // JavaScript cuenta desde 0 (enero = 0)
+    const mesesRestantes = 12 - mesActual + 1; // +1 para incluir el mes actual
+
+    console.log(`📅 Presupuesto - Mes actual: ${mesActual}, Meses restantes: ${mesesRestantes}`);
+
+    // Evitar división por cero (aunque no debería pasar)
+    if (mesesRestantes <= 0) return 0;
+
+    // Calcular recomendación: presupuesto restante / meses restantes del año actual
+    const recomendacion = presupuestoActual / mesesRestantes;
+
+    console.log(`💰 Presupuesto restante: ${presupuestoActual}, Meses restantes: ${mesesRestantes}, Recomendación mensual: ${recomendacion}`);
+
+    return recomendacion;
+  }, [presupuestoActual]); // Solo depende de presupuestoActual
+
   // Calcular presupuesto mensual disponible para el mes y año seleccionados
+  // CORREGIDO: Calcular presupuesto mensual disponible para el mes específico
   const presupuestoMensualDisponible = useMemo(() => {
-    // Calcular disponible = presupuesto mensual - gasto del mes (para cualquier año)
-    return presupuestoMensual - gastoDelMes;
-  }, [presupuestoMensual, gastoDelMes]);
+    return presupuestoMensualRecomendado - gastoDelMes;
+  }, [presupuestoMensualRecomendado, gastoDelMes]);
 
   // Función para cambiar el departamento (solo para admin/contable)
   const handleChangeDepartamento = (newDepartamento) => {
@@ -371,9 +393,33 @@ export default function PresupuestoClient({
               </div>
             </div>
 
-            {/* Presupuesto mensual disponible del mes seleccionado */}
+            {/* Presupuesto mensual recomendado del mes seleccionado */}
             <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <h3 className="text-gray-500 mb-2 text-mb">Presupuesto mensual recomendado</h3>
+              <div className="flex items-center gap-2 mb-2">
+                <h3 className="text-gray-500 text-xl">Presupuesto mensual recomendado</h3>
+                <div className="relative group">
+                  <Info className="w-4 h-4 text-blue-500 cursor-pointer" />
+                  {/* Tooltip explicativo */}
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 rounded p-3 shadow-lg z-50 w-80">
+                    <div className="text-xs">
+                      <p className="font-semibold mb-1">Cálculo dinámico:</p>
+                      <p className="mb-2">
+                        Se divide el presupuesto restante entre los meses que quedan del año actual.
+                      </p>
+                      <div className="bg-gray-50 p-2 rounded text-xs">
+                        <p className="font-mono">
+                          {formatCurrency(presupuestoActual)} ÷ {12 - new Date().getMonth()} meses = {formatCurrency(presupuestoMensualRecomendado)}
+                        </p>
+                      </div>
+                      <p className="mt-2 text-gray-600 text-xs">
+                        Esto te ayuda a planificar el gasto mensual restante.
+                      </p>
+                    </div>
+                    {/* Flecha apuntando hacia abajo */}
+                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-200"></div>
+                  </div>
+                </div>
+              </div>
               <div className="text-right">
                 <div className={`text-5xl font-bold ${getTextColorClass(presupuestoMensualDisponible)}`}>
                   {formatCurrency(presupuestoMensualDisponible)}
@@ -381,6 +427,9 @@ export default function PresupuestoClient({
               </div>
               <div className="text-sm text-gray-400 mt-2">
                 {selectedMes} {selectedAño}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Recomendación: {formatCurrency(presupuestoMensualRecomendado)}/mes
               </div>
             </div>
 
