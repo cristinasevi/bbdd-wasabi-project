@@ -39,12 +39,72 @@ export default function Facturas() {
     const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
 
     // Función para abrir el visor de PDF
-    const handleViewPdf = (facturaId, numFactura) => {
-        const pdfUrl = `/api/facturas/viewPdf?id=${facturaId}`;
-        const pdfName = `Factura ${numFactura}`;
-        setSelectedPdfUrl(pdfUrl);
-        setSelectedPdfName(pdfName);
-        setShowPdfViewer(true);
+    const handleViewPdf = async (facturaId, numFactura) => {
+        try {
+            // 1. Mostrar indicador de carga
+            setIsLoading(true);
+            addNotification("Preparando PDF para visualización...", "info");
+
+            // 2. Verificar si existe el PDF, y si no, generarlo automáticamente
+            console.log(`🔍 Verificando/generando PDF para factura ${numFactura}...`);
+
+            // Llamar al endpoint de generación específica para esta factura
+            const generateResponse = await fetch(`/api/facturas/generate?id=${facturaId}`);
+
+            if (!generateResponse.ok) {
+                const errorData = await generateResponse.json();
+
+                // Si el error es que no hay ruta definida, intentar generar automáticamente
+                if (errorData.error.includes("No hay ruta de PDF definida")) {
+                    console.log("📝 Generando ruta de PDF automáticamente...");
+
+                    // Obtener datos de la factura para generar ruta
+                    const facturaResponse = await fetch(`/api/getFacturaById/${facturaId}`);
+                    if (facturaResponse.ok) {
+                        const facturaData = await facturaResponse.json();
+
+                        // Generar ruta automáticamente
+                        const año = new Date(facturaData.Fecha_emision || new Date()).getFullYear();
+                        const departamentoCodigo = facturaData.Departamento?.substring(0, 3).toLowerCase() || 'gen';
+                        const numeroLimpio = facturaData.Num_factura.toLowerCase().replace(/[^a-z0-9]/g, '');
+                        const rutaPdf = `/facturas/${año}/${departamentoCodigo}/fac-${numeroLimpio}.pdf`;
+
+                        // Actualizar la factura con la nueva ruta (necesitarías crear este endpoint)
+                        const updateResponse = await fetch(`/api/facturas/updateRoute`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ facturaId, rutaPdf })
+                        });
+
+                        if (updateResponse.ok) {
+                            // Intentar generar nuevamente
+                            const retryResponse = await fetch(`/api/facturas/generate?id=${facturaId}`);
+                            if (!retryResponse.ok) {
+                                throw new Error("Error generando PDF después de crear ruta");
+                            }
+                        }
+                    }
+                } else {
+                    throw new Error(errorData.error || "Error generando PDF");
+                }
+            }
+
+            // 3. Una vez generado (o confirmado que existe), abrir el visor
+            const pdfUrl = `/api/facturas/viewPdf?id=${facturaId}&t=${Date.now()}`; // Añadir timestamp para evitar caché
+            const pdfName = `Factura ${numFactura}`;
+
+            setSelectedPdfUrl(pdfUrl);
+            setSelectedPdfName(pdfName);
+            setShowPdfViewer(true);
+
+            addNotification("PDF listo para visualización", "success");
+
+        } catch (error) {
+            console.error("Error preparando PDF:", error);
+            addNotification(`Error: ${error.message}`, "error");
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     // Función para extraer mes y año de una fecha

@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { pool } from "@/app/api/lib/db";
 import path from "path";
 import fs from "fs";
-import PDFDocument from "pdfkit";
+
+// Importar jsPDF (solo cuando sea necesario)
+let jsPDF;
 
 export async function GET(request) {
   try {
-    // Obtener ID de la factura de los parámetros de consulta
     const { searchParams } = new URL(request.url);
     const facturaId = searchParams.get("id");
 
@@ -15,6 +16,12 @@ export async function GET(request) {
         { error: "ID de factura no proporcionado" },
         { status: 400 }
       );
+    }
+
+    // Cargar jsPDF dinámicamente
+    if (!jsPDF) {
+      const jsPDFModule = await import('jspdf');
+      jsPDF = jsPDFModule.default;
     }
 
     // Buscar la factura en la base de datos
@@ -52,12 +59,23 @@ export async function GET(request) {
 
     const factura = facturas[0];
 
-    // Verificar si hay una ruta de PDF definida
-    if (!factura.Ruta_pdf) {
-      return NextResponse.json(
-        { error: "No hay ruta de PDF definida para esta factura" },
-        { status: 400 }
+    // Si no hay ruta definida, generarla automáticamente
+    if (!factura.Ruta_pdf || factura.Ruta_pdf.trim() === '') {
+      console.log(`📝 Generando ruta automática para factura ${factura.Num_factura}...`);
+      
+      const año = new Date(factura.Fecha_emision || new Date()).getFullYear();
+      const departamentoCodigo = factura.Departamento?.substring(0, 3).toLowerCase() || 'gen';
+      const numeroLimpio = factura.Num_factura.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const rutaPdf = `/facturas/${año}/${departamentoCodigo}/fac-${numeroLimpio}.pdf`;
+      
+      // Actualizar la ruta en la base de datos
+      await pool.query(
+        'UPDATE Factura SET Ruta_pdf = ? WHERE idFactura = ?',
+        [rutaPdf, facturaId]
       );
+      
+      factura.Ruta_pdf = rutaPdf;
+      console.log(`✅ Ruta generada: ${rutaPdf}`);
     }
 
     // Normalizar la ruta
@@ -73,10 +91,11 @@ export async function GET(request) {
     const directorio = path.dirname(rutaCompleta);
     if (!fs.existsSync(directorio)) {
       fs.mkdirSync(directorio, { recursive: true });
+      console.log(`📁 Directorio creado: ${directorio}`);
     }
     
-    // Generar el PDF simplificado
-    const success = await generateSimpleInvoicePDF(factura, rutaCompleta);
+    // Generar el PDF con jsPDF
+    const success = await generateInvoicePDFWithJsPDF(factura, rutaCompleta);
     
     if (!success) {
       return NextResponse.json(
@@ -89,7 +108,8 @@ export async function GET(request) {
       success: true,
       message: "PDF generado correctamente",
       ruta: factura.Ruta_pdf,
-      factura: factura.Num_factura
+      factura: factura.Num_factura,
+      regenerated: true
     });
   } catch (error) {
     console.error("Error en la API de generación de PDF:", error);
@@ -101,149 +121,165 @@ export async function GET(request) {
 }
 
 /**
- * Función para generar un PDF de factura simplificado
- * @param {Object} facturaData - Datos de la factura
- * @param {string} outputPath - Ruta completa donde guardar el PDF
- * @returns {Promise<boolean>} - true si se generó correctamente
+ * Genera un PDF de factura con estilo usando jsPDF
  */
-async function generateSimpleInvoicePDF(facturaData, outputPath) {
-  return new Promise((resolve, reject) => {
-    try {
-      // Crear directorio si no existe
-      const dir = path.dirname(outputPath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
+async function generateInvoicePDFWithJsPDF(facturaData, outputPath) {
+  try {
+    // Crear nuevo documento PDF con jsPDF
+    const doc = new jsPDF();
+    
+    // CABECERA
+    // Título principal en rojo corporativo
+    doc.setFontSize(28);
+    doc.setTextColor(224, 45, 57); // #E02D39
+    doc.text('FACTURA', 20, 25);
+    
+    // Número de factura y fecha
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Factura Nº: ${facturaData.Num_factura}`, 20, 45);
+    doc.text(`Fecha: ${formatDate(facturaData.Fecha_emision)}`, 130, 45);
+    
+    // Rectángulo de información (simulando el estilo original)
+    doc.setFillColor(246, 246, 246); // #f6f6f6
+    doc.setDrawColor(204, 204, 204); // #cccccc
+    doc.rect(20, 55, 170, 25, 'FD'); // F=fill, D=draw
+    
+    doc.setFontSize(11);
+    doc.text('INFORMACIÓN DE LA FACTURA', 25, 67);
+    
+    doc.setFontSize(10);
+    doc.text(`ID Factura: ${facturaData.idFactura}`, 25, 75);
+    doc.text(`Departamento: ${facturaData.Departamento}`, 105, 75);
+    
+    // Información del proveedor
+    doc.setFontSize(14);
+    doc.text('Datos del Proveedor', 20, 95);
+    
+    doc.setFontSize(10);
+    doc.text(`Proveedor: ${facturaData.Proveedor || 'Información no disponible'}`, 20, 110);
+    doc.text(`NIF: ${facturaData.NIF || 'Información no disponible'}`, 20, 120);
+    doc.text(`Dirección: ${facturaData.Direccion || 'Información no disponible'}`, 20, 130);
+    doc.text(`Teléfono: ${facturaData.Telefono || 'Información no disponible'}`, 20, 140);
+    
+    // Descripción de la orden
+    doc.setFontSize(14);
+    doc.text('Descripción de la Orden de Compra', 20, 160);
+    
+    // Tabla de conceptos - Cabecera
+    const tableY = 175;
+    doc.setFillColor(224, 45, 57); // Color rojo corporativo
+    doc.rect(20, tableY, 170, 10, 'F');
+    
+    doc.setTextColor(255, 255, 255); // Blanco
+    doc.setFontSize(10);
+    doc.text('Descripción', 25, tableY + 7);
+    doc.text('Cantidad', 85, tableY + 7);
+    doc.text('Importe Unit.', 125, tableY + 7);
+    doc.text('Importe Total', 165, tableY + 7);
+    
+    // Datos de la tabla
+    const cantidad = facturaData.Cantidad || 1;
+    const importe = facturaData.Importe || 0;
+    const importeUnitario = cantidad ? importe / cantidad : 0;
+    
+    doc.setFillColor(248, 249, 250); // Fondo alternativo
+    doc.rect(20, tableY + 10, 170, 10, 'F');
+    
+    doc.setTextColor(0, 0, 0);
+    
+    // Truncar descripción si es muy larga
+    let descripcion = facturaData.Descripcion || 'Orden de compra estándar';
+    if (descripcion.length > 25) {
+      descripcion = descripcion.substring(0, 22) + '...';
+    }
+    
+    doc.text(descripcion, 25, tableY + 17);
+    doc.text(cantidad.toString(), 85, tableY + 17);
+    doc.text(`${importeUnitario.toFixed(2)}€`, 125, tableY + 17);
+    doc.text(`${importe.toFixed(2)}€`, 165, tableY + 17);
+    
+    // Resumen económico
+    doc.setFontSize(14);
+    doc.text('Resumen Económico', 20, tableY + 40);
+    
+    const summaryY = tableY + 55;
+    doc.setFontSize(11);
+    
+    // Subtotal
+    doc.text('Subtotal:', 130, summaryY);
+    doc.text(`${importe.toFixed(2)}€`, 170, summaryY);
+    
+    // IVA
+    const iva = importe * 0.21;
+    doc.text('IVA (21%):', 130, summaryY + 10);
+    doc.text(`${iva.toFixed(2)}€`, 170, summaryY + 10);
+    
+    // Línea separadora
+    doc.setDrawColor(204, 204, 204);
+    doc.line(130, summaryY + 15, 190, summaryY + 15);
+    
+    // Total
+    const total = importe + iva;
+    doc.setFontSize(14);
+    doc.setTextColor(224, 45, 57);
+    doc.text('TOTAL:', 130, summaryY + 25);
+    doc.text(`${total.toFixed(2)}€`, 170, summaryY + 25);
+    
+    // Estado de la factura
+    doc.setTextColor(0, 0, 0);
+    if (facturaData.Estado) {
+      let estadoColor;
+      switch(facturaData.Estado) {
+        case 'Contabilizada':
+          estadoColor = [0, 128, 0]; // Verde
+          break;
+        case 'Pendiente':
+          estadoColor = [255, 165, 0]; // Naranja
+          break;
+        default:
+          estadoColor = [255, 0, 0]; // Rojo
       }
       
-      // Crear PDF con opciones básicas
-      const doc = new PDFDocument({
-        margin: 50,
-        size: 'A4',
-        info: {
-          Title: `Factura ${facturaData.Num_factura}`,
-          Author: 'Salesianos Zaragoza'
-        }
-      });
-      
-      const writeStream = fs.createWriteStream(outputPath);
-      
-      // Configurar eventos
-      writeStream.on('finish', () => resolve(true));
-      writeStream.on('error', reject);
-      
-      // Pipe del PDF al stream de escritura
-      doc.pipe(writeStream);
-      
-      // CONSTANTES DE ESTILO
-      const COLOR = {
-        primary: '#E02D39',
-        text: '#333333'
-      };
-      
-      // CONTENIDO SIMPLIFICADO
-      
-      // 1. TÍTULO Y NÚMERO DE FACTURA
-      doc.fontSize(22)
-         .fillColor(COLOR.primary)
-         .font('Helvetica-Bold')
-         .text('FACTURA', 50, 50)
-         .fontSize(16)
-         .text(`Nº ${facturaData.Num_factura}`, 50, 80);
-      
-      // 2. INFORMACIÓN BÁSICA - formato de tabla simple
-      doc.fontSize(12)
-         .fillColor(COLOR.text)
-         .moveDown(1.5);
-      
-      // Crear tabla simple con datos principales
-      const infoData = [
-        ['Fecha:', formatDate(facturaData.Fecha_emision)],
-        ['Departamento:', facturaData.Departamento],
-        ['Proveedor:', facturaData.Proveedor],
-        ['NIF Proveedor:', facturaData.NIF || 'No disponible'],
-        ['Dirección:', facturaData.Direccion || 'No disponible'],
-        ['Orden de Compra:', facturaData.Num_orden],
-        ['Estado:', facturaData.Estado]
-      ];
-      
-      // Posición inicial de la tabla
-      let yPosition = 120;
-      const lineHeight = 25;
-      
-      // Dibujar cada fila de información
-      infoData.forEach((row, index) => {
-        // Alternar fondo para mejor legibilidad
-        if (index % 2 === 0) {
-          doc.rect(50, yPosition, 500, lineHeight).fill('#f9f9f9');
-        }
-        
-        // Nombre del campo (izquierda)
-        doc.font('Helvetica-Bold')
-           .text(row[0], 60, yPosition + 7, { width: 150 });
-        
-        // Valor del campo (derecha)
-        doc.font('Helvetica')
-           .text(row[1], 210, yPosition + 7, { width: 330 });
-        
-        yPosition += lineHeight;
-      });
-      
-      // 3. INFORMACIÓN DE IMPORTES
-      yPosition += 20;
-      
-      // Calcular importes
-      const subtotal = facturaData.Importe || 0;
-      const iva = subtotal * 0.21;
-      const total = subtotal + iva;
-      
-      // Crear cuadro de totales
-      doc.rect(300, yPosition, 250, 100).stroke('#cccccc');
-      
-      // Datos de importes
-      doc.fontSize(12)
-         .font('Helvetica-Bold')
-         .text('IMPORTE:', 320, yPosition + 20)
-         .font('Helvetica')
-         .text(`${subtotal.toFixed(2)} €`, 450, yPosition + 20, { align: 'right' });
-      
-      doc.font('Helvetica-Bold')
-         .text('IVA (21%):', 320, yPosition + 45)
-         .font('Helvetica')
-         .text(`${iva.toFixed(2)} €`, 450, yPosition + 45, { align: 'right' });
-      
-      // Línea separadora
-      doc.moveTo(320, yPosition + 70)
-         .lineTo(530, yPosition + 70)
-         .stroke();
-      
-      // Importe total
-      doc.fontSize(14)
-         .font('Helvetica-Bold')
-         .fillColor(COLOR.primary)
-         .text('TOTAL:', 320, yPosition + 75)
-         .text(`${total.toFixed(2)} €`, 450, yPosition + 75, { align: 'right' });
-      
-      // Finalizar el documento
-      doc.end();
-    } catch (error) {
-      console.error('Error generando PDF:', error);
-      reject(error);
+      doc.setTextColor(...estadoColor);
+      doc.setFontSize(12);
+      doc.text(`Estado: ${facturaData.Estado}`, 20, summaryY + 35);
     }
-  });
+    
+    // Pie de página
+    doc.setTextColor(102, 102, 102); // Gris
+    doc.setFontSize(9);
+    doc.text('Esta factura fue generada automáticamente por el sistema de gestión.', 20, 270);
+    doc.text('Sin el sello y la firma correspondiente, este documento carece de valor contable.', 20, 280);
+    
+    // Fecha de generación y copyright
+    doc.setFontSize(8);
+    doc.text(`Documento generado el: ${new Date().toLocaleString('es-ES')}`, 20, 285);
+    doc.text('© 2025 Salesianos Zaragoza', 105, 290, { align: 'center' });
+    
+    // Guardar el PDF
+    const pdfBuffer = doc.output('arraybuffer');
+    await fs.promises.writeFile(outputPath, Buffer.from(pdfBuffer));
+    
+    console.log(`✅ PDF generado con jsPDF: ${outputPath}`);
+    return true;
+    
+  } catch (error) {
+    console.error('Error generando PDF con jsPDF:', error);
+    return false;
+  }
 }
 
 /**
- * Formatea una fecha para mostrar en formato dd/mm/yyyy
- * @param {string|Date} dateString - Fecha a formatear
- * @returns {string} - Fecha formateada
+ * Formatea una fecha para mostrar
  */
 function formatDate(dateString) {
-  if (!dateString) return "-";
+  if (!dateString) return new Date().toLocaleDateString('es-ES');
   
   try {
     const date = new Date(dateString);
     return date.toLocaleDateString('es-ES');
   } catch (error) {
-    return dateString || "-";
+    return new Date().toLocaleDateString('es-ES');
   }
 }
