@@ -22,9 +22,10 @@ export default function InversionClient({
   const [isLoading, setIsLoading] = useState(false)
   const [loadingRefresh, setLoadingRefresh] = useState(false)
   const [successMessage, setSuccessMessage] = useState("")
+  const [añosConBolsas, setAñosConBolsas] = useState([])
 
   // Utilizar nuestro hook personalizado para cargar datos
-  const { fetchBolsasData } = useBolsasData()
+  const { fetchBolsasData, getExistingYears } = useBolsasData()
 
   // Estados para los filtros de fecha - inicializados con valores actuales
   const [selectedMes, setSelectedMes] = useState(mesActual)
@@ -97,12 +98,48 @@ export default function InversionClient({
     }
   }, [departamento, initialDepartamentos])
 
+  // Cargar años que tienen bolsas asociadas cuando cambia el departamento
+  useEffect(() => {
+    async function fetchYearsWithBolsas() {
+      if (!departamentoId) return;
+      
+      try {
+        // Usar el hook para obtener años con bolsas
+        const years = await getExistingYears(departamentoId);
+        
+        if (years && years.length > 0) {
+          setAñosConBolsas(years);
+          
+          // Verificar si el año seleccionado actualmente está en la lista
+          // Si no está, seleccionar el año más reciente
+          if (!years.includes(selectedAño) && years.length > 0) {
+            // Ordenar años de más reciente a más antiguo
+            const sortedYears = [...years].sort((a, b) => parseInt(b) - parseInt(a));
+            setSelectedAño(sortedYears[0]);
+            // Cargar datos para el año seleccionado
+            reloadDataForYear(parseInt(sortedYears[0]));
+          }
+        }
+      } catch (error) {
+        console.error("Error cargando años con bolsas:", error);
+      }
+    }
+    
+    fetchYearsWithBolsas();
+  }, [departamentoId, getExistingYears]);
+
   // Función para refrescar datos
   const refreshData = async () => {
     if (!departamentoId) return;
     
     setLoadingRefresh(true);
     try {
+      // Actualizar la lista de años con bolsas
+      const years = await getExistingYears(departamentoId);
+      if (years && years.length > 0) {
+        setAñosConBolsas(years);
+      }
+      
       const result = await fetchBolsasData(departamentoId, parseInt(selectedAño), 'inversion');
       
       if (result && result.inversion) {
@@ -188,6 +225,11 @@ export default function InversionClient({
     // Siempre incluir el mes y año actual
     mesesSet.add(mesActual);
     añosSet.add(año.toString());
+    
+    // Añadir años que tienen bolsas de inversión
+    añosConBolsas.forEach(year => {
+      añosSet.add(year.toString());
+    });
 
     // Ordenar meses
     const mesesOrder = {
@@ -199,7 +241,7 @@ export default function InversionClient({
     const sortedAños = Array.from(añosSet).sort((a, b) => parseInt(a) - parseInt(b));
 
     return { availableMeses: sortedMeses, availableAños: sortedAños };
-  }, [departamento, initialOrden, mesActual, año]);
+  }, [departamento, initialOrden, mesActual, año, añosConBolsas]);
 
   // Calcular gasto del mes seleccionado
   const gastoDelMes = useMemo(() => {
@@ -594,7 +636,7 @@ export default function InversionClient({
             <div className="overflow-hidden max-h-[480px] overflow-y-auto">
               <table className="w-full table-fixed">
                 <thead className="bg-white sticky top-0 z-10">
-                  <tr>
+                  <tr className="border-b border-gray-200">
                     <th className="pb-2 font-normal text-gray-500 text-left w-1/3">Número</th>
                     <th className="pb-2 font-normal text-gray-500 text-left w-1/2">Descripción</th>
                     <th className="pb-2 font-normal text-gray-500 text-right w-1/6">Total</th>
@@ -644,7 +686,9 @@ export default function InversionClient({
                         {filteredOrdenes.length === 0 && gastoTotalDelAñoSeleccionado > 0
                           ? `No hay órdenes de inversión para ${selectedMes} ${selectedAño}`
                           : gastoTotalDelAñoSeleccionado === 0
-                            ? "No hay órdenes de inversión registradas para este departamento"
+                            ? inversionTotal > 0 
+                              ? `No hay órdenes de inversión registradas para ${selectedAño}` 
+                              : "No hay órdenes ni inversiones para este período"
                             : "No hay órdenes de inversión que cumplan con los filtros seleccionados"}
                       </td>
                     </tr>

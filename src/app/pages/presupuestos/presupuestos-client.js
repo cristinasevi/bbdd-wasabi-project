@@ -23,9 +23,10 @@ export default function PresupuestoClient({
   const [isLoading, setIsLoading] = useState(false)
   const [loadingRefresh, setLoadingRefresh] = useState(false)
   const [successMessage, setSuccessMessage] = useState("")
+  const [añosConBolsas, setAñosConBolsas] = useState([])
 
   // Utilizar nuestro hook personalizado para cargar datos
-  const { fetchBolsasData } = useBolsasData()
+  const { fetchBolsasData, getExistingYears } = useBolsasData()
 
   // Estados para los filtros de fecha - inicializados con valores actuales
   const [selectedMes, setSelectedMes] = useState(mesActual)
@@ -80,6 +81,36 @@ export default function PresupuestoClient({
       }
     }
   }, [departamento, initialDepartamentos])
+
+  // Cargar años que tienen bolsas asociadas cuando cambia el departamento
+  useEffect(() => {
+    async function fetchYearsWithBolsas() {
+      if (!departamentoId) return;
+      
+      try {
+        // Usar el hook para obtener años con bolsas
+        const years = await getExistingYears(departamentoId);
+        
+        if (years && years.length > 0) {
+          setAñosConBolsas(years);
+          
+          // Verificar si el año seleccionado actualmente está en la lista
+          // Si no está, seleccionar el año más reciente
+          if (!years.includes(selectedAño) && years.length > 0) {
+            // Ordenar años de más reciente a más antiguo
+            const sortedYears = [...years].sort((a, b) => parseInt(b) - parseInt(a));
+            setSelectedAño(sortedYears[0]);
+            // Cargar datos para el año seleccionado
+            reloadDataForYear(parseInt(sortedYears[0]));
+          }
+        }
+      } catch (error) {
+        console.error("Error cargando años con bolsas:", error);
+      }
+    }
+    
+    fetchYearsWithBolsas();
+  }, [departamentoId, getExistingYears]);
 
   // CORREGIDO: Calcular gasto total del año actual (sin filtro de año)
   const gastoTotalDelAñoActual = useMemo(() => {
@@ -159,6 +190,11 @@ export default function PresupuestoClient({
     // Siempre incluir el mes y año actual
     mesesSet.add(mesActual);
     añosSet.add(año.toString());
+    
+    // Añadir años que tienen bolsas presupuestarias
+    añosConBolsas.forEach(year => {
+      añosSet.add(year.toString());
+    });
 
     // Ordenar meses
     const mesesOrder = {
@@ -170,7 +206,7 @@ export default function PresupuestoClient({
     const sortedAños = Array.from(añosSet).sort((a, b) => parseInt(a) - parseInt(b));
 
     return { availableMeses: sortedMeses, availableAños: sortedAños };
-  }, [departamento, initialOrden, mesActual, año]);
+  }, [departamento, initialOrden, mesActual, año, añosConBolsas]);
 
   // Calcular gasto del mes seleccionado
   const gastoDelMes = useMemo(() => {
@@ -211,6 +247,13 @@ export default function PresupuestoClient({
     
     setLoadingRefresh(true);
     try {
+      // Actualizar la lista de años con bolsas
+      const years = await getExistingYears(departamentoId);
+      if (years && years.length > 0) {
+        setAñosConBolsas(years);
+      }
+      
+      // Obtener datos actualizados para el año seleccionado
       const result = await fetchBolsasData(departamentoId, parseInt(selectedAño), 'presupuesto');
       
       if (result && result.presupuesto) {
@@ -568,7 +611,9 @@ export default function PresupuestoClient({
                         {filteredOrdenes.length === 0 && gastoTotalDelAñoActual > 0
                           ? `No hay órdenes para ${selectedMes} ${selectedAño}`
                           : gastoTotalDelAñoActual === 0
-                            ? "No hay órdenes registradas para este departamento"
+                            ? presupuestoTotal > 0 
+                              ? `No hay órdenes registradas para ${selectedAño}` 
+                              : "No hay órdenes ni presupuesto para este período"
                             : "No hay órdenes que cumplan con los filtros seleccionados"}
                       </td>
                     </tr>

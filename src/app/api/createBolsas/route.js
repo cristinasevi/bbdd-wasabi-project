@@ -10,7 +10,7 @@ export async function POST(request) {
       año, 
       cantidadPresupuesto, 
       cantidadInversion,
-      esActualizacion = false // Nuevo parámetro para indicar si es actualización
+      esActualizacion = false
     } = data;
     
     console.log('API createBolsas: Datos recibidos:', {
@@ -53,11 +53,11 @@ export async function POST(request) {
       const fechaFinal = `${año}-12-31`;
       const resultados = [];
       
-      // Si es actualización, eliminar las bolsas existentes para ese año y departamento
+      // Si es actualización, verificar si las bolsas existentes tienen órdenes asociadas
       if (esActualizacion) {
-        console.log(`Actualizando bolsas para departamento ${departamentoId} y año ${año}`);
+        console.log(`Verificando si hay órdenes asociadas a bolsas del año ${año} para departamento ${departamentoId}`);
         
-        // Obtener detalles de las bolsas existentes para mostrar en logs
+        // Obtener detalles de las bolsas existentes 
         const [bolsasExistentes] = await connection.query(
           `SELECT b.id_Bolsa, b.cantidad_inicial, 
            (SELECT COUNT(*) FROM Bolsa_Presupuesto bp WHERE bp.id_BolsaFK = b.id_Bolsa) as es_presupuesto,
@@ -67,25 +67,41 @@ export async function POST(request) {
           [departamentoId, año]
         );
         
-        console.log(`Encontradas ${bolsasExistentes.length} bolsas existentes para sustituir:`, 
-          bolsasExistentes.map(b => ({
-            id: b.id_Bolsa,
-            cantidad: b.cantidad_inicial,
-            tipo: b.es_presupuesto ? 'presupuesto' : (b.es_inversion ? 'inversión' : 'desconocido')
-          }))
-        );
-        
         if (bolsasExistentes.length > 0) {
           const idsExistentes = bolsasExistentes.map(b => b.id_Bolsa);
           
-          // Registrar qué cantidades se están sustituyendo
-          console.log("Sustituyendo cantidades:");
-          bolsasExistentes.forEach(bolsa => {
-            const tipo = bolsa.es_presupuesto ? 'presupuesto' : (bolsa.es_inversion ? 'inversión' : 'desconocido');
-            console.log(`- Bolsa ${bolsa.id_Bolsa} (${tipo}): ${bolsa.cantidad_inicial} → ${
-              tipo === 'presupuesto' ? cantidadPresupuesto : (tipo === 'inversión' ? cantidadInversion : 'N/A')
-            }`);
-          });
+          // Verificar si hay órdenes de compra asociadas a presupuestos
+          const [ordenesPresupuesto] = await connection.query(
+            `SELECT COUNT(*) as total FROM Orden_Compra WHERE id_PresupuestoFK IN (?)`,
+            [idsExistentes]
+          );
+          
+          // Verificar si hay órdenes de inversión asociadas
+          const [ordenesInversion] = await connection.query(
+            `SELECT COUNT(*) as total FROM Orden_Inversion WHERE id_InversionFK IN (?)`,
+            [idsExistentes]
+          );
+          
+          const tieneOrdenesAsociadas = 
+            (ordenesPresupuesto[0]?.total > 0) || 
+            (ordenesInversion[0]?.total > 0);
+          
+          if (tieneOrdenesAsociadas) {
+            await connection.rollback();
+            return NextResponse.json(
+              { 
+                error: 'No se pueden modificar bolsas que ya tienen órdenes asociadas',
+                tieneOrdenes: true,
+                totalOrdenes: {
+                  presupuesto: ordenesPresupuesto[0]?.total || 0,
+                  inversion: ordenesInversion[0]?.total || 0
+                }
+              },
+              { status: 403 }
+            );
+          }
+          
+          console.log(`No se encontraron órdenes asociadas, procediendo con la actualización`);
           
           // 1. Primero, eliminar dependencias en tablas Bolsa_Presupuesto y Bolsa_Inversion
           await connection.query(
@@ -98,27 +114,7 @@ export async function POST(request) {
             [idsExistentes]
           );
           
-          // 2. Verificar si hay órdenes asociadas a estas bolsas
-          const [ordenesAsociadas] = await connection.query(
-            `SELECT COUNT(*) as total FROM Orden_Compra WHERE id_PresupuestoFK IN (?)`,
-            [idsExistentes]
-          );
-          
-          const [inversionesAsociadas] = await connection.query(
-            `SELECT COUNT(*) as total FROM Orden_Inversion WHERE id_InversionFK IN (?)`,
-            [idsExistentes]
-          );
-          
-          if (ordenesAsociadas[0].total > 0 || inversionesAsociadas[0].total > 0) {
-            console.log(`Advertencia: Hay órdenes asociadas: ${ordenesAsociadas[0].total} compras, ${inversionesAsociadas[0].total} inversiones`);
-            
-            // Aquí podrías decidir manejar las órdenes de alguna manera especial
-            // Por ejemplo, actualizar los montos en las órdenes, o alertar al usuario
-            
-            // En esta implementación, permitimos la actualización pero dejamos constancia en los logs
-          }
-          
-          // 3. Finalmente eliminar las bolsas
+          // 2. Eliminar las bolsas existentes
           await connection.query(
             `DELETE FROM Bolsa WHERE id_Bolsa IN (?)`,
             [idsExistentes]

@@ -6,7 +6,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const departamentoId = searchParams.get('departamentoId');
     
-    // Validación más robusta del parámetro
+    // Validación del parámetro
     if (!departamentoId || isNaN(parseInt(departamentoId))) {
       console.log('API getExistingYears: ID de departamento no válido:', departamentoId);
       return NextResponse.json(
@@ -18,20 +18,20 @@ export async function GET(request) {
       );
     }
     
-    // Consultar años que ya tienen bolsas de presupuesto o inversión
+    // Consultar años que tienen bolsas de presupuesto o inversión
     const [yearsRows] = await pool.query(`
       SELECT DISTINCT YEAR(b.fecha_inicio) AS year
       FROM Bolsa b
       WHERE b.id_DepartamentoFK = ?
-      ORDER BY year
+      ORDER BY year DESC
     `, [departamentoId]);
     
-    // Extraer los años en un array - asegurar que siempre sea un array
+    // Extraer los años en un array
     const years = yearsRows && Array.isArray(yearsRows) 
       ? yearsRows.map(row => row.year).filter(year => year !== null && year !== undefined)
       : [];
     
-    // Obtener los totales de presupuesto por año para este departamento
+    // Obtener los totales de presupuesto e inversión por año para este departamento
     const [presupuestosPorAño] = await pool.query(`
       SELECT 
         YEAR(b.fecha_inicio) AS year,
@@ -42,10 +42,10 @@ export async function GET(request) {
       LEFT JOIN Bolsa_Inversion bi ON b.id_Bolsa = bi.id_BolsaFK
       WHERE b.id_DepartamentoFK = ?
       GROUP BY YEAR(b.fecha_inicio)
-      ORDER BY year
+      ORDER BY year DESC
     `, [departamentoId]);
     
-    console.log('API getExistingYears: Años encontrados:', years);
+    console.log(`API getExistingYears: Encontrados ${years.length} años con bolsas para departamento ${departamentoId}:`, years);
     
     return NextResponse.json({ 
       years,

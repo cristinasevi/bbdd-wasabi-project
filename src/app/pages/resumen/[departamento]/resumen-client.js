@@ -5,6 +5,8 @@ import { useState, useMemo, useEffect } from "react"
 import { Calendar, Info, Plus, RefreshCw, Pencil } from "lucide-react"
 import Link from "next/link"
 import useBolsasData from "@/app/hooks/useBolsasData"
+import BolsasForm from "@/app/components/forms/bolsas-form"
+import useNotifications from "@/app/hooks/useNotifications"
 
 export default function ResumenClient({
     departamento,
@@ -14,6 +16,8 @@ export default function ResumenClient({
     resumengasto,
     resumeninvacum
 }) {
+    const [error, setError] = useState('');
+
     // Estados para los filtros de fecha
     const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
         "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
@@ -37,14 +41,16 @@ export default function ResumenClient({
     
     // IMPORTANTE: Añadir el estado isLoading que faltaba
     const [isLoading, setIsLoading] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     
     // Estado para almacenar años que ya tienen bolsas
     const [existingYears, setExistingYears] = useState([]);
     
     // Utilizar el hook personalizado
-    const { error, fetchBolsasData, createBolsas, getExistingYears } = useBolsasData();
+    const { fetchBolsasData, createBolsas, getExistingYears } = useBolsasData();
     const [successMessage, setSuccessMessage] = useState('');
-    
+    const { addNotification, notificationComponents } = useNotifications();
+
     // Depuración: monitorear datos recibidos del servidor
     useEffect(() => {
         console.log("Datos iniciales recibidos del servidor:");
@@ -250,6 +256,16 @@ export default function ResumenClient({
     // Handler para cerrar el modal
     const handleCloseModal = () => {
         setShowModal(false);
+        // Limpiar el estado de error
+        setError('');
+        
+        // Opcional: resetear el formulario a valores iniciales
+        setFormData({
+            cantidadPresupuesto: '',
+            cantidadInversion: '',
+            año: añoActual,
+            departamentoId: departamentoId
+        }); 
     };
 
     // Modificar la función handleInputChange para cargar datos existentes al cambiar de año
@@ -271,12 +287,14 @@ export default function ResumenClient({
         // Validaciones para campos de cantidad
         if ((name === 'cantidadPresupuesto' || name === 'cantidadInversion')) {
             // Permitir solo números y punto decimal, rechazar incluso la 'e'
-            if (!/^[0-9]*\.?[0-9]*$/.test(value)) {
+            if (!/^[0-9]*[.,]?[0-9]*$/.test(value)) {
             return;
             }
 
+            // Convertir la coma a punto para procesar correctamente
+            const processedValue = value.replace(',', '.');
             // Verificar que no exceda el máximo de 200.000
-            const numericValue = parseFloat(value || 0);
+            const numericValue = parseFloat(processedValue || 0);
             if (numericValue > 200000) {
             return;
             }
@@ -319,7 +337,9 @@ export default function ResumenClient({
                     ...prev,
                     año: nuevoAño,
                     cantidadPresupuesto: nuevoCantidadPresupuesto,
-                    cantidadInversion: nuevoCantidadInversion
+                    cantidadInversion: nuevoCantidadInversion,
+                    [name]: value
+                    
                 }));
                 
                 return; // Retornar aquí para evitar la actualización genérica abajo
@@ -342,74 +362,110 @@ export default function ResumenClient({
     // Handler para enviar el formulario
     const handleSubmit = async (e) => {
         e.preventDefault();
-
-        // Validaciones existentes...
+        setError('');
+        setIsSubmitting(true);
+        
+        // Validar datos del formulario
         if (!formData.departamentoId) {
-            console.error('No se puede determinar el departamento actual');
+            setError('Debe seleccionar un departamento');
+            setIsSubmitting(false);
             return;
         }
-
-        if (!formData.cantidadPresupuesto && !formData.cantidadInversion) {
-            console.error('Debe especificar al menos una cantidad para presupuesto o inversión');
+        
+        if (!formData.año) {
+            setError('Debe ingresar un año');
+            setIsSubmitting(false);
             return;
         }
+        
+        const isEditing = existingYears.includes(parseInt(formData.año));
 
+        // Validar que al menos uno de los montos sea mayor que 0
+        const processedCantidadPresupuesto = formData.cantidadPresupuesto
+            ? parseFloat(formData.cantidadPresupuesto.replace(',', '.')) 
+            : 0;
+            
+        const processedCantidadInversion = formData.cantidadInversion
+            ? parseFloat(formData.cantidadInversion.replace(',', '.'))
+            : 0;
+
+        // Validación adicional
+        if (processedCantidadPresupuesto === 0 && processedCantidadInversion === 0) {
+            setError("Debe ingresar un cantidad válido para presupuesto y/o inversión");
+            setIsSubmitting(false);
+            return;
+        }
+        
         try {
-            // Verificar si el año seleccionado ya tiene bolsas asignadas
-            const añoTieneBolsas = existingYears.includes(parseInt(formData.año));
+            // Preparar los datos para enviar
+            const data = {
+                departamentoId: Number(formData.departamentoId), // Asegúrate que sea el ID numérico
+                año: Number(formData.año),
+                cantidadPresupuesto: formData.cantidadPresupuesto ? parseFloat(formData.cantidadPresupuesto.replace(',', '.')) : 0,
+                cantidadInversion: formData.cantidadInversion ? parseFloat(formData.cantidadInversion.replace(',', '.')) : 0,
+                esActualizacion: existingYears.includes(parseInt(formData.año)) // Indicar si es actualización
+            };
             
-            // Si el año ya tiene bolsas, mostrar confirmación
-            if (añoTieneBolsas) {
-            const confirmar = window.confirm(
-                `El año ${formData.año} ya tiene bolsas asignadas. ¿Deseas actualizar estos valores? 
+            // Realizar la petición al servidor
+            const response = await fetch('/api/createBolsas', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            
+            if (!response.ok) {
+            // Manejar el caso específico de bolsas con órdenes asociadas
+                if (response.status === 403 && result.tieneOrdenes) {
+                    const totalOrdenes = result.totalOrdenes.presupuesto + result.totalOrdenes.inversion;
+                    
+                    setError(
+                    `No se pueden modificar bolsas que ya tienen ${totalOrdenes} orden(es) asociada(s). `
+                    
+                    );
+                    return;
+                }
+            
+                // Otros errores
+                throw new Error(result.error || 'Error al procesar las bolsas');
+            }
                 
-                • Si seleccionas "Aceptar", se actualizarán las bolsas existentes.
-                • Si seleccionas "Cancelar", no se realizará ningún cambio.`
-            );
-            
-            if (!confirmar) {
-                return; // Cancelar la operación si el usuario no confirma
+                // Éxito - Mostrar notificación y cerrar el modal o resetear el formulario
+                addNotification(
+                isEditing ? 'Bolsas actualizadas correctamente' : 'Bolsas creadas correctamente',
+                'success'
+                );
+                
+                // Acciones a realizar después de un envío exitoso
+                setShowModal(false); // Cerrar modal
+                setFormData({      // Resetear formulario
+                cantidadPresupuesto: '',
+                cantidadInversion: '',
+                año: añoActual,
+                departamentoId: departamentoId
+                });
+                
+                // Si hay función para recargar los datos del componente padre
+                if (refreshData) {
+                refreshData();
+                }
+
+                
+            } catch (error) {
+                console.error('Error procesando bolsas:', error);
+                setError(error.message || 'Ocurrió un error al procesar las bolsas');
+            } finally {
+                setIsSubmitting(false);
             }
-            }
-            
-            // IMPORTANTE: Usar el setIsLoading
-            setIsLoading(true);
-            
-            // Llamar a la función del hook para crear/actualizar bolsas
-            const result = await createBolsas(
-            formData.departamentoId, 
-            formData.año, 
-            formData.cantidadPresupuesto, 
-            formData.cantidadInversion,
-            añoTieneBolsas // Pasar flag indicando si es actualización
-            );
-            
-            console.log(`Bolsas ${añoTieneBolsas ? 'actualizadas' : 'creadas'}:`, result);
-            
-            // Cerrar el modal
-            setShowModal(false);
-            
-            // Mostrar mensaje de éxito
-            setSuccessMessage(`Bolsas ${añoTieneBolsas ? 'actualizadas' : 'creadas'} correctamente`);
-            
-            // Actualizar los datos
-            await refreshData();
-            
-            // Ocultar el mensaje después de 3 segundos
-            setTimeout(() => {
-            setSuccessMessage('');
-            }, 3000);
-            
-        } catch (err) {
-            console.error(`Error al ${existingYears.includes(parseInt(formData.año)) ? 'actualizar' : 'crear'} bolsas:`, err);
-            setError(`Error: ${err.message}`);
-        } finally {
-            // IMPORTANTE: Asegurarse de poner isLoading a false
-            setIsLoading(false);
-        }
-    };
+        };
     return (
         <div className="p-6">
+            {/* Notificaciones */}
+            {notificationComponents}
+
             {/* Encabezado */}
             <div className="flex justify-between items-center">
                 <div>
@@ -635,7 +691,8 @@ export default function ResumenClient({
                         {/* Mensaje de error del formulario */}
                         {error && (
                             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-                                {error}
+                                <p className="font-medium">Error:</p>
+                                <p>{error}</p>
                             </div>
                         )}
 
