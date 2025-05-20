@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Calendar, Info, Plus } from "lucide-react"
 import Link from "next/link"
 
@@ -18,7 +18,7 @@ export default function ResumenClient({
 
     const mesActual = meses[new Date().getMonth()];
     const añoActual = new Date().getFullYear();
-    
+
     // Estado para manejar el modal
     const [showModal, setShowModal] = useState(false);
     const [formData, setFormData] = useState({
@@ -31,8 +31,22 @@ export default function ResumenClient({
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
+    // Estado para almacenar años que ya tienen bolsas
+    const [existingYears, setExistingYears] = useState([]);
+
+    // Depuración: monitorear datos recibidos del servidor
+    useEffect(() => {
+        console.log("Datos recibidos del servidor:");
+        console.log("resumenprep:", resumenprep);
+        console.log("resumeninv:", resumeninv);
+        console.log("Año actual:", añoActual);
+    }, [resumenprep, resumeninv, añoActual]);
+
     // Calcular presupuesto actual e inversión actual - CORREGIDO
     const presupuestoTotal = resumenprep?.[0]?.total_presupuesto || 0;
+
+    // Calcular inversión total anual
+    const inversionTotal = resumeninv?.[0]?.total_inversion || 0;
 
     // Calcular gasto en presupuesto solo del año actual (igual que inversiones)
     const gastoPresupuestoDelAñoActual = useMemo(() => {
@@ -59,8 +73,6 @@ export default function ResumenClient({
 
     // El presupuesto actual es presupuesto total menos gasto del año actual
     const presupuestoActual = presupuestoTotal - gastoPresupuestoDelAñoActual;
-
-    const inversionTotal = resumeninv?.[0]?.total_inversion || 0;
 
     // CORREGIDO: Calcular gasto de inversión solo del año actual
     const gastoInversionDelAño = useMemo(() => {
@@ -133,12 +145,12 @@ export default function ResumenClient({
             return "-";
         }
     };
-    
+
     // Handler para abrir el modal y establecer el departamento actual
-    const handleOpenModal = (e) => {
+    const handleOpenModal = async (e) => {
         // Prevenir la acción predeterminada para evitar cualquier navegación
         e.preventDefault();
-        
+
         // Buscar el ID del departamento a partir del objeto resumenprep o resumeninv
         let departamentoId = null;
         if (resumenprep && resumenprep.length > 0) {
@@ -146,64 +158,95 @@ export default function ResumenClient({
         } else if (resumeninv && resumeninv.length > 0) {
             departamentoId = resumeninv[0].id_DepartamentoFK;
         }
-        
+
+        if (!departamentoId) {
+            setError('No se puede determinar el departamento actual');
+            return;
+        }
+
         console.log("Abriendo modal para departamento:", departamento, "ID:", departamentoId);
-        
+
+        // Obtener años que ya tienen bolsas
+        const existingYears = await fetchYearsWithExistingBolsas(departamentoId);
+        setExistingYears(existingYears);
+
+        // Configurar el formulario
         setFormData({
             cantidadPresupuesto: '',
             cantidadInversion: '',
             año: añoActual,
             departamentoId: departamentoId
         });
-        
+
         // Limpiar mensajes de error o éxito previos
         setError('');
         setSuccess('');
-        
+
         // Mostrar modal
         setShowModal(true);
     };
-    
+
     // Handler para cerrar el modal
     const handleCloseModal = () => {
         setShowModal(false);
         setError('');
         setSuccess('');
     };
-    
+
     // Handler para cambios en el formulario
     const handleInputChange = (e) => {
         const { name, value } = e.target;
-        
-        // Validar que sean números para los campos de cantidad
-        if ((name === 'cantidadPresupuesto' || name === 'cantidadInversion') && value !== '') {
-            // Permitir solo números y punto decimal
+
+        // Validar que sean solo números para los campos de cantidad
+        if ((name === 'cantidadPresupuesto' || name === 'cantidadInversion')) {
+            // Permitir solo números y punto decimal, rechazar incluso la 'e'
             if (!/^[0-9]*\.?[0-9]*$/.test(value)) {
                 return;
             }
+
+            // Verificar que no exceda el máximo de 200.000
+            const numericValue = parseFloat(value || 0);
+            if (numericValue > 200000) {
+                return;
+            }
         }
-        
+
         setFormData({
             ...formData,
             [name]: value
         });
     };
-    
+
+    const fetchYearsWithExistingBolsas = async (departamentoId) => {
+        try {
+            // Llamar a un nuevo endpoint para obtener años con bolsas existentes
+            const response = await fetch(`/api/getExistingYears?departamentoId=${departamentoId}`);
+            if (response.ok) {
+                const data = await response.json();
+                return data.years || [];
+            }
+            return [];
+        } catch (error) {
+            console.error("Error al obtener años con bolsas existentes:", error);
+            return [];
+        }
+    };
+
     // Handler para enviar el formulario
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
+
         // Validaciones
         if (!formData.departamentoId) {
             setError('No se puede determinar el departamento actual');
             return;
         }
-        
+
         if (!formData.cantidadPresupuesto && !formData.cantidadInversion) {
             setError('Debe especificar al menos una cantidad para presupuesto o inversión');
             return;
         }
-        
+
         // Preparar datos para enviar
         const dataToSend = {
             departamentoId: formData.departamentoId,
@@ -211,13 +254,13 @@ export default function ResumenClient({
             cantidadPresupuesto: formData.cantidadPresupuesto ? parseFloat(formData.cantidadPresupuesto) : 0,
             cantidadInversion: formData.cantidadInversion ? parseFloat(formData.cantidadInversion) : 0
         };
-        
+
         setLoading(true);
         setError('');
-        
+
         try {
             console.log("Enviando datos:", dataToSend);
-            
+
             // Llamar al endpoint para crear bolsas
             const response = await fetch('/api/createBolsas', {
                 method: 'POST',
@@ -226,30 +269,20 @@ export default function ResumenClient({
                 },
                 body: JSON.stringify(dataToSend)
             });
-            
+
             const result = await response.json();
             console.log("Respuesta del servidor:", result);
-            
+
             if (!response.ok) {
                 throw new Error(result.error || 'Error al crear las bolsas presupuestarias');
             }
-            
-            // Mostrar mensaje de éxito
-            setSuccess('Bolsas presupuestarias creadas con éxito');
-            
-            // Limpiar el formulario después de 2 segundos y recargar la página
-            setTimeout(() => {
-                setFormData({
-                    cantidadPresupuesto: '',
-                    cantidadInversion: '',
-                    año: añoActual,
-                    departamentoId: formData.departamentoId
-                });
-                
-                // Recargar la página para actualizar los datos
-                window.location.reload();
-            }, 2000);
-            
+
+            // Cerrar el modal inmediatamente
+            setShowModal(false);
+
+            // Mostrar mensaje de éxito en la página principal en lugar de recargar
+            setSuccess('Bolsas presupuestarias creadas correctamente. Por favor, actualice la página para ver los cambios.');
+
         } catch (err) {
             console.error('Error al crear bolsas:', err);
             setError(err.message || 'Error al crear las bolsas presupuestarias');
@@ -266,8 +299,6 @@ export default function ResumenClient({
                     <h1 className="text-3xl font-bold">Resumen</h1>
                     <h2 className="text-xl text-gray-400">Departamento {departamento}</h2>
                 </div>
-                
-                
             </div>
 
             {/* Fecha */}
@@ -430,15 +461,15 @@ export default function ResumenClient({
                 </div>
             </div>
             {/* Botón para agregar bolsas */}
-                <button 
-                    onClick={handleOpenModal}
-                    className="bg-red-600 opacity-80 flex items-center gap-2 text-white px-4 py-3 rounded-md hover:bg-red-700 cursor-pointer"
-                    aria-label="Añadir nueva bolsa presupuestaria"
-                >
-                    <Plus className="w-5 h-5" size={18} />
-                    <span className="text-lg">Añadir bolsa</span>
-                </button>
-            
+            <button
+                onClick={handleOpenModal}
+                className="bg-red-600 opacity-80 flex items-center gap-2 text-white px-4 py-3 rounded-md hover:bg-red-700 cursor-pointer"
+                aria-label="Añadir nueva bolsa presupuestaria"
+            >
+                <Plus className="w-5 h-5" size={18} />
+                <span className="text-mb">Añadir bolsa</span>
+            </button>
+
             {/* Modal para agregar bolsas presupuestarias */}
             {showModal && (
                 <div
@@ -484,20 +515,38 @@ export default function ResumenClient({
                         {/* Formulario */}
                         <form onSubmit={handleSubmit}>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                                {/* Año */}
+                                {/* Año con select personalizado */}
                                 <div>
                                     <label className="block text-gray-700 mb-1">Año *</label>
-                                    <input
-                                        id="año"
-                                        name="año"
-                                        type="number"
-                                        min={añoActual}
-                                        max={añoActual + 5}
-                                        value={formData.año}
-                                        onChange={handleInputChange}
-                                        className="border border-gray-300 rounded px-3 py-2 w-full"
-                                        required
-                                    />
+                                    <div className="relative">
+                                        <select
+                                            id="año"
+                                            name="año"
+                                            value={formData.año}
+                                            onChange={handleInputChange}
+                                            className="appearance-none border border-gray-300 rounded px-3 py-2 w-full pr-8"
+                                            required
+                                        >
+                                            {/* Generar opciones para años disponibles */}
+                                            {Array.from({ length: 6 }, (_, i) => añoActual + i)
+                                                .filter(year => !existingYears.includes(year)) // Filtrar años que ya tienen bolsas
+                                                .map(year => (
+                                                    <option key={year} value={year}>{year}</option>
+                                                ))
+                                            }
+                                            {/* Si no hay años disponibles, mostrar mensaje */}
+                                            {Array.from({ length: 6 }, (_, i) => añoActual + i)
+                                                .filter(year => !existingYears.includes(year)).length === 0 && (
+                                                    <option value="" disabled>No hay años disponibles</option>
+                                                )
+                                            }
+                                        </select>
+                                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-700">
+                                            <svg className="h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 7l3 3 3-3" />
+                                            </svg>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 {/* Departamento (solo informativo) */}
@@ -517,13 +566,13 @@ export default function ResumenClient({
                                     <input
                                         id="cantidadPresupuesto"
                                         name="cantidadPresupuesto"
-                                        type="number"
+                                        type="text"
+                                        inputMode="decimal"
                                         value={formData.cantidadPresupuesto}
                                         onChange={handleInputChange}
                                         className="border border-gray-300 rounded px-3 py-2 w-full"
                                         placeholder="0.00"
-                                        pattern="^([1-9]\\d{0,5}(\\.\\d{0,2})?|0\\.[1-9]\\d?|0\\.0[1-9])$"
-                                        title="Ingrese un importe válido (máximo 100.000€, hasta 2 decimales)"
+                                        maxLength={9}
                                     />
                                     <p className="text-xs text-gray-500 mt-1">Dejar en blanco si no se quiere crear bolsa de presupuesto</p>
                                 </div>
@@ -534,13 +583,13 @@ export default function ResumenClient({
                                     <input
                                         id="cantidadInversion"
                                         name="cantidadInversion"
-                                        type="number"
+                                        type="text"
+                                        inputMode="decimal"
                                         value={formData.cantidadInversion}
                                         onChange={handleInputChange}
                                         className="border border-gray-300 rounded px-3 py-2 w-full"
                                         placeholder="0.00"
-                                        pattern="^([1-9]\\d{0,5}(\\.\\d{0,2})?|0\\.[1-9]\\d?|0\\.0[1-9])$"
-                                        title="Ingrese un importe válido (máximo 100.000€, hasta 2 decimales)"
+                                        maxLength={9}
                                     />
                                     <p className="text-xs text-gray-500 mt-1">Dejar en blanco si no se quiere crear bolsa de inversión</p>
                                 </div>

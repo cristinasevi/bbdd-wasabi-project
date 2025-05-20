@@ -54,7 +54,7 @@ export default function Navbar() {
             { name: "Presupuestos", href: "/pages/presupuestos", icon: Wallet },
             { name: "Inversiones", href: "/pages/inversiones", icon: ChartColumnIncreasing },
             { name: "Órdenes de Compra", href: "/pages/ordenes-compra", icon: ShoppingCart },
-            { name: "Facturas", href: "/pages/facturas", icon: ReceiptText },
+            // { name: "Facturas", href: "/pages/facturas", icon: ReceiptText },
             { name: "Proveedores", href: "/pages/proveedores", icon: Truck },
             { name: "Inventario", href: "/pages/inventario", icon: Package },
             { name: "Informes", href: "/pages/informes", icon: FileText },

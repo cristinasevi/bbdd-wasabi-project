@@ -12,9 +12,12 @@ export default async function Resumen({ params }) {
     // Encontrar el departamento específico en la lista
     const departamentoInfo = departamentos.find(d => d.Nombre === departamento) || {};
     
+    // Obtener el año actual
+    const añoActual = new Date().getFullYear();
+    
     // Obtener datos financieros y órdenes de compra
-    const resumenprep = await getResumenPresupuesto(departamentoInfo.id_Departamento);
-    const resumeninv = await getResumenInversion(departamentoInfo.id_Departamento);
+    const resumenprep = await getResumenPresupuesto(departamentoInfo.id_Departamento, añoActual);
+    const resumeninv = await getResumenInversion(departamentoInfo.id_Departamento, añoActual);
     const resumenord = await getResumenOrden(departamentoInfo.id_Departamento);
     const resumengasto = await getResumenGasto(departamentoInfo.id_Departamento);
     const resumeninvacum = await getResumenInversionAcum(departamentoInfo.id_Departamento);
