@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Calendar, Info } from "lucide-react"
+import { Calendar, Info, Plus } from "lucide-react"
 import Link from "next/link"
 
 export default function ResumenClient({
@@ -18,6 +18,18 @@ export default function ResumenClient({
 
     const mesActual = meses[new Date().getMonth()];
     const añoActual = new Date().getFullYear();
+    
+    // Estado para manejar el modal
+    const [showModal, setShowModal] = useState(false);
+    const [formData, setFormData] = useState({
+        cantidadPresupuesto: '',
+        cantidadInversion: '',
+        año: añoActual,
+        departamentoId: '',
+    });
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
 
     // Calcular presupuesto actual e inversión actual - CORREGIDO
     const presupuestoTotal = resumenprep?.[0]?.total_presupuesto || 0;
@@ -121,13 +133,141 @@ export default function ResumenClient({
             return "-";
         }
     };
+    
+    // Handler para abrir el modal y establecer el departamento actual
+    const handleOpenModal = (e) => {
+        // Prevenir la acción predeterminada para evitar cualquier navegación
+        e.preventDefault();
+        
+        // Buscar el ID del departamento a partir del objeto resumenprep o resumeninv
+        let departamentoId = null;
+        if (resumenprep && resumenprep.length > 0) {
+            departamentoId = resumenprep[0].id_DepartamentoFK;
+        } else if (resumeninv && resumeninv.length > 0) {
+            departamentoId = resumeninv[0].id_DepartamentoFK;
+        }
+        
+        console.log("Abriendo modal para departamento:", departamento, "ID:", departamentoId);
+        
+        setFormData({
+            cantidadPresupuesto: '',
+            cantidadInversion: '',
+            año: añoActual,
+            departamentoId: departamentoId
+        });
+        
+        // Limpiar mensajes de error o éxito previos
+        setError('');
+        setSuccess('');
+        
+        // Mostrar modal
+        setShowModal(true);
+    };
+    
+    // Handler para cerrar el modal
+    const handleCloseModal = () => {
+        setShowModal(false);
+        setError('');
+        setSuccess('');
+    };
+    
+    // Handler para cambios en el formulario
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        
+        // Validar que sean números para los campos de cantidad
+        if ((name === 'cantidadPresupuesto' || name === 'cantidadInversion') && value !== '') {
+            // Permitir solo números y punto decimal
+            if (!/^[0-9]*\.?[0-9]*$/.test(value)) {
+                return;
+            }
+        }
+        
+        setFormData({
+            ...formData,
+            [name]: value
+        });
+    };
+    
+    // Handler para enviar el formulario
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        
+        // Validaciones
+        if (!formData.departamentoId) {
+            setError('No se puede determinar el departamento actual');
+            return;
+        }
+        
+        if (!formData.cantidadPresupuesto && !formData.cantidadInversion) {
+            setError('Debe especificar al menos una cantidad para presupuesto o inversión');
+            return;
+        }
+        
+        // Preparar datos para enviar
+        const dataToSend = {
+            departamentoId: formData.departamentoId,
+            año: parseInt(formData.año),
+            cantidadPresupuesto: formData.cantidadPresupuesto ? parseFloat(formData.cantidadPresupuesto) : 0,
+            cantidadInversion: formData.cantidadInversion ? parseFloat(formData.cantidadInversion) : 0
+        };
+        
+        setLoading(true);
+        setError('');
+        
+        try {
+            console.log("Enviando datos:", dataToSend);
+            
+            // Llamar al endpoint para crear bolsas
+            const response = await fetch('/api/createBolsas', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(dataToSend)
+            });
+            
+            const result = await response.json();
+            console.log("Respuesta del servidor:", result);
+            
+            if (!response.ok) {
+                throw new Error(result.error || 'Error al crear las bolsas presupuestarias');
+            }
+            
+            // Mostrar mensaje de éxito
+            setSuccess('Bolsas presupuestarias creadas con éxito');
+            
+            // Limpiar el formulario después de 2 segundos y recargar la página
+            setTimeout(() => {
+                setFormData({
+                    cantidadPresupuesto: '',
+                    cantidadInversion: '',
+                    año: añoActual,
+                    departamentoId: formData.departamentoId
+                });
+                
+                // Recargar la página para actualizar los datos
+                window.location.reload();
+            }, 2000);
+            
+        } catch (err) {
+            console.error('Error al crear bolsas:', err);
+            setError(err.message || 'Error al crear las bolsas presupuestarias');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <div className="p-6">
             {/* Encabezado */}
-            <div>
-                <h1 className="text-3xl font-bold">Resumen</h1>
-                <h2 className="text-xl text-gray-400">Departamento {departamento}</h2>
+            <div className="flex justify-between items-center">
+                <div>
+                    <h1 className="text-3xl font-bold">Resumen</h1>
+                    <h2 className="text-xl text-gray-400">Departamento {departamento}</h2>
+                </div>
+                
+                
             </div>
 
             {/* Fecha */}
@@ -289,6 +429,145 @@ export default function ResumenClient({
                     </div>
                 </div>
             </div>
+            {/* Botón para agregar bolsas */}
+                <button 
+                    onClick={handleOpenModal}
+                    className="bg-red-600 opacity-80 flex items-center gap-2 text-white px-4 py-3 rounded-md hover:bg-red-700 cursor-pointer"
+                    aria-label="Añadir nueva bolsa presupuestaria"
+                >
+                    <Plus className="w-5 h-5" size={18} />
+                    <span className="text-lg">Añadir bolsa</span>
+                </button>
+            
+            {/* Modal para agregar bolsas presupuestarias */}
+            {showModal && (
+                <div
+                    className="fixed inset-0 flex items-center justify-center z-50"
+                    style={{
+                        backgroundColor: "rgba(0, 0, 0, 0.3)",
+                        backdropFilter: "blur(2px)",
+                    }}
+                    onClick={(e) => {
+                        // Cerrar el modal solo si se hace clic en el fondo, no en el contenido
+                        if (e.target === e.currentTarget) {
+                            handleCloseModal();
+                        }
+                    }}
+                >
+                    <div className="bg-white rounded-lg p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-xl">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-xl font-bold">Añadir Nueva Bolsa</h2>
+                            <button
+                                onClick={handleCloseModal}
+                                className="text-gray-500 hover:text-red-600"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 cursor-pointer" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        {/* Mensaje de error del formulario */}
+                        {error && (
+                            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                                {error}
+                            </div>
+                        )}
+
+                        {/* Mensaje de éxito */}
+                        {success && (
+                            <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+                                {success}
+                            </div>
+                        )}
+
+                        {/* Formulario */}
+                        <form onSubmit={handleSubmit}>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                {/* Año */}
+                                <div>
+                                    <label className="block text-gray-700 mb-1">Año *</label>
+                                    <input
+                                        id="año"
+                                        name="año"
+                                        type="number"
+                                        min={añoActual}
+                                        max={añoActual + 5}
+                                        value={formData.año}
+                                        onChange={handleInputChange}
+                                        className="border border-gray-300 rounded px-3 py-2 w-full"
+                                        required
+                                    />
+                                </div>
+
+                                {/* Departamento (solo informativo) */}
+                                <div>
+                                    <label className="block text-gray-700 mb-1">Departamento</label>
+                                    <input
+                                        type="text"
+                                        value={departamento}
+                                        className="border border-gray-300 rounded px-3 py-2 w-full bg-gray-100"
+                                        disabled
+                                    />
+                                </div>
+
+                                {/* Cantidad Presupuesto */}
+                                <div>
+                                    <label className="block text-gray-700 mb-1">Cantidad Presupuesto (€) *</label>
+                                    <input
+                                        id="cantidadPresupuesto"
+                                        name="cantidadPresupuesto"
+                                        type="number"
+                                        value={formData.cantidadPresupuesto}
+                                        onChange={handleInputChange}
+                                        className="border border-gray-300 rounded px-3 py-2 w-full"
+                                        placeholder="0.00"
+                                        pattern="^([1-9]\\d{0,5}(\\.\\d{0,2})?|0\\.[1-9]\\d?|0\\.0[1-9])$"
+                                        title="Ingrese un importe válido (máximo 100.000€, hasta 2 decimales)"
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">Dejar en blanco si no se quiere crear bolsa de presupuesto</p>
+                                </div>
+
+                                {/* Cantidad Inversión */}
+                                <div>
+                                    <label className="block text-gray-700 mb-1">Cantidad Inversión (€) *</label>
+                                    <input
+                                        id="cantidadInversion"
+                                        name="cantidadInversion"
+                                        type="number"
+                                        value={formData.cantidadInversion}
+                                        onChange={handleInputChange}
+                                        className="border border-gray-300 rounded px-3 py-2 w-full"
+                                        placeholder="0.00"
+                                        pattern="^([1-9]\\d{0,5}(\\.\\d{0,2})?|0\\.[1-9]\\d?|0\\.0[1-9])$"
+                                        title="Ingrese un importe válido (máximo 100.000€, hasta 2 decimales)"
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">Dejar en blanco si no se quiere crear bolsa de inversión</p>
+                                </div>
+                            </div>
+
+                            {/* Botones del formulario */}
+                            <div className="flex justify-end gap-4">
+                                <button
+                                    type="button"
+                                    onClick={handleCloseModal}
+                                    className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100 cursor-pointer"
+                                    disabled={loading}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="bg-red-600 opacity-80 flex items-center gap-2 text-white px-4 py-3 rounded-md hover:bg-red-700 cursor-pointer"
+                                >
+                                    {loading ? "Guardando..." : "Guardar"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
