@@ -11,6 +11,7 @@ export async function getOrden() {
         o.Inventariable,
         o.Cantidad,
         o.Importe,
+        o.Factura, 
         d.Nombre AS Departamento,
         p.Nombre AS Proveedor,
         oi.Num_inversion,
@@ -22,23 +23,23 @@ export async function getOrden() {
       LEFT JOIN Estado_orden eo ON o.id_EstadoOrdenFK = eo.id_EstadoOrden
       ORDER BY o.idOrden DESC
     `);
-    
+
     console.log("📋 Total órdenes cargadas:", rows.length);
-    
+
     // Debug: Mostrar información detallada de las inversiones
     const ordenesConInversion = rows.filter(r => r.Num_inversion !== null);
     const ordenesSinInversion = rows.filter(r => r.Num_inversion === null);
-    
+
     console.log("💰 Órdenes CON inversión:", ordenesConInversion.length);
     console.log("📋 Órdenes SIN inversión:", ordenesSinInversion.length);
-    
+
     if (ordenesConInversion.length > 0) {
       console.log("🔍 Ejemplos de órdenes con inversión:");
       ordenesConInversion.slice(0, 3).forEach(orden => {
         console.log(`  - ID: ${orden.idOrden}, Num_orden: ${orden.Num_orden}, Num_inversion: ${orden.Num_inversion}`);
       });
     }
-    
+
     return rows;
   } catch (error) {
     console.error('❌ Error executing query:', error);

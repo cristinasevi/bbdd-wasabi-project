@@ -36,6 +36,27 @@ export default function OrdenesCompraClient({
   const [modalMode, setModalMode] = useState("add"); // 'add' o 'edit'
   const [formError, setFormError] = useState("");
 
+  // Añadir este nuevo useEffect para normalizar el campo Factura en todas las órdenes
+  useEffect(() => {
+    if (initialOrdenes) {
+      console.log("Datos originales de órdenes:", initialOrdenes);
+
+      const ordenesNormalizadas = initialOrdenes.map(orden => {
+        // Verificar el valor de Factura que llega inicialmente
+        console.log(`Orden ${orden.idOrden} - Factura original:`, orden.Factura);
+
+        return {
+          ...orden,
+          // Asegurarse de que Factura sea un valor numérico o booleano
+          Factura: orden.Factura === 1 || orden.Factura === true ? 1 : 0
+        };
+      });
+
+      console.log("Órdenes normalizadas:", ordenesNormalizadas);
+      setOrdenes(ordenesNormalizadas);
+    }
+  }, [initialOrdenes]);
+
   // Estado para tooltips/popovers de información detallada
   const [activeTooltip, setActiveTooltip] = useState(null);
 
@@ -80,6 +101,7 @@ export default function OrdenesCompraClient({
     cantidad: "",
     departamento: "",
     proveedor: "",
+    factura: false,
     estadoOrden: "En proceso",
   });
   // Calcular la fecha límite (5 años atrás)
@@ -371,6 +393,7 @@ export default function OrdenesCompraClient({
       'Departamento': orden.Departamento || '',
       'Proveedor': orden.Proveedor || '',
       'Número Inversión': orden.Num_inversion || '',
+      'Factura': formatInventariable(orden.Factura),
       'Estado': orden.Estado || 'En proceso'
     }));
 
@@ -526,6 +549,7 @@ export default function OrdenesCompraClient({
   const handleOpenEditModal = (orden) => {
     const esInventariable = !!(orden.Inventariable === 1 || orden.Inventariable === true);
     const esInversion = !!(orden.Num_inversion && orden.Num_inversion !== null);
+    const tieneFactura = !!(orden.Factura === 1 || orden.Factura === true);
 
     setFormularioOrden({
       idOrden: orden.idOrden,
@@ -539,6 +563,7 @@ export default function OrdenesCompraClient({
       cantidad: orden.Cantidad || "",
       departamento: orden.Departamento || "",
       proveedor: orden.Proveedor || "",
+      factura: tieneFactura,
       estadoOrden: orden.Estado || "En proceso",
     });
     setModalMode("edit");
@@ -581,6 +606,7 @@ export default function OrdenesCompraClient({
       cantidad: "",
       departamento: "",
       proveedor: "",
+      factura: false,
       estadoOrden: "En proceso",
     });
     setFormError("");
@@ -747,6 +773,7 @@ export default function OrdenesCompraClient({
         id_DepartamentoFK: departamentoSeleccionado.id_Departamento,
         id_ProveedorFK: proveedorSeleccionado.idProveedor,
         id_UsuarioFK: 1, // TODO: Obtener el usuario actual de la sesión
+        Factura: formularioOrden.factura ? 1 : 0,
         id_EstadoOrdenFK: estadoSeleccionado.id_EstadoOrden,
       };
 
@@ -828,6 +855,7 @@ export default function OrdenesCompraClient({
               Proveedor: formularioOrden.proveedor,
               Num_inversion: esInversion ? formularioOrden.numInversion : null,
               Estado: formularioOrden.estadoOrden,
+              Factura: formularioOrden.factura ? 1 : 0, // Añadir esta línea
             }
             : orden
         ));
@@ -845,6 +873,7 @@ export default function OrdenesCompraClient({
           Proveedor: formularioOrden.proveedor,
           Num_inversion: esInversion ? formularioOrden.numInversion : null,
           Estado: formularioOrden.estadoOrden,
+          Factura: formularioOrden.factura ? 1 : 0,
         };
         setOrdenes([...ordenes, nuevaOrden]);
       }
@@ -1200,6 +1229,7 @@ export default function OrdenesCompraClient({
                 <th className="text-center py-3 px-3 font-medium text-gray-600">Inv.</th>
                 <th className="text-center py-3 px-3 font-medium text-gray-600">Cant.</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-600">Dep./Prov.</th>
+                <th className="text-center py-3 px-4 font-medium text-gray-600">Factura</th>
                 <th className="text-center py-3 px-4 font-medium text-gray-600">Estado</th>
                 <th className="py-3 px-3 w-12"></th>
               </tr>
@@ -1286,6 +1316,39 @@ export default function OrdenesCompraClient({
                         <span className="text-xs mt-1 truncate max-w-[120px]" title={orden.Proveedor}>
                           {orden.Proveedor}
                         </span>
+                      </div>
+                    </td>
+
+                    {/* Facturas */}
+                    <td className="py-3 px-3 text-center">
+                      <div className="flex justify-center">
+                        {orden.Factura === 1 || orden.Factura === true ? (
+                          <div
+                            className="relative group"
+                            onMouseEnter={() => setActiveTooltip(`factura-check-${orden.idOrden}`)}
+                            onMouseLeave={() => setActiveTooltip(null)}
+                          >
+                            <Check className="w-5 h-5 text-green-500" />
+                            {activeTooltip === `factura-check-${orden.idOrden}` && (
+                              <div className="border border-black/10 absolute z-50 bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-white bg-opacity-80 text-black text-xs rounded py-1 px-2 whitespace-nowrap">
+                                Factura adjuntada
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div
+                            className="relative group"
+                            onMouseEnter={() => setActiveTooltip(`factura-x-${orden.idOrden}`)}
+                            onMouseLeave={() => setActiveTooltip(null)}
+                          >
+                            <X className="w-5 h-5 text-red-500" />
+                            {activeTooltip === `factura-x-${orden.idOrden}` && (
+                              <div className="border border-black/10 absolute z-50 bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-white bg-opacity-80 text-black text-xs rounded py-1 px-2 whitespace-nowrap">
+                                Pendiente de factura
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </td>
 
@@ -1598,6 +1661,25 @@ export default function OrdenesCompraClient({
                   />
                 </div>
               )}
+
+              {/* Campo para Factura - añadir en la sección del formulario */}
+              <div className="flex flex-col">
+                <label className="block text-gray-700 mb-1">Factura</label>
+                <div className="flex items-center space-x-4 py-2">
+                  <label className="inline-flex items-center">
+                    <input
+                      type="checkbox"
+                      name="factura"
+                      checked={formularioOrden.factura}
+                      onChange={handleInputChange}
+                      className="form-checkbox h-5 w-5 text-red-600 cursor-pointer"
+                    />
+                    <span className="ml-2">
+                      {formularioOrden.factura ? "Factura adjuntada" : "Sin factura"}
+                    </span>
+                  </label>
+                </div>
+              </div>
 
               {/* Estado de la orden */}
               <div>

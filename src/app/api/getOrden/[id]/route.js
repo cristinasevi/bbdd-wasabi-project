@@ -33,9 +33,10 @@ export async function PUT(request, { params }) {
       console.log("🔄 Actualizando orden principal...");
       await connection.query(
         `UPDATE Orden 
-         SET Num_orden = ?, id_ProveedorFK = ?, id_DepartamentoFK = ?, id_UsuarioFK = ?,
-             Importe = ?, Fecha = ?, Descripcion = ?, Inventariable = ?, Cantidad = ?, id_EstadoOrdenFK = ?
-         WHERE idOrden = ?`,
+    SET Num_orden = ?, id_ProveedorFK = ?, id_DepartamentoFK = ?, id_UsuarioFK = ?,
+        Importe = ?, Fecha = ?, Descripcion = ?, Inventariable = ?, Cantidad = ?, 
+        id_EstadoOrdenFK = ?, Factura = ?
+    WHERE idOrden = ?`,
         [
           Num_orden,
           id_ProveedorFK,
@@ -47,6 +48,7 @@ export async function PUT(request, { params }) {
           Inventariable,
           Cantidad,
           id_EstadoOrdenFK,
+          data.Factura || 0, // Añadir el campo Factura, por defecto 0 (sin factura)
           ordenId
         ]
       );
@@ -60,7 +62,7 @@ export async function PUT(request, { params }) {
       console.log("💰 Procesando inversión...", { Num_inversion, id_InversionFK });
       if (Num_inversion && Num_inversion.toString().trim() !== '') {
         // Es una inversión
-        
+
         // Buscar el idBolsa correspondiente a la inversión del departamento
         const [bolsaInversion] = await connection.query(`
           SELECT bi.idBolsa 
@@ -68,26 +70,26 @@ export async function PUT(request, { params }) {
           JOIN Bolsa b ON bi.id_BolsaFK = b.id_Bolsa 
           WHERE b.id_DepartamentoFK = ?
         `, [id_DepartamentoFK]);
-        
+
         if (bolsaInversion.length === 0) {
           throw new Error(`No se encontró bolsa de inversión para el departamento ${id_DepartamentoFK}`);
         }
-        
+
         const bolsaInversionId = bolsaInversion[0].idBolsa;
-        
+
         console.log("✅ Insertando en Orden_Inversion:", {
           idOrden: ordenId,
           id_InversionFK: bolsaInversionId,
           Num_inversion: parseInt(Num_inversion) // Convertir a entero
         });
-        
+
         await connection.query(
           'INSERT INTO Orden_Inversion (idOrden, id_InversionFK, Num_inversion) VALUES (?, ?, ?)',
           [ordenId, bolsaInversionId, parseInt(Num_inversion)]
         );
       } else {
         // NO es inversión - insertar en Orden_Compra
-        
+
         // Buscar el idBolsa correspondiente al presupuesto del departamento
         const [bolsaPresupuesto] = await connection.query(`
           SELECT bp.idBolsa 
@@ -95,18 +97,18 @@ export async function PUT(request, { params }) {
           JOIN Bolsa b ON bp.id_BolsaFK = b.id_Bolsa 
           WHERE b.id_DepartamentoFK = ?
         `, [id_DepartamentoFK]);
-        
+
         if (bolsaPresupuesto.length === 0) {
           throw new Error(`No se encontró bolsa de presupuesto para el departamento ${id_DepartamentoFK}`);
         }
-        
+
         const bolsaPresupuestoId = bolsaPresupuesto[0].idBolsa;
-        
+
         console.log("📋 Insertando en Orden_Compra:", {
           idOrden: ordenId,
           id_PresupuestoFK: bolsaPresupuestoId
         });
-        
+
         await connection.query(
           'INSERT INTO Orden_Compra (idOrden, id_PresupuestoFK) VALUES (?, ?)',
           [ordenId, bolsaPresupuestoId]
@@ -117,8 +119,8 @@ export async function PUT(request, { params }) {
       await connection.commit();
       console.log("✅ Orden actualizada correctamente");
 
-      return new Response(JSON.stringify({ 
-        success: true, 
+      return new Response(JSON.stringify({
+        success: true,
         message: "Orden actualizada correctamente",
         updatedId: ordenId,
         isInversion: !!(Num_inversion && Num_inversion.toString().trim() !== ''),
@@ -144,8 +146,8 @@ export async function PUT(request, { params }) {
 
   } catch (error) {
     console.error("❌ Error actualizando orden:", error);
-    return new Response(JSON.stringify({ 
-      success: false, 
+    return new Response(JSON.stringify({
+      success: false,
       error: error.message || "Error al actualizar la orden",
       stack: error.stack
     }), {
