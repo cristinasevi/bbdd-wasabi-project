@@ -296,10 +296,38 @@ export default function InversionClient({
     setSelectedMes(e.target.value)
   }
 
-  // Manejar cambio de año
+  // En ambos componentes cliente, añadimos esta función y la llamamos cuando cambia el año
+  const reloadDataForYear = async (newYear) => {
+    if (!departamentoId) return;
+
+    setIsLoading(true);
+    try {
+      // Cargar datos del año seleccionado para este departamento
+      const response = await fetch(`/api/getDataForYear?departamentoId=${departamentoId}&year=${newYear}&type=inversion`);
+      if (response.ok) {
+        // Simplemente registra que los datos se cargaron correctamente
+        // Los useMemo se encargarán de recalcular los valores cuando cambie selectedAño
+        console.log(`Datos de inversión para el año ${newYear} cargados correctamente`);
+
+        // Opcional: puedes imprimir los datos para depuración
+        const data = await response.json();
+        console.log(`Total de inversión para ${newYear}: ${data.totalAmount || 0}`);
+      }
+    } catch (error) {
+      console.error(`Error loading investment data for year ${newYear}:`, error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // En el manejador de cambio de año
   const handleAñoChange = (e) => {
-    setSelectedAño(e.target.value)
-  }
+    const newYear = e.target.value;
+    setSelectedAño(newYear);
+
+    // Recargar datos para el nuevo año
+    reloadDataForYear(parseInt(newYear));
+  };
 
   // Formatear valores monetarios
   const formatCurrency = (value) => {

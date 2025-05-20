@@ -1,8 +1,9 @@
 import { pool } from '@/app/api/lib/db';
 
-export async function getPresupuestoMensual(idDepartamento) {
+export async function getPresupuestoMensual(idDepartamento, año = null) {
   try {
-    const [rows] = await pool.query(`
+    // Construir la consulta base
+    let query = `
       SELECT 
         b.id_DepartamentoFK,
         SUM(b.cantidad_inicial) / 12 AS presupuesto_mensual,
@@ -14,10 +15,19 @@ export async function getPresupuestoMensual(idDepartamento) {
         FROM Bolsa_Presupuesto bp
       )
       AND b.id_DepartamentoFK = ?
-      GROUP BY b.id_DepartamentoFK
-    `,
-      [idDepartamento]
-    );
+    `;
+    
+    const params = [idDepartamento];
+    
+    // Si se proporciona un año, filtrar por él
+    if (año !== null) {
+      query += ` AND YEAR(b.fecha_inicio) = ?`;
+      params.push(año);
+    }
+    
+    query += ` GROUP BY b.id_DepartamentoFK`;
+    
+    const [rows] = await pool.query(query, params);
     return rows;
   } catch (error) {
     console.error('Error executing query:', error);

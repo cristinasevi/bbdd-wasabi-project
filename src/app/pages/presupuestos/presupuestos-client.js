@@ -249,10 +249,36 @@ export default function PresupuestoClient({
     setSelectedMes(e.target.value)
   }
 
-  // Manejar cambio de año
+  // En ambos componentes cliente, añadimos esta función y la llamamos cuando cambia el año
+  const reloadDataForYear = async (newYear) => {
+    if (!departamentoId) return;
+
+    setIsLoading(true);
+    try {
+      // Cargar datos del año seleccionado para este departamento
+      const response = await fetch(`/api/getDataForYear?departamentoId=${departamentoId}&year=${newYear}&type=presupuesto`);
+      if (response.ok) {
+        const data = await response.json();
+
+        // Para página de presupuestos
+        setPresupuestoTotal(data.totalAmount || 0);
+        setPresupuestoMensual(data.monthlyAmount || 0);
+      }
+    } catch (error) {
+      console.error(`Error loading budget data for year ${newYear}:`, error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // En el manejador de cambio de año
   const handleAñoChange = (e) => {
-    setSelectedAño(e.target.value)
-  }
+    const newYear = e.target.value;
+    setSelectedAño(newYear);
+
+    // Recargar datos para el nuevo año
+    reloadDataForYear(parseInt(newYear));
+  };
 
   // Formatear valores monetarios
   const formatCurrency = (value) => {
