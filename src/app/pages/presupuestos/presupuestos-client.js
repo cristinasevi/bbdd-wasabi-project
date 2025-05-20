@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { ChevronDown, Calendar, Info } from "lucide-react"
+import { ChevronDown, Calendar, Info, RefreshCw } from "lucide-react"
 import Link from "next/link"
 import useUserDepartamento from "@/app/hooks/useUserDepartamento"
+import useBolsasData from "@/app/hooks/useBolsasData"
 
 export default function PresupuestoClient({
   initialOrden = [],
@@ -20,6 +21,11 @@ export default function PresupuestoClient({
   const [presupuestoMensual, setPresupuestoMensual] = useState(0)
   const [presupuestoTotal, setPresupuestoTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
+  const [loadingRefresh, setLoadingRefresh] = useState(false)
+  const [successMessage, setSuccessMessage] = useState("")
+
+  // Utilizar nuestro hook personalizado para cargar datos
+  const { fetchBolsasData } = useBolsasData()
 
   // Estados para los filtros de fecha - inicializados con valores actuales
   const [selectedMes, setSelectedMes] = useState(mesActual)
@@ -199,6 +205,33 @@ export default function PresupuestoClient({
     }
   }, [departamentoId, presupuestosPorDepartamento, gastosPorDepartamento]);
 
+  // Función para refrescar datos
+  const refreshData = async () => {
+    if (!departamentoId) return;
+    
+    setLoadingRefresh(true);
+    try {
+      const result = await fetchBolsasData(departamentoId, parseInt(selectedAño), 'presupuesto');
+      
+      if (result && result.presupuesto) {
+        // Actualizar datos de presupuesto
+        setPresupuestoMensual(result.presupuesto.presupuesto_mensual || 0);
+        setPresupuestoTotal(result.presupuesto.total_presupuesto || 0);
+        
+        setSuccessMessage('Datos actualizados correctamente');
+        
+        // Ocultar mensaje después de 3 segundos
+        setTimeout(() => {
+          setSuccessMessage('');
+        }, 3000);
+      }
+    } catch (error) {
+      console.error("Error al refrescar datos:", error);
+    } finally {
+      setLoadingRefresh(false);
+    }
+  };
+
   // CORREGIDO: Calcular presupuesto actual = presupuesto total - gasto del año actual
   const presupuestoActual = useMemo(() => {
     return presupuestoTotal - gastoTotalDelAñoActual;
@@ -220,7 +253,7 @@ export default function PresupuestoClient({
 
     // Calcular recomendación: presupuesto restante / meses restantes del año actual
     const recomendacion = presupuestoActual / mesesRestantes;
-
+    
     console.log(`💰 Presupuesto restante: ${presupuestoActual}, Meses restantes: ${mesesRestantes}, Recomendación mensual: ${recomendacion}`);
 
     return recomendacion;
@@ -255,14 +288,17 @@ export default function PresupuestoClient({
 
     setIsLoading(true);
     try {
-      // Cargar datos del año seleccionado para este departamento
-      const response = await fetch(`/api/getDataForYear?departamentoId=${departamentoId}&year=${newYear}&type=presupuesto`);
-      if (response.ok) {
-        const data = await response.json();
-
-        // Para página de presupuestos
-        setPresupuestoTotal(data.totalAmount || 0);
-        setPresupuestoMensual(data.monthlyAmount || 0);
+      // Usar nuestro nuevo hook para cargar datos del año
+      const result = await fetchBolsasData(departamentoId, parseInt(newYear), 'presupuesto');
+      
+      if (result && result.presupuesto) {
+        // Actualizar datos de presupuesto
+        setPresupuestoTotal(result.presupuesto.total_presupuesto || 0);
+        setPresupuestoMensual(result.presupuesto.presupuesto_mensual || 0);
+      } else {
+        // Si no hay datos para ese año, establecer a 0
+        setPresupuestoTotal(0);
+        setPresupuestoMensual(0);
       }
     } catch (error) {
       console.error(`Error loading budget data for year ${newYear}:`, error);
@@ -312,12 +348,31 @@ export default function PresupuestoClient({
   return (
     <div className="p-6">
       {/* Encabezado */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Presupuesto</h1>
-        <h2 className="text-xl text-gray-400">
-          Departamento {departamento || userDepartamento || ""}
-        </h2>
+      <div className="mb-2 flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold">Presupuesto</h1>
+          <h2 className="text-xl text-gray-400">
+            Departamento {departamento || userDepartamento || ""}
+          </h2>
+        </div>
+        
+        {/* Botón de actualizar */}
+        <button 
+          onClick={refreshData} 
+          disabled={loadingRefresh}
+          className="bg-gray-100 hover:bg-gray-200 p-2 rounded-full flex items-center mr-2"
+          title="Actualizar datos"
+        >
+          <RefreshCw className={`w-5 h-5 ${loadingRefresh ? 'animate-spin' : ''}`} />
+        </button>
       </div>
+      
+      {/* Mensaje de éxito */}
+      {successMessage && (
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mt-2 mb-4">
+          {successMessage}
+        </div>
+      )}
 
       {/* Selector de fecha y botón de resumen */}
       <div className="flex justify-between mb-6 gap-4">

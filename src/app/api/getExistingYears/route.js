@@ -1,11 +1,19 @@
+import { pool } from '@/app/api/lib/db';
+import { NextResponse } from 'next/server';
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const departamentoId = searchParams.get('departamentoId');
     
-    if (!departamentoId) {
+    // Validación más robusta del parámetro
+    if (!departamentoId || isNaN(parseInt(departamentoId))) {
+      console.log('API getExistingYears: ID de departamento no válido:', departamentoId);
       return NextResponse.json(
-        { error: 'ID de departamento no proporcionado' },
+        { 
+          error: 'ID de departamento no proporcionado o no válido',
+          years: [] 
+        },
         { status: 400 }
       );
     }
@@ -18,8 +26,10 @@ export async function GET(request) {
       ORDER BY year
     `, [departamentoId]);
     
-    // Extraer los años en un array
-    const years = yearsRows.map(row => row.year);
+    // Extraer los años en un array - asegurar que siempre sea un array
+    const years = yearsRows && Array.isArray(yearsRows) 
+      ? yearsRows.map(row => row.year).filter(year => year !== null && year !== undefined)
+      : [];
     
     // Obtener los totales de presupuesto por año para este departamento
     const [presupuestosPorAño] = await pool.query(`
@@ -35,14 +45,20 @@ export async function GET(request) {
       ORDER BY year
     `, [departamentoId]);
     
+    console.log('API getExistingYears: Años encontrados:', years);
+    
     return NextResponse.json({ 
       years,
-      presupuestosPorAño
+      presupuestosPorAño: presupuestosPorAño || []
     });
   } catch (error) {
-    console.error('Error obteniendo información de bolsas existentes:', error);
+    console.error('Error en API getExistingYears:', error);
+    // Devolver una respuesta de error con formato JSON válido
     return NextResponse.json(
-      { error: 'Error obteniendo información de bolsas existentes' },
+      { 
+        error: 'Error obteniendo información de bolsas existentes: ' + error.message,
+        years: []
+      },
       { status: 500 }
     );
   }

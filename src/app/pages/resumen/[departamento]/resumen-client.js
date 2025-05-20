@@ -1,8 +1,10 @@
+// src/app/pages/resumen/[departamento]/resumen-client.js
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { Calendar, Info, Plus } from "lucide-react"
+import { Calendar, Info, Plus, RefreshCw, Pencil } from "lucide-react"
 import Link from "next/link"
+import useBolsasData from "@/app/hooks/useBolsasData"
 
 export default function ResumenClient({
     departamento,
@@ -27,28 +29,55 @@ export default function ResumenClient({
         año: añoActual,
         departamentoId: '',
     });
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
-
+    
+    // Estado para los datos de bolsas
+    const [datosPresupuesto, setDatosPresupuesto] = useState(resumenprep);
+    const [datosInversion, setDatosInversion] = useState(resumeninv);
+    const [loadingRefresh, setLoadingRefresh] = useState(false);
+    
+    // IMPORTANTE: Añadir el estado isLoading que faltaba
+    const [isLoading, setIsLoading] = useState(false);
+    
     // Estado para almacenar años que ya tienen bolsas
     const [existingYears, setExistingYears] = useState([]);
-
+    
+    // Utilizar el hook personalizado
+    const { error, fetchBolsasData, createBolsas, getExistingYears } = useBolsasData();
+    const [successMessage, setSuccessMessage] = useState('');
+    
     // Depuración: monitorear datos recibidos del servidor
     useEffect(() => {
-        console.log("Datos recibidos del servidor:");
+        console.log("Datos iniciales recibidos del servidor:");
         console.log("resumenprep:", resumenprep);
         console.log("resumeninv:", resumeninv);
         console.log("Año actual:", añoActual);
+        
+        // Inicializar estados con datos iniciales
+        setDatosPresupuesto(resumenprep);
+        setDatosInversion(resumeninv);
     }, [resumenprep, resumeninv, añoActual]);
+    
+    // Buscar ID de departamento
+    const departamentoId = useMemo(() => {
+        if (resumenprep && resumenprep.length > 0) {
+            return resumenprep[0].id_DepartamentoFK;
+        } else if (resumeninv && resumeninv.length > 0) {
+            return resumeninv[0].id_DepartamentoFK;
+        }
+        return null;
+    }, [resumenprep, resumeninv]);
 
     // Calcular presupuesto actual e inversión actual - CORREGIDO
-    const presupuestoTotal = resumenprep?.[0]?.total_presupuesto || 0;
+    const presupuestoTotal = useMemo(() => 
+        datosPresupuesto?.[0]?.total_presupuesto || 0, 
+    [datosPresupuesto]);
 
     // Calcular inversión total anual
-    const inversionTotal = resumeninv?.[0]?.total_inversion || 0;
+    const inversionTotal = useMemo(() => 
+        datosInversion?.[0]?.total_inversion || 0, 
+    [datosInversion]);
 
-    // Calcular gasto en presupuesto solo del año actual (igual que inversiones)
+    // Calcular gasto en presupuesto solo del año actual
     const gastoPresupuestoDelAñoActual = useMemo(() => {
         if (!resumenord || resumenord.length === 0) return 0;
 
@@ -74,7 +103,7 @@ export default function ResumenClient({
     // El presupuesto actual es presupuesto total menos gasto del año actual
     const presupuestoActual = presupuestoTotal - gastoPresupuestoDelAñoActual;
 
-    // CORREGIDO: Calcular gasto de inversión solo del año actual
+    // Calcular gasto de inversión solo del año actual
     const gastoInversionDelAño = useMemo(() => {
         if (!resumenord || resumenord.length === 0) return 0;
 
@@ -114,7 +143,7 @@ export default function ResumenClient({
         return valor < 0 ? "text-red-600" : "";
     };
 
-    // Filtrar órdenes solo para el mes actual (sin estados para filtros)
+    // Filtrar órdenes solo para el mes actual
     const filteredOrdenes = useMemo(() => {
         if (!resumenord || resumenord.length === 0) return [];
 
@@ -145,32 +174,56 @@ export default function ResumenClient({
             return "-";
         }
     };
+    
+    // Función para actualizar los datos
+    const refreshData = async () => {
+        if (!departamentoId) return;
+        
+        setLoadingRefresh(true);
+        
+        try {
+            const result = await fetchBolsasData(departamentoId, añoActual);
+            
+            if (result) {
+                // Actualizar los datos de presupuesto e inversión
+                if (result.presupuesto) {
+                    setDatosPresupuesto([result.presupuesto]);
+                }
+                
+                if (result.inversion) {
+                    setDatosInversion([result.inversion]);
+                }
+                
+                setSuccessMessage('Datos actualizados correctamente');
+                
+                // Ocultar el mensaje después de 3 segundos
+                setTimeout(() => {
+                    setSuccessMessage('');
+                }, 3000);
+            }
+        } catch (error) {
+            console.error("Error al actualizar datos:", error);
+        } finally {
+            setLoadingRefresh(false);
+        }
+    };
 
     // Handler para abrir el modal y establecer el departamento actual
     const handleOpenModal = async (e) => {
         // Prevenir la acción predeterminada para evitar cualquier navegación
         e.preventDefault();
 
-        // Buscar el ID del departamento a partir del objeto resumenprep o resumeninv
-        let departamentoId = null;
-        if (resumenprep && resumenprep.length > 0) {
-            departamentoId = resumenprep[0].id_DepartamentoFK;
-        } else if (resumeninv && resumeninv.length > 0) {
-            departamentoId = resumeninv[0].id_DepartamentoFK;
-        }
-
         if (!departamentoId) {
-            setError('No se puede determinar el departamento actual');
+            console.error('No se puede determinar el departamento actual');
             return;
         }
 
         console.log("Abriendo modal para departamento:", departamento, "ID:", departamentoId);
-
-        // Obtener años que ya tienen bolsas
-        const existingYears = await fetchYearsWithExistingBolsas(departamentoId);
-        setExistingYears(existingYears);
-
-        // Configurar el formulario
+        
+        // Mostrar modal antes de esperar por los datos de años
+        setShowModal(true);
+        
+        // Inicializar el formulario con valores por defecto
         setFormData({
             cantidadPresupuesto: '',
             cantidadInversion: '',
@@ -178,119 +231,183 @@ export default function ResumenClient({
             departamentoId: departamentoId
         });
 
-        // Limpiar mensajes de error o éxito previos
-        setError('');
-        setSuccess('');
-
-        // Mostrar modal
-        setShowModal(true);
+        try {
+            // Obtener años que ya tienen bolsas - con manejo de errores mejorado
+            const years = await getExistingYears(departamentoId);
+            if (Array.isArray(years)) {
+                setExistingYears(years);
+            } else {
+                console.warn("Formato de años inesperado:", years);
+                setExistingYears([]);
+            }
+        } catch (error) {
+            console.error("Error al obtener años existentes:", error);
+            // En caso de error, simplemente mostrar el modal con años vacíos
+            setExistingYears([]);
+        }
     };
 
     // Handler para cerrar el modal
     const handleCloseModal = () => {
         setShowModal(false);
-        setError('');
-        setSuccess('');
     };
 
-    // Handler para cambios en el formulario
-    const handleInputChange = (e) => {
-        const { name, value } = e.target;
+    // Modificar la función handleInputChange para cargar datos existentes al cambiar de año
+    // Este código iría dentro de resumen-client.js
 
-        // Validar que sean solo números para los campos de cantidad
+    // 2. Reemplaza la función handleInputChange con esta versión
+    const handleInputChange = async (e) => {
+        const { name, value, type, checked } = e.target;
+
+        // Para inputs de checkbox
+        if (type === 'checkbox') {
+            setFormData(prev => ({
+            ...prev,
+            [name]: Boolean(checked),
+            }));
+            return;
+        }
+
+        // Validaciones para campos de cantidad
         if ((name === 'cantidadPresupuesto' || name === 'cantidadInversion')) {
             // Permitir solo números y punto decimal, rechazar incluso la 'e'
             if (!/^[0-9]*\.?[0-9]*$/.test(value)) {
-                return;
+            return;
             }
 
             // Verificar que no exceda el máximo de 200.000
             const numericValue = parseFloat(value || 0);
             if (numericValue > 200000) {
-                return;
+            return;
             }
         }
 
-        setFormData({
-            ...formData,
-            [name]: value
-        });
-    };
-
-    const fetchYearsWithExistingBolsas = async (departamentoId) => {
-        try {
-            // Llamar a un nuevo endpoint para obtener años con bolsas existentes
-            const response = await fetch(`/api/getExistingYears?departamentoId=${departamentoId}`);
-            if (response.ok) {
+        // Para el cambio de año, verificar si hay bolsas existentes y cargar sus cantidades
+        if (name === 'año' && value) {
+            const nuevoAño = parseInt(value);
+            
+            // Si el año ya tiene bolsas asignadas, cargar sus valores actuales
+            if (existingYears.includes(nuevoAño)) {
+            try {
+                // Mostrar indicador de carga
+                setIsLoading(true);
+                
+                // Consultar datos de bolsas existentes para ese año
+                const response = await fetch(`/api/getBolsasByYear?departamentoId=${departamentoId}&year=${nuevoAño}`);
+                
+                if (response.ok) {
                 const data = await response.json();
-                return data.years || [];
+                console.log(`Bolsas existentes para ${nuevoAño}:`, data);
+                
+                // Establecer las cantidades existentes en el formulario
+                let nuevoCantidadPresupuesto = '';
+                let nuevoCantidadInversion = '';
+                
+                if (data && data.bolsas) {
+                    // Recorrer las bolsas recibidas
+                    data.bolsas.forEach(bolsa => {
+                    if (bolsa.tipo === 'presupuesto') {
+                        nuevoCantidadPresupuesto = bolsa.cantidad.toString();
+                    } else if (bolsa.tipo === 'inversion') {
+                        nuevoCantidadInversion = bolsa.cantidad.toString();
+                    }
+                    });
+                }
+                
+                // Actualizar el formulario con las cantidades existentes
+                setFormData(prev => ({
+                    ...prev,
+                    año: nuevoAño,
+                    cantidadPresupuesto: nuevoCantidadPresupuesto,
+                    cantidadInversion: nuevoCantidadInversion
+                }));
+                
+                return; // Retornar aquí para evitar la actualización genérica abajo
+                }
+            } catch (error) {
+                console.error('Error al obtener cantidades existentes:', error);
+            } finally {
+                setIsLoading(false);
             }
-            return [];
-        } catch (error) {
-            console.error("Error al obtener años con bolsas existentes:", error);
-            return [];
+            }
         }
+        
+        // Actualización genérica para cualquier otro campo
+        setFormData(prev => ({
+            ...prev,
+            [name]: value
+        }));
     };
 
     // Handler para enviar el formulario
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        // Validaciones
+        // Validaciones existentes...
         if (!formData.departamentoId) {
-            setError('No se puede determinar el departamento actual');
+            console.error('No se puede determinar el departamento actual');
             return;
         }
 
         if (!formData.cantidadPresupuesto && !formData.cantidadInversion) {
-            setError('Debe especificar al menos una cantidad para presupuesto o inversión');
+            console.error('Debe especificar al menos una cantidad para presupuesto o inversión');
             return;
         }
 
-        // Preparar datos para enviar
-        const dataToSend = {
-            departamentoId: formData.departamentoId,
-            año: parseInt(formData.año),
-            cantidadPresupuesto: formData.cantidadPresupuesto ? parseFloat(formData.cantidadPresupuesto) : 0,
-            cantidadInversion: formData.cantidadInversion ? parseFloat(formData.cantidadInversion) : 0
-        };
-
-        setLoading(true);
-        setError('');
-
         try {
-            console.log("Enviando datos:", dataToSend);
-
-            // Llamar al endpoint para crear bolsas
-            const response = await fetch('/api/createBolsas', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(dataToSend)
-            });
-
-            const result = await response.json();
-            console.log("Respuesta del servidor:", result);
-
-            if (!response.ok) {
-                throw new Error(result.error || 'Error al crear las bolsas presupuestarias');
+            // Verificar si el año seleccionado ya tiene bolsas asignadas
+            const añoTieneBolsas = existingYears.includes(parseInt(formData.año));
+            
+            // Si el año ya tiene bolsas, mostrar confirmación
+            if (añoTieneBolsas) {
+            const confirmar = window.confirm(
+                `El año ${formData.año} ya tiene bolsas asignadas. ¿Deseas actualizar estos valores? 
+                
+                • Si seleccionas "Aceptar", se actualizarán las bolsas existentes.
+                • Si seleccionas "Cancelar", no se realizará ningún cambio.`
+            );
+            
+            if (!confirmar) {
+                return; // Cancelar la operación si el usuario no confirma
             }
-
-            // Cerrar el modal inmediatamente
+            }
+            
+            // IMPORTANTE: Usar el setIsLoading
+            setIsLoading(true);
+            
+            // Llamar a la función del hook para crear/actualizar bolsas
+            const result = await createBolsas(
+            formData.departamentoId, 
+            formData.año, 
+            formData.cantidadPresupuesto, 
+            formData.cantidadInversion,
+            añoTieneBolsas // Pasar flag indicando si es actualización
+            );
+            
+            console.log(`Bolsas ${añoTieneBolsas ? 'actualizadas' : 'creadas'}:`, result);
+            
+            // Cerrar el modal
             setShowModal(false);
-
-            // Mostrar mensaje de éxito en la página principal en lugar de recargar
-            setSuccess('Bolsas presupuestarias creadas correctamente. Por favor, actualice la página para ver los cambios.');
-
+            
+            // Mostrar mensaje de éxito
+            setSuccessMessage(`Bolsas ${añoTieneBolsas ? 'actualizadas' : 'creadas'} correctamente`);
+            
+            // Actualizar los datos
+            await refreshData();
+            
+            // Ocultar el mensaje después de 3 segundos
+            setTimeout(() => {
+            setSuccessMessage('');
+            }, 3000);
+            
         } catch (err) {
-            console.error('Error al crear bolsas:', err);
-            setError(err.message || 'Error al crear las bolsas presupuestarias');
+            console.error(`Error al ${existingYears.includes(parseInt(formData.año)) ? 'actualizar' : 'crear'} bolsas:`, err);
+            setError(`Error: ${err.message}`);
         } finally {
-            setLoading(false);
+            // IMPORTANTE: Asegurarse de poner isLoading a false
+            setIsLoading(false);
         }
     };
-
     return (
         <div className="p-6">
             {/* Encabezado */}
@@ -299,7 +416,24 @@ export default function ResumenClient({
                     <h1 className="text-3xl font-bold">Resumen</h1>
                     <h2 className="text-xl text-gray-400">Departamento {departamento}</h2>
                 </div>
+                
+                {/* Botón de actualizar */}
+                <button 
+                    onClick={refreshData} 
+                    disabled={loadingRefresh || isLoading}
+                    className="bg-gray-100 hover:bg-gray-200 p-2 rounded-full flex items-center mr-2"
+                    title="Actualizar datos"
+                >
+                    <RefreshCw className={`w-5 h-5 ${loadingRefresh || isLoading ? 'animate-spin' : ''}`} />
+                </button>
             </div>
+
+            {/* Mensaje de éxito */}
+            {successMessage && (
+                <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mt-4 mb-2">
+                    {successMessage}
+                </div>
+            )}
 
             {/* Fecha */}
             <div className="flex justify-end my-2">
@@ -505,13 +639,6 @@ export default function ResumenClient({
                             </div>
                         )}
 
-                        {/* Mensaje de éxito */}
-                        {success && (
-                            <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-                                {success}
-                            </div>
-                        )}
-
                         {/* Formulario */}
                         <form onSubmit={handleSubmit}>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -520,33 +647,37 @@ export default function ResumenClient({
                                     <label className="block text-gray-700 mb-1">Año *</label>
                                     <div className="relative">
                                         <select
-                                            id="año"
-                                            name="año"
-                                            value={formData.año}
-                                            onChange={handleInputChange}
-                                            className="appearance-none border border-gray-300 rounded px-3 py-2 w-full pr-8"
-                                            required
+                                        id="año"
+                                        name="año"
+                                        value={formData.año}
+                                        onChange={handleInputChange}
+                                        className="appearance-none border border-gray-300 rounded px-3 py-2 w-full pr-8"
+                                        required
                                         >
-                                            {/* Generar opciones para años disponibles */}
-                                            {Array.from({ length: 6 }, (_, i) => añoActual + i)
-                                                .filter(year => !existingYears.includes(year)) // Filtrar años que ya tienen bolsas
-                                                .map(year => (
-                                                    <option key={year} value={year}>{year}</option>
-                                                ))
-                                            }
-                                            {/* Si no hay años disponibles, mostrar mensaje */}
-                                            {Array.from({ length: 6 }, (_, i) => añoActual + i)
-                                                .filter(year => !existingYears.includes(year)).length === 0 && (
-                                                    <option value="" disabled>No hay años disponibles</option>
-                                                )
-                                            }
+                                        {/* Generar opciones para todos los años, incluyendo los que tienen bolsas */}
+                                        {Array.from({ length: 6 }, (_, i) => añoActual + i).map(year => {
+                                            const tieneAsignacion = existingYears.includes(year);
+                                            return (
+                                            <option 
+                                                key={year} 
+                                                value={year}
+                                            >
+                                                {year} {tieneAsignacion ? "(tiene bolsas)" : ""}
+                                            </option>
+                                            );
+                                        })}
                                         </select>
                                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-700">
-                                            <svg className="h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 7l3 3 3-3" />
-                                            </svg>
+                                        <svg className="h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 7l3 3 3-3" />
+                                        </svg>
                                         </div>
                                     </div>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        {existingYears.includes(parseInt(formData.año)) 
+                                        ? "Este año ya tiene bolsas. Al guardar, se actualizarán los valores existentes."
+                                        : "Selecciona el año para la nueva bolsa."}
+                                    </p>
                                 </div>
 
                                 {/* Departamento (solo informativo) */}
@@ -601,16 +732,40 @@ export default function ResumenClient({
                                     type="button"
                                     onClick={handleCloseModal}
                                     className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100 cursor-pointer"
-                                    disabled={loading}
+                                    disabled={isLoading}
                                 >
                                     Cancelar
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={loading}
+                                    disabled={isLoading}
                                     className="bg-red-600 opacity-80 flex items-center gap-2 text-white px-4 py-3 rounded-md hover:bg-red-700 cursor-pointer"
                                 >
-                                    {loading ? "Guardando..." : "Guardar"}
+                                    {isLoading ? (
+                                    <>
+                                        <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        {existingYears.includes(parseInt(formData.año)) ? 'Modificando...' : 'Guardando...'}
+                                    </>
+                                    ) : (
+                                    <>
+                                        {existingYears.includes(parseInt(formData.año)) ? (
+                                        // Para modificación, mostrar un icono diferente y texto "Modificar"
+                                        <>
+                                            <Pencil className="w-5 h-5" size={18} />
+                                            <span>Modificar</span>
+                                        </>
+                                        ) : (
+                                        // Para nueva bolsa, mostrar el icono de Plus y texto "Guardar"
+                                        <>
+                                            <Plus className="w-5 h-5" size={18} />
+                                            <span>Guardar</span>
+                                        </>
+                                        )}
+                                    </>
+                                    )}
                                 </button>
                             </div>
                         </form>

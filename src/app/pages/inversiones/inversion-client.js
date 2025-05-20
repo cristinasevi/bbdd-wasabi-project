@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { ChevronDown, Calendar, Info } from "lucide-react"
+import { ChevronDown, Calendar, Info, RefreshCw } from "lucide-react"
 import Link from "next/link"
 import useUserDepartamento from "@/app/hooks/useUserDepartamento"
+import useBolsasData from "@/app/hooks/useBolsasData"
 
 export default function InversionClient({
   initialOrden = [],
@@ -19,6 +20,11 @@ export default function InversionClient({
   const [departamentoId, setDepartamentoId] = useState(null)
   const [inversionMensual, setInversionMensual] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
+  const [loadingRefresh, setLoadingRefresh] = useState(false)
+  const [successMessage, setSuccessMessage] = useState("")
+
+  // Utilizar nuestro hook personalizado para cargar datos
+  const { fetchBolsasData } = useBolsasData()
 
   // Estados para los filtros de fecha - inicializados con valores actuales
   const [selectedMes, setSelectedMes] = useState(mesActual)
@@ -90,6 +96,33 @@ export default function InversionClient({
       }
     }
   }, [departamento, initialDepartamentos])
+
+  // Función para refrescar datos
+  const refreshData = async () => {
+    if (!departamentoId) return;
+    
+    setLoadingRefresh(true);
+    try {
+      const result = await fetchBolsasData(departamentoId, parseInt(selectedAño), 'inversion');
+      
+      if (result && result.inversion) {
+        // Actualizar datos de inversión
+        setInversionMensual(result.inversion.inversion_mensual || 0);
+        setCurrentYearInversionTotal(result.inversion.total_inversion || 0);
+        
+        setSuccessMessage('Datos actualizados correctamente');
+        
+        // Ocultar mensaje después de 3 segundos
+        setTimeout(() => {
+          setSuccessMessage('');
+        }, 3000);
+      }
+    } catch (error) {
+      console.error("Error al refrescar datos:", error);
+    } finally {
+      setLoadingRefresh(false);
+    }
+  };
 
   // Filtrar todas las órdenes de inversión por departamento (para cálculo de gastos totales)
   const allInvestmentOrders = useMemo(() => {
@@ -216,9 +249,11 @@ export default function InversionClient({
         // Calcular inversión mensual
         const invMensual = (inversionData[0]?.total_inversion || 0) / 12;
         setInversionMensual(invMensual);
+        setCurrentYearInversionTotal(inversionData[0]?.total_inversion || 0);
       } else {
         // Si el año seleccionado está fuera del rango, establecer a 0
         setInversionMensual(0);
+        setCurrentYearInversionTotal(0);
       }
     } catch (error) {
       console.error("Error cargando datos de inversión:", error);
@@ -226,44 +261,47 @@ export default function InversionClient({
   }, [departamentoId, inversionesPorDepartamento, selectedAño]);
 
   // Calcular inversión total anual para el año seleccionado
-  // Modificar cómo se calcula inversionTotalAnual
   const inversionTotalAnual = useMemo(() => {
     // Si hay un valor específico para el año seleccionado, usarlo
-    if (selectedAño !== año.toString() && currentYearInversionTotal !== undefined) {
+    if (selectedAño && currentYearInversionTotal !== undefined) {
       return currentYearInversionTotal;
     }
 
-    // De lo contrario, usar el cálculo original
+    // De lo contrario, usar el cálculo original de los datos iniciales
     const inversionData = inversionesPorDepartamento[departamentoId] || [];
     const total = inversionData[0]?.total_inversion || 0;
 
-    // Verificar si la inversión aplica para el año seleccionado
-    const fechaInicio = inversionData[0]?.fecha_inicio ? new Date(inversionData[0]?.fecha_inicio) : null;
-    const fechaFinal = inversionData[0]?.fecha_final ? new Date(inversionData[0]?.fecha_final) : null;
+    return total;
+  }, [inversionesPorDepartamento, departamentoId, selectedAño, currentYearInversionTotal]);
 
-    // Si no hay fechas o la inversión incluye el año seleccionado, usar el valor completo
-    if (!fechaInicio || !fechaFinal ||
-      (fechaInicio.getFullYear() <= parseInt(selectedAño) &&
-        fechaFinal.getFullYear() >= parseInt(selectedAño))) {
-      return total;
-    }
-
-    // Si no coincide el año, retornar 0
-    return 0;
-  }, [inversionesPorDepartamento, departamentoId, selectedAño, año, currentYearInversionTotal]);
-
-
-  // Añade esta parte al useEffect que se activa cuando cambia departamentoId
-  useEffect(() => {
+  // Añade esta parte para recargar datos para un año específico
+  const reloadDataForYear = async (newYear) => {
     if (!departamentoId) return;
 
-    // Si el año seleccionado es diferente del año actual, cargar datos específicos
-    if (selectedAño !== año.toString()) {
-      reloadDataForYear(parseInt(selectedAño));
+    setIsLoading(true);
+    try {
+      // Usar nuestro nuevo hook para cargar datos específicos del año
+      const result = await fetchBolsasData(departamentoId, parseInt(newYear), 'inversion');
+      
+      if (result && result.inversion) {
+        // Actualizar estado con los datos para el año seleccionado
+        setCurrentYearInversionTotal(result.inversion.total_inversion || 0);
+        setInversionMensual(result.inversion.inversion_mensual || 0);
+      } else {
+        // En caso de no encontrar datos, establecer a 0
+        setCurrentYearInversionTotal(0);
+        setInversionMensual(0);
+      }
+    } catch (error) {
+      console.error(`Error loading investment data for year ${newYear}:`, error);
+      // En caso de error, establecer a 0
+      setCurrentYearInversionTotal(0);
+      setInversionMensual(0);
+    } finally {
+      setIsLoading(false);
     }
-  }, [departamentoId, selectedAño, año]);
+  };
 
-  
   // Calcular saldo actual en tiempo real (inversión total - gasto acumulado)
   const saldoActual = useMemo(() => {
     return inversionTotalAnual - gastoTotalDelAñoSeleccionado;
@@ -316,30 +354,6 @@ export default function InversionClient({
     setSelectedMes(e.target.value)
   }
 
-  // En ambos componentes cliente, añadimos esta función y la llamamos cuando cambia el año
-  const reloadDataForYear = async (newYear) => {
-    if (!departamentoId) return;
-
-    setIsLoading(true);
-    try {
-      // Cargar datos del año seleccionado para este departamento
-      const response = await fetch(`/api/getDataForYear?departamentoId=${departamentoId}&year=${newYear}&type=inversion`);
-      if (response.ok) {
-        const data = await response.json();
-        console.log(`Datos de inversión para el año ${newYear} cargados correctamente:`, data);
-
-        // Actualizar el estado con el total para el año seleccionado
-        setCurrentYearInversionTotal(data.totalAmount || 0);
-      }
-    } catch (error) {
-      console.error(`Error loading investment data for year ${newYear}:`, error);
-      // En caso de error, establecer a 0
-      setCurrentYearInversionTotal(0);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   // En el manejador de cambio de año
   const handleAñoChange = (e) => {
     const newYear = e.target.value;
@@ -381,12 +395,31 @@ export default function InversionClient({
   return (
     <div className="p-6">
       {/* Encabezado */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Inversión</h1>
-        <h2 className="text-xl text-gray-400">
-          Departamento {departamento || userDepartamento || ""}
-        </h2>
+      <div className="mb-2 flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold">Inversión</h1>
+          <h2 className="text-xl text-gray-400">
+            Departamento {departamento || userDepartamento || ""}
+          </h2>
+        </div>
+        
+        {/* Botón de actualizar */}
+        <button 
+          onClick={refreshData} 
+          disabled={loadingRefresh}
+          className="bg-gray-100 hover:bg-gray-200 p-2 rounded-full flex items-center mr-2"
+          title="Actualizar datos"
+        >
+          <RefreshCw className={`w-5 h-5 ${loadingRefresh ? 'animate-spin' : ''}`} />
+        </button>
       </div>
+      
+      {/* Mensaje de éxito */}
+      {successMessage && (
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mt-2 mb-4">
+          {successMessage}
+        </div>
+      )}
 
       {/* Selector de fecha y botón de resumen */}
       <div className="flex justify-between mb-6 gap-4">
@@ -531,9 +564,6 @@ export default function InversionClient({
               </div>
               <div className="text-xs text-gray-500 mt-1">
                 Recomendación: {formatCurrency(inversionMensualRecomendada)}/mes
-                {/* <span className="text-gray-400 ml-1">
-                  (calculado desde hoy hasta diciembre)
-                </span> */}
               </div>
             </div>
 
