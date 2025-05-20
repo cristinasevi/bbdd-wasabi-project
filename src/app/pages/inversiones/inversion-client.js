@@ -23,6 +23,7 @@ export default function InversionClient({
   // Estados para los filtros de fecha - inicializados con valores actuales
   const [selectedMes, setSelectedMes] = useState(mesActual)
   const [selectedAño, setSelectedAño] = useState(año.toString())
+  const [currentYearInversionTotal, setCurrentYearInversionTotal] = useState(0);
 
   // Obtener información del usuario
   useEffect(() => {
@@ -225,7 +226,14 @@ export default function InversionClient({
   }, [departamentoId, inversionesPorDepartamento, selectedAño]);
 
   // Calcular inversión total anual para el año seleccionado
+  // Modificar cómo se calcula inversionTotalAnual
   const inversionTotalAnual = useMemo(() => {
+    // Si hay un valor específico para el año seleccionado, usarlo
+    if (selectedAño !== año.toString() && currentYearInversionTotal !== undefined) {
+      return currentYearInversionTotal;
+    }
+
+    // De lo contrario, usar el cálculo original
     const inversionData = inversionesPorDepartamento[departamentoId] || [];
     const total = inversionData[0]?.total_inversion || 0;
 
@@ -242,8 +250,20 @@ export default function InversionClient({
 
     // Si no coincide el año, retornar 0
     return 0;
-  }, [inversionesPorDepartamento, departamentoId, selectedAño]);
+  }, [inversionesPorDepartamento, departamentoId, selectedAño, año, currentYearInversionTotal]);
 
+
+  // Añade esta parte al useEffect que se activa cuando cambia departamentoId
+  useEffect(() => {
+    if (!departamentoId) return;
+
+    // Si el año seleccionado es diferente del año actual, cargar datos específicos
+    if (selectedAño !== año.toString()) {
+      reloadDataForYear(parseInt(selectedAño));
+    }
+  }, [departamentoId, selectedAño, año]);
+
+  
   // Calcular saldo actual en tiempo real (inversión total - gasto acumulado)
   const saldoActual = useMemo(() => {
     return inversionTotalAnual - gastoTotalDelAñoSeleccionado;
@@ -305,16 +325,16 @@ export default function InversionClient({
       // Cargar datos del año seleccionado para este departamento
       const response = await fetch(`/api/getDataForYear?departamentoId=${departamentoId}&year=${newYear}&type=inversion`);
       if (response.ok) {
-        // Simplemente registra que los datos se cargaron correctamente
-        // Los useMemo se encargarán de recalcular los valores cuando cambie selectedAño
-        console.log(`Datos de inversión para el año ${newYear} cargados correctamente`);
-
-        // Opcional: puedes imprimir los datos para depuración
         const data = await response.json();
-        console.log(`Total de inversión para ${newYear}: ${data.totalAmount || 0}`);
+        console.log(`Datos de inversión para el año ${newYear} cargados correctamente:`, data);
+
+        // Actualizar el estado con el total para el año seleccionado
+        setCurrentYearInversionTotal(data.totalAmount || 0);
       }
     } catch (error) {
       console.error(`Error loading investment data for year ${newYear}:`, error);
+      // En caso de error, establecer a 0
+      setCurrentYearInversionTotal(0);
     } finally {
       setIsLoading(false);
     }
