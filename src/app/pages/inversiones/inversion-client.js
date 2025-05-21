@@ -17,17 +17,17 @@ export default function InversionClient({
   // Estado para controlar la carga completa
   const [isComponentReady, setIsComponentReady] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
-  
+
   // Estado para el efecto de parpadeo
   const [visible, setVisible] = useState(true);
-  
+
   // Efecto para el parpadeo
   useEffect(() => {
     // Configurar el intervalo para alternar la visibilidad
     const intervalId = setInterval(() => {
       setVisible(prevVisible => !prevVisible);
     }, 500); // Parpadeo cada 500ms
-    
+
     // Limpiar el intervalo cuando el componente se desmonte
     return () => clearInterval(intervalId);
   }, []);
@@ -79,10 +79,40 @@ export default function InversionClient({
       // 3. Establecer el año seleccionado (sin render adicional)
       setSelectedAño(yearToLoad);
 
+      // Seleccionar un mes válido para el año inicial
+      const mesesDelAño = new Set();
+      initialOrden.forEach(orden => {
+        if (orden.Departamento === departamento && orden.Num_inversion) {
+          const ordenDate = new Date(orden.Fecha);
+          const ordenAño = ordenDate.getFullYear().toString();
+          if (ordenAño === yearToLoad) {
+            const mesesNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+              "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+            mesesDelAño.add(mesesNames[ordenDate.getMonth()]);
+          }
+        }
+      });
+
+      // Si hay meses disponibles, seleccionar el primero
+      if (mesesDelAño.size > 0) {
+        const mesesOrder = {
+          "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4, "Mayo": 5, "Junio": 6,
+          "Julio": 7, "Agosto": 8, "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
+        };
+        const sortedMeses = Array.from(mesesDelAño).sort((a, b) => mesesOrder[a] - mesesOrder[b]);
+
+        if (sortedMeses.length > 0) {
+          setSelectedMes(sortedMeses[0]);
+        } else {
+          // Si no hay meses con datos, usar el mes actual
+          setSelectedMes(mesActual);
+        }
+      }
+
       // 4. Cargar datos para el año seleccionado
       if (departId) {
         const result = await fetchBolsasData(departId, parseInt(yearToLoad), 'inversion');
-        
+
         if (result && result.inversion) {
           setCurrentYearInversionTotal(result.inversion.total_inversion || 0);
           setInversionMensual(result.inversion.inversion_mensual || 0);
@@ -257,6 +287,7 @@ export default function InversionClient({
         o.Departamento === departamento && o.Num_inversion
       );
 
+      // Si hay un año seleccionado, filtrar los meses disponibles solo para ese año
       departamentoOrdenes.forEach(orden => {
         const ordenDate = new Date(orden.Fecha);
         const ordenAño = ordenDate.getFullYear().toString();
@@ -264,19 +295,25 @@ export default function InversionClient({
           "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
         const ordenMes = mesesNames[ordenDate.getMonth()];
 
-        mesesSet.add(ordenMes);
+        // Solo añadir meses si corresponden al año seleccionado o si no hay año seleccionado
+        if (!selectedAño || ordenAño === selectedAño) {
+          mesesSet.add(ordenMes);
+        }
+
+        // Siempre añadir todos los años
         añosSet.add(ordenAño);
       });
     }
 
-    // Siempre incluir el mes y año actual
-    mesesSet.add(mesActual);
-    añosSet.add(año.toString());
-    
     // Añadir años que tienen bolsas de inversión
     añosConBolsas.forEach(year => {
       añosSet.add(year.toString());
     });
+
+    // Si el año seleccionado es el actual, incluir el mes actual
+    if (!selectedAño || selectedAño === new Date().getFullYear().toString()) {
+      mesesSet.add(mesActual);
+    }
 
     // Ordenar meses
     const mesesOrder = {
@@ -284,11 +321,20 @@ export default function InversionClient({
       "Julio": 7, "Agosto": 8, "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
     };
 
+    // Si después de filtrar no hay meses, incluir al menos un mes (actual o enero)
+    if (mesesSet.size === 0) {
+      if (selectedAño === new Date().getFullYear().toString()) {
+        mesesSet.add(mesActual);
+      } else {
+        mesesSet.add("Enero"); // Mes por defecto si no hay datos
+      }
+    }
+
     const sortedMeses = Array.from(mesesSet).sort((a, b) => mesesOrder[a] - mesesOrder[b]);
     const sortedAños = Array.from(añosSet).sort((a, b) => parseInt(a) - parseInt(b));
 
     return { availableMeses: sortedMeses, availableAños: sortedAños };
-  }, [departamento, initialOrden, mesActual, año, añosConBolsas]);
+  }, [departamento, initialOrden, mesActual, año, añosConBolsas, selectedAño]);
 
   // Calcular gasto del mes seleccionado
   const gastoDelMes = useMemo(() => {
@@ -357,7 +403,7 @@ export default function InversionClient({
     try {
       // Usar nuestro hook para cargar datos del año
       const result = await fetchBolsasData(departamentoId, parseInt(newYear), 'inversion');
-      
+
       if (result && result.inversion) {
         // Actualizar datos de inversión
         setCurrentYearInversionTotal(result.inversion.total_inversion || 0);
@@ -381,14 +427,49 @@ export default function InversionClient({
     const newYear = e.target.value;
     setSelectedAño(newYear);
 
+    // Recalcular los meses disponibles cuando cambie el año
+    // Esto se hará automáticamente por el useMemo, pero tenemos que asegurarnos
+    // de que el mes seleccionado siga siendo válido con el nuevo año
+
     // Recargar datos para el nuevo año
-    reloadDataForYear(parseInt(newYear));
+    reloadDataForYear(parseInt(newYear))
+      .then(() => {
+        // Después de cargar los datos, verificar si el mes actual es válido
+        // Recalcular meses disponibles para el nuevo año
+        const mesesDelAño = new Set();
+        initialOrden.forEach(orden => {
+          if (orden.Departamento === departamento && orden.Num_inversion) {
+            const ordenDate = new Date(orden.Fecha);
+            const ordenAño = ordenDate.getFullYear().toString();
+            if (ordenAño === newYear) {
+              const mesesNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+                "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+              mesesDelAño.add(mesesNames[ordenDate.getMonth()]);
+            }
+          }
+        });
+
+        // Si el mes seleccionado ya no está disponible, seleccionar el primer mes disponible
+        if (mesesDelAño.size > 0 && !mesesDelAño.has(selectedMes)) {
+          // Ordenar los meses
+          const mesesOrder = {
+            "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4, "Mayo": 5, "Junio": 6,
+            "Julio": 7, "Agosto": 8, "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
+          };
+          const sortedMeses = Array.from(mesesDelAño).sort((a, b) => mesesOrder[a] - mesesOrder[b]);
+
+          // Seleccionar el primer mes disponible
+          if (sortedMeses.length > 0) {
+            setSelectedMes(sortedMeses[0]);
+          }
+        }
+      });
   };
 
   // Función para refrescar datos
   const refreshData = async () => {
     if (!departamentoId) return;
-    
+
     setLoadingRefresh(true);
     try {
       // Actualizar la lista de años con bolsas
@@ -396,18 +477,18 @@ export default function InversionClient({
       if (years && years.length > 0) {
         setAñosConBolsas(years);
       }
-      
+
       // Obtener datos actualizados para el año seleccionado
       const result = await fetchBolsasData(departamentoId, parseInt(selectedAño), 'inversion');
-      
+
       if (result && result.inversion) {
         // Actualizar datos de inversión
         setInversionMensual(result.inversion.inversion_mensual || 0);
         setCurrentYearInversionTotal(result.inversion.total_inversion || 0);
         setInversionTotal(result.inversion.total_inversion || 0);
-        
+
         setSuccessMessage('Datos actualizados correctamente');
-        
+
         // Ocultar mensaje después de 3 segundos
         setTimeout(() => {
           setSuccessMessage('');
@@ -496,7 +577,7 @@ export default function InversionClient({
             <select
               value={selectedMes}
               onChange={handleMesChange}
-              className="appearance-none bg-gray-100 border border-gray-200 rounded-md px-4 py-2 pr-8 cursor-pointer"
+              className="appearance-none bg-gray-100 border border-gray-200 rounded-md px-4 py-2 pr-8 cursor-pointer w-40"
             >
               {availableMeses.map(mes => (
                 <option key={mes} value={mes}>{mes}</option>

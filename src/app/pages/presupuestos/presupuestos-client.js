@@ -89,26 +89,56 @@ export default function PresupuestoClient({
   useEffect(() => {
     async function fetchYearsWithBolsas() {
       if (!departamentoId) return;
-      
+
       try {
         // Usar el hook para obtener años con bolsas
         const years = await getExistingYears(departamentoId);
-        
+
         if (years && years.length > 0) {
           setAñosConBolsas(years);
-          
+
           // MODIFICADO: No cambiar automáticamente al año más reciente
           // En su lugar, cargar los datos para el año actual si está disponible,
           // o para el año seleccionado actualmente
-          
+
           // Primero, verificar si el año actual está en la lista de años con bolsas
-          const yearToLoad = years.includes(parseInt(currentYear)) 
-            ? currentYear 
+          const yearToLoad = years.includes(parseInt(currentYear))
+            ? currentYear
             : selectedAño;
-            
+
           // Cargar datos para el año seleccionado sin cambiar el año en el selector
           if (!initialLoadComplete) {
             await reloadDataForYear(parseInt(yearToLoad));
+
+            // NUEVO: Seleccionar un mes válido para el año inicial
+            const mesesDelAño = new Set();
+            initialOrden.forEach(orden => {
+              if (orden.Departamento === departamento && !orden.Num_inversion) {
+                const ordenDate = new Date(orden.Fecha);
+                const ordenAño = ordenDate.getFullYear().toString();
+                if (ordenAño === yearToLoad) {
+                  const mesesNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+                    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+                  mesesDelAño.add(mesesNames[ordenDate.getMonth()]);
+                }
+              }
+            });
+
+            if (mesesDelAño.size > 0) {
+              const mesesOrder = {
+                "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4, "Mayo": 5, "Junio": 6,
+                "Julio": 7, "Agosto": 8, "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
+              };
+              const sortedMeses = Array.from(mesesDelAño).sort((a, b) => mesesOrder[a] - mesesOrder[b]);
+
+              if (sortedMeses.length > 0) {
+                setSelectedMes(sortedMeses[0]);
+              } else {
+                // Si no hay meses con datos, usar el mes actual
+                setSelectedMes(mesActual);
+              }
+            }
+
             setInitialLoadComplete(true);
           }
         }
@@ -116,7 +146,7 @@ export default function PresupuestoClient({
         console.error("Error cargando años con bolsas:", error);
       }
     }
-    
+
     fetchYearsWithBolsas();
   }, [departamentoId, getExistingYears, currentYear, selectedAño, initialLoadComplete]);
 
@@ -190,21 +220,25 @@ export default function PresupuestoClient({
           "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
         const ordenMes = mesesNames[ordenDate.getMonth()];
 
-        mesesSet.add(ordenMes);
+        // Solo añadir meses si corresponden al año seleccionado o si no hay año seleccionado
+        if (!selectedAño || ordenAño === selectedAño) {
+          mesesSet.add(ordenMes);
+        }
+
+        // Siempre añadir todos los años
         añosSet.add(ordenAño);
       });
     }
 
-    // Siempre incluir el mes y año actual
-    mesesSet.add(mesActual);
-    
-    // MODIFICADO: Asegurar que el año actual siempre esté en la lista
-    añosSet.add(currentYear);
-    
     // Añadir años que tienen bolsas presupuestarias
     añosConBolsas.forEach(year => {
       añosSet.add(year.toString());
     });
+
+    // Si el año seleccionado es el actual, incluir el mes actual
+    if (!selectedAño || selectedAño === currentYear) {
+      mesesSet.add(mesActual);
+    }
 
     // Ordenar meses
     const mesesOrder = {
@@ -212,11 +246,20 @@ export default function PresupuestoClient({
       "Julio": 7, "Agosto": 8, "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
     };
 
+    // Si después de filtrar no hay meses, incluir al menos un mes (actual o enero)
+    if (mesesSet.size === 0) {
+      if (selectedAño === currentYear) {
+        mesesSet.add(mesActual);
+      } else {
+        mesesSet.add("Enero"); // Mes por defecto si no hay datos
+      }
+    }
+
     const sortedMeses = Array.from(mesesSet).sort((a, b) => mesesOrder[a] - mesesOrder[b]);
     const sortedAños = Array.from(añosSet).sort((a, b) => parseInt(a) - parseInt(b));
 
     return { availableMeses: sortedMeses, availableAños: sortedAños };
-  }, [departamento, initialOrden, mesActual, currentYear, añosConBolsas]);
+  }, [departamento, initialOrden, mesActual, currentYear, añosConBolsas, selectedAño]);
 
   // Calcular gasto del mes seleccionado
   const gastoDelMes = useMemo(() => {
@@ -254,7 +297,7 @@ export default function PresupuestoClient({
   // Función para refrescar datos
   const refreshData = async () => {
     if (!departamentoId) return;
-    
+
     setLoadingRefresh(true);
     try {
       // Actualizar la lista de años con bolsas
@@ -262,17 +305,17 @@ export default function PresupuestoClient({
       if (years && years.length > 0) {
         setAñosConBolsas(years);
       }
-      
+
       // Obtener datos actualizados para el año seleccionado
       const result = await fetchBolsasData(departamentoId, parseInt(selectedAño), 'presupuesto');
-      
+
       if (result && result.presupuesto) {
         // Actualizar datos de presupuesto
         setPresupuestoMensual(result.presupuesto.presupuesto_mensual || 0);
         setPresupuestoTotal(result.presupuesto.total_presupuesto || 0);
-        
+
         setSuccessMessage('Datos actualizados correctamente');
-        
+
         // Ocultar mensaje después de 3 segundos
         setTimeout(() => {
           setSuccessMessage('');
@@ -339,7 +382,7 @@ export default function PresupuestoClient({
     try {
       // Usar nuestro nuevo hook para cargar datos del año
       const result = await fetchBolsasData(departamentoId, parseInt(newYear), 'presupuesto');
-      
+
       if (result && result.presupuesto) {
         // Actualizar datos de presupuesto
         setPresupuestoTotal(result.presupuesto.total_presupuesto || 0);
@@ -362,7 +405,38 @@ export default function PresupuestoClient({
     setSelectedAño(newYear);
 
     // Recargar datos para el nuevo año
-    reloadDataForYear(parseInt(newYear));
+    reloadDataForYear(parseInt(newYear))
+      .then(() => {
+        // Después de cargar los datos, verificar si el mes actual es válido
+        // Recalcular meses disponibles para el nuevo año
+        const mesesDelAño = new Set();
+        initialOrden.forEach(orden => {
+          if (orden.Departamento === departamento && !orden.Num_inversion) {
+            const ordenDate = new Date(orden.Fecha);
+            const ordenAño = ordenDate.getFullYear().toString();
+            if (ordenAño === newYear) {
+              const mesesNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+                "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+              mesesDelAño.add(mesesNames[ordenDate.getMonth()]);
+            }
+          }
+        });
+
+        // Si el mes seleccionado ya no está disponible, seleccionar el primer mes disponible
+        if (mesesDelAño.size > 0 && !mesesDelAño.has(selectedMes)) {
+          // Ordenar los meses
+          const mesesOrder = {
+            "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4, "Mayo": 5, "Junio": 6,
+            "Julio": 7, "Agosto": 8, "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
+          };
+          const sortedMeses = Array.from(mesesDelAño).sort((a, b) => mesesOrder[a] - mesesOrder[b]);
+
+          // Seleccionar el primer mes disponible
+          if (sortedMeses.length > 0) {
+            setSelectedMes(sortedMeses[0]);
+          }
+        }
+      });
   };
 
   // Formatear valores monetarios
@@ -431,12 +505,12 @@ export default function PresupuestoClient({
         </div>
 
         <div className="flex gap-4">
-          {/* Selector de mes */}
+          {/* Selector de mes - con ancho fijo */}
           <div className="relative">
             <select
               value={selectedMes}
               onChange={handleMesChange}
-              className="appearance-none bg-gray-100 border border-gray-200 rounded-md px-4 py-2 pr-8 cursor-pointer"
+              className="appearance-none bg-gray-100 border border-gray-200 rounded-md px-4 py-2 pr-8 cursor-pointer w-40"
             >
               {availableMeses.map(mes => (
                 <option key={mes} value={mes}>{mes}</option>
@@ -600,8 +674,8 @@ export default function PresupuestoClient({
                         {filteredOrdenes.length === 0 && gastoTotalDelAñoActual > 0
                           ? `No hay órdenes para ${selectedMes} ${selectedAño}`
                           : gastoTotalDelAñoActual === 0
-                            ? presupuestoTotal > 0 
-                              ? `No hay órdenes registradas para ${selectedAño}` 
+                            ? presupuestoTotal > 0
+                              ? `No hay órdenes registradas para ${selectedAño}`
                               : "No hay órdenes ni presupuesto para este período"
                             : "No hay órdenes que cumplan con los filtros seleccionados"}
                       </td>
