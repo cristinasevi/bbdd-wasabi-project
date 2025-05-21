@@ -1,24 +1,43 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
-import { ChevronDown, Calendar, Info, RefreshCw } from "lucide-react"
+import { useState, useEffect, useMemo, useCallback } from "react"
+import { ChevronDown, Calendar, Info } from "lucide-react"
 import Link from "next/link"
 import useUserDepartamento from "@/app/hooks/useUserDepartamento"
 import useBolsasData from "@/app/hooks/useBolsasData"
 
-export default function InversionClient({
+export default function PresupuestoClient({
   initialOrden = [],
   initialDepartamentos = [],
-  inversionesPorDepartamento = {},
-  inversionesAcumPorDepartamento = {},
+  presupuestosPorDepartamento = {},
+  gastosPorDepartamento = {},
   mesActual = "",
   año = ""
 }) {
+  // Estado para controlar la carga completa
+  const [isComponentReady, setIsComponentReady] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
+  
+  // Estado para el efecto de parpadeo
+  const [visible, setVisible] = useState(true);
+  
+  // Efecto para el parpadeo
+  useEffect(() => {
+    // Configurar el intervalo para alternar la visibilidad
+    const intervalId = setInterval(() => {
+      setVisible(prevVisible => !prevVisible);
+    }, 500); // Parpadeo cada 500ms
+    
+    // Limpiar el intervalo cuando el componente se desmonte
+    return () => clearInterval(intervalId);
+  }, []);
+
   const { departamento: userDepartamento, isLoading: isDepartamentoLoading } = useUserDepartamento()
   const [userRole, setUserRole] = useState(null)
   const [departamento, setDepartamento] = useState("")
   const [departamentoId, setDepartamentoId] = useState(null)
-  const [inversionMensual, setInversionMensual] = useState(0)
+  const [presupuestoMensual, setPresupuestoMensual] = useState(0)
+  const [presupuestoTotal, setPresupuestoTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [loadingRefresh, setLoadingRefresh] = useState(false)
   const [successMessage, setSuccessMessage] = useState("")
@@ -27,157 +46,176 @@ export default function InversionClient({
   // Utilizar nuestro hook personalizado para cargar datos
   const { fetchBolsasData, getExistingYears } = useBolsasData()
 
-  // Estados para los filtros de fecha - inicializados con valores actuales
+  // Estados para los filtros de fecha - inicializamos con valores actuales
+  const actualYear = new Date().getFullYear().toString();
   const [selectedMes, setSelectedMes] = useState(mesActual)
-  const [selectedAño, setSelectedAño] = useState(año.toString())
-  const [currentYearInversionTotal, setCurrentYearInversionTotal] = useState(0);
+  const [selectedAño, setSelectedAño] = useState(actualYear);
+  const [currentYearPresupuestoTotal, setCurrentYearPresupuestoTotal] = useState(0);
 
-  // Obtener información del usuario
-  useEffect(() => {
-    async function getUserInfo() {
-      try {
-        setIsLoading(true)
-        const response = await fetch('/api/getSessionUser')
-        if (response.ok) {
-          const data = await response.json()
-          setUserRole(data.usuario?.rol || '')
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
-          const userDep = data.usuario?.departamento || ''
+  // Función para inicializar todos los datos necesarios de una vez
+  async function initializeComponent(departId) {
+    if (!departId) return;
 
-          // Establecer departamento inicial según el rol
-          if (data.usuario?.rol === "Jefe de Departamento") {
-            // Para Jefe de Departamento, usar su propio departamento
-            setDepartamento(userDep)
-          } else if (data.usuario?.rol === "Administrador") {
-            // Para Admin, establecer siempre Informática por defecto
-            const informaticaDep = initialDepartamentos.find(dep => dep.Nombre === "Informática")
-            if (informaticaDep) {
-              setDepartamento("Informática")
-            } else if (initialDepartamentos.length > 0) {
-              // Si no hay departamento Informática, usar el primero
-              setDepartamento(initialDepartamentos[0].Nombre)
-            }
-          } else if (data.usuario?.rol === "Contable") {
-            // Para Contable, verificar si hay una selección guardada
-            const savedDep = typeof window !== 'undefined' && window.selectedDepartamento
-
-            if (savedDep) {
-              // Verificar que el departamento guardado existe
-              const depExists = initialDepartamentos.some(dep => dep.Nombre === savedDep)
-              if (depExists) {
-                setDepartamento(savedDep)
-              } else if (initialDepartamentos.length > 0) {
-                // Si no es válido, usar Informática o el primero
-                const informaticaDep = initialDepartamentos.find(dep => dep.Nombre === "Informática")
-                setDepartamento(informaticaDep ? "Informática" : initialDepartamentos[0].Nombre)
-              }
-            } else if (initialDepartamentos.length > 0) {
-              // Sin selección guardada, establecer Informática o el primero
-              const informaticaDep = initialDepartamentos.find(dep => dep.Nombre === "Informática")
-              setDepartamento(informaticaDep ? "Informática" : initialDepartamentos[0].Nombre)
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Error obteniendo información del usuario:", error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    getUserInfo()
-  }, [initialDepartamentos])
-
-  // Actualizar ID del departamento cuando cambia el nombre del departamento
-  useEffect(() => {
-    if (departamento && initialDepartamentos.length > 0) {
-      const depInfo = initialDepartamentos.find(dep => dep.Nombre === departamento)
-      if (depInfo) {
-        setDepartamentoId(depInfo.id_Departamento)
-      }
-    }
-  }, [departamento, initialDepartamentos])
-
-  // Cargar años que tienen bolsas asociadas cuando cambia el departamento
-  useEffect(() => {
-    async function fetchYearsWithBolsas() {
-      if (!departamentoId) return;
-      
-      try {
-        // Usar el hook para obtener años con bolsas
-        const years = await getExistingYears(departamentoId);
-        
-        if (years && years.length > 0) {
-          setAñosConBolsas(years);
-          
-          // Verificar si el año seleccionado actualmente está en la lista
-          // Si no está, seleccionar el año más reciente
-          if (!years.includes(selectedAño) && years.length > 0) {
-            // Ordenar años de más reciente a más antiguo
-            const sortedYears = [...years].sort((a, b) => parseInt(b) - parseInt(a));
-            setSelectedAño(sortedYears[0]);
-            // Cargar datos para el año seleccionado
-            reloadDataForYear(parseInt(sortedYears[0]));
-          }
-        }
-      } catch (error) {
-        console.error("Error cargando años con bolsas:", error);
-      }
-    }
-    
-    fetchYearsWithBolsas();
-  }, [departamentoId, getExistingYears]);
-
-  // Función para refrescar datos
-  const refreshData = async () => {
-    if (!departamentoId) return;
-    
-    setLoadingRefresh(true);
     try {
-      // Actualizar la lista de años con bolsas
-      const years = await getExistingYears(departamentoId);
+      // 1. Obtener años con bolsas
+      const years = await getExistingYears(departId);
+      setAñosConBolsas(years || []);
+
+      // 2. Determinar qué año cargar inicialmente
+      let yearToLoad = actualYear;
       if (years && years.length > 0) {
-        setAñosConBolsas(years);
+        if (years.includes(parseInt(actualYear))) {
+          // El año actual tiene datos, usarlo
+          yearToLoad = actualYear;
+        } else {
+          // Usar el año más reciente
+          const sortedYears = [...years].sort((a, b) => parseInt(b) - parseInt(a));
+          yearToLoad = sortedYears[0].toString();
+        }
       }
-      
-      const result = await fetchBolsasData(departamentoId, parseInt(selectedAño), 'inversion');
-      
-      if (result && result.inversion) {
-        // Actualizar datos de inversión
-        setInversionMensual(result.inversion.inversion_mensual || 0);
-        setCurrentYearInversionTotal(result.inversion.total_inversion || 0);
+
+      // 3. Establecer el año seleccionado (sin render adicional)
+      setSelectedAño(yearToLoad);
+
+      // 4. Cargar datos para el año seleccionado
+      if (departId) {
+        const result = await fetchBolsasData(departId, parseInt(yearToLoad), 'presupuesto');
         
-        setSuccessMessage('Datos actualizados correctamente');
-        
-        // Ocultar mensaje después de 3 segundos
-        setTimeout(() => {
-          setSuccessMessage('');
-        }, 3000);
+        if (result && result.presupuesto) {
+          setCurrentYearPresupuestoTotal(result.presupuesto.total_presupuesto || 0);
+          setPresupuestoMensual(result.presupuesto.presupuesto_mensual || 0);
+        } else {
+          // Obtener datos de presupuesto desde presupuestosPorDepartamento como fallback
+          const presupuestoData = presupuestosPorDepartamento[departId] || [];
+          if (presupuestoData.length > 0) {
+            const presupMensual = presupuestoData[0]?.presupuesto_mensual || 0;
+            setPresupuestoMensual(presupMensual);
+            setCurrentYearPresupuestoTotal(presupMensual * 12);
+          } else {
+            setPresupuestoMensual(0);
+            setCurrentYearPresupuestoTotal(0);
+          }
+        }
       }
+
+      // 5. Marcar que la inicialización está completa
+      setInitialLoadDone(true);
+      setIsComponentReady(true);
+      setIsInitializing(false);
     } catch (error) {
-      console.error("Error al refrescar datos:", error);
-    } finally {
-      setLoadingRefresh(false);
+      console.error("Error durante la inicialización:", error);
+      // Aún así mostrar el componente aunque haya habido un error
+      setIsComponentReady(true);
+      setIsInitializing(false);
     }
-  };
+  }
 
-  // Filtrar todas las órdenes de inversión por departamento (para cálculo de gastos totales)
-  const allInvestmentOrders = useMemo(() => {
-    if (!departamento || !initialOrden.length) return [];
+  // Obtener información del usuario y departamento
+  useEffect(() => {
+    async function initialize() {
+      try {
+        // Obtener info del usuario
+        const response = await fetch('/api/getSessionUser');
+        if (response.ok) {
+          const data = await response.json();
+          setUserRole(data.usuario?.rol || '');
 
-    return initialOrden.filter(o => {
-      // Solo órdenes del departamento y que sí tengan número de inversión
-      return o.Departamento === departamento && o.Num_inversion;
+          const userDep = data.usuario?.departamento || '';
+
+          // Determinar departamento según el rol
+          let selectedDep = '';
+          if (data.usuario?.rol === "Jefe de Departamento") {
+            selectedDep = userDep;
+          } else if (data.usuario?.rol === "Administrador") {
+            const informaticaDep = initialDepartamentos.find(dep => dep.Nombre === "Informática");
+            selectedDep = informaticaDep ? "Informática" : (initialDepartamentos.length > 0 ? initialDepartamentos[0].Nombre : '');
+          } else if (data.usuario?.rol === "Contable") {
+            const savedDep = typeof window !== 'undefined' && window.selectedDepartamento;
+            if (savedDep && initialDepartamentos.some(dep => dep.Nombre === savedDep)) {
+              selectedDep = savedDep;
+            } else {
+              const informaticaDep = initialDepartamentos.find(dep => dep.Nombre === "Informática");
+              selectedDep = informaticaDep ? "Informática" : (initialDepartamentos.length > 0 ? initialDepartamentos[0].Nombre : '');
+            }
+          } else if (initialDepartamentos.length > 0) {
+            selectedDep = initialDepartamentos[0].Nombre;
+          }
+
+          // Establecer departamento y obtener su ID
+          setDepartamento(selectedDep);
+
+          if (selectedDep && initialDepartamentos.length > 0) {
+            const depInfo = initialDepartamentos.find(dep => dep.Nombre === selectedDep);
+            if (depInfo) {
+              const depId = depInfo.id_Departamento;
+              setDepartamentoId(depId);
+
+              // Inicializar todos los datos del componente de una vez
+              await initializeComponent(depId);
+            } else {
+              setIsComponentReady(true);
+              setIsInitializing(false);
+            }
+          } else {
+            setIsComponentReady(true);
+            setIsInitializing(false);
+          }
+        } else {
+          setIsComponentReady(true);
+          setIsInitializing(false);
+        }
+      } catch (error) {
+        console.error("Error en la inicialización:", error);
+        setIsComponentReady(true);
+        setIsInitializing(false);
+      }
+    }
+
+    initialize();
+    // Esta función solo debe ejecutarse una vez al montar el componente
+  }, []);
+
+  // Recargar datos cuando se cambie explícitamente el departamento
+  useEffect(() => {
+    if (initialLoadDone && departamentoId) {
+      // Solo recargar datos si ya se ha completado la carga inicial y cambia el departamento
+      initializeComponent(departamentoId);
+    }
+  }, [departamento]);
+
+  // CORREGIDO: Calcular gasto total del año actual (sin filtro de año)
+  const gastoTotalDelAñoActual = useMemo(() => {
+    if (!departamento || !initialOrden.length) return 0;
+
+    // Filtrar órdenes del departamento sin inversión y del año actual
+    const ordenesDelAño = initialOrden.filter(orden => {
+      // Solo órdenes del departamento y que NO tengan número de inversión
+      if (orden.Departamento !== departamento || orden.Num_inversion) {
+        return false;
+      }
+
+      // Solo del año actual
+      if (orden.Fecha) {
+        const ordenDate = new Date(orden.Fecha);
+        const ordenAño = ordenDate.getFullYear();
+        return ordenAño === parseInt(selectedAño); // año seleccionado
+      }
+
+      return false;
     });
-  }, [departamento, initialOrden]);
 
-  // Filtrar las órdenes por departamento, mes y año (solo inversión, CON Num_inversion)
+    return ordenesDelAño.reduce((sum, orden) => sum + (parseFloat(orden.Importe) || 0), 0);
+  }, [departamento, initialOrden, selectedAño]);
+
+  // Filtrar las órdenes por departamento, mes y año (solo presupuesto, no inversión)
   const filteredOrdenes = useMemo(() => {
     if (!departamento || !initialOrden.length) return []
 
     const filtered = initialOrden.filter(o => {
-      // Solo órdenes del departamento y que TENGAN número de inversión
-      if (o.Departamento !== departamento || !o.Num_inversion) {
+      // Solo órdenes del departamento y que NO tengan número de inversión
+      if (o.Departamento !== departamento || o.Num_inversion) {
         return false;
       }
 
@@ -205,9 +243,9 @@ export default function InversionClient({
     const añosSet = new Set();
 
     if (departamento && initialOrden.length) {
-      // Filtrar solo órdenes del departamento seleccionado CON inversión
+      // Filtrar solo órdenes del departamento seleccionado sin inversión
       const departamentoOrdenes = initialOrden.filter(o =>
-        o.Departamento === departamento && o.Num_inversion
+        o.Departamento === departamento && !o.Num_inversion
       );
 
       departamentoOrdenes.forEach(orden => {
@@ -226,7 +264,7 @@ export default function InversionClient({
     mesesSet.add(mesActual);
     añosSet.add(año.toString());
     
-    // Añadir años que tienen bolsas de inversión
+    // Añadir años que tienen bolsas presupuestarias
     añosConBolsas.forEach(year => {
       añosSet.add(year.toString());
     });
@@ -248,161 +286,131 @@ export default function InversionClient({
     return filteredOrdenes.reduce((sum, orden) => sum + (parseFloat(orden.Importe) || 0), 0);
   }, [filteredOrdenes]);
 
-  // Calcular gasto total acumulado en inversiones (todas las órdenes de inversión)
-  const gastoTotalDelAñoSeleccionado = useMemo(() => {
-    if (!departamento || !initialOrden.length) return 0;
-
-    // Filtrar órdenes del departamento con inversión y del año seleccionado
-    const ordenesDelAño = initialOrden.filter(orden => {
-      // Solo órdenes del departamento y que TENGAN número de inversión
-      if (orden.Departamento !== departamento || !orden.Num_inversion) {
-        return false;
-      }
-
-      // Solo del año seleccionado
-      if (orden.Fecha) {
-        const ordenDate = new Date(orden.Fecha);
-        const ordenAño = ordenDate.getFullYear();
-        return ordenAño === parseInt(selectedAño);
-      }
-
-      return false;
-    });
-
-    return ordenesDelAño.reduce((sum, orden) => sum + (parseFloat(orden.Importe) || 0), 0);
-  }, [departamento, initialOrden, selectedAño]);
-
-  // Cargar datos cuando cambie el departamento o el año seleccionado
-  useEffect(() => {
-    if (!departamentoId) return
-
-    try {
-      // Obtener datos de inversión
-      const inversionData = inversionesPorDepartamento[departamentoId] || [];
-
-      // Verificar si la inversión aplica para el año seleccionado
-      const fechaInicio = inversionData[0]?.fecha_inicio ? new Date(inversionData[0]?.fecha_inicio) : null;
-      const fechaFinal = inversionData[0]?.fecha_final ? new Date(inversionData[0]?.fecha_final) : null;
-
-      // Si no hay fechas o la inversión incluye el año seleccionado, calcular valor
-      if (!fechaInicio || !fechaFinal ||
-        (fechaInicio.getFullYear() <= parseInt(selectedAño) &&
-          fechaFinal.getFullYear() >= parseInt(selectedAño))) {
-        // Calcular inversión mensual
-        const invMensual = (inversionData[0]?.total_inversion || 0) / 12;
-        setInversionMensual(invMensual);
-        setCurrentYearInversionTotal(inversionData[0]?.total_inversion || 0);
-      } else {
-        // Si el año seleccionado está fuera del rango, establecer a 0
-        setInversionMensual(0);
-        setCurrentYearInversionTotal(0);
-      }
-    } catch (error) {
-      console.error("Error cargando datos de inversión:", error);
-    }
-  }, [departamentoId, inversionesPorDepartamento, selectedAño]);
-
-  // Calcular inversión total anual para el año seleccionado
-  const inversionTotalAnual = useMemo(() => {
+  // Calcular presupuesto total anual para el año seleccionado
+  const presupuestoTotalAnual = useMemo(() => {
     // Si hay un valor específico para el año seleccionado, usarlo
-    if (selectedAño && currentYearInversionTotal !== undefined) {
-      return currentYearInversionTotal;
+    if (selectedAño && currentYearPresupuestoTotal !== undefined) {
+      return currentYearPresupuestoTotal;
     }
 
     // De lo contrario, usar el cálculo original de los datos iniciales
-    const inversionData = inversionesPorDepartamento[departamentoId] || [];
-    const total = inversionData[0]?.total_inversion || 0;
+    const presupuestoData = presupuestosPorDepartamento[departamentoId] || [];
+    const total = presupuestoData[0]?.total_presupuesto || (presupuestoData[0]?.presupuesto_mensual * 12) || 0;
 
     return total;
-  }, [inversionesPorDepartamento, departamentoId, selectedAño, currentYearInversionTotal]);
+  }, [presupuestosPorDepartamento, departamentoId, selectedAño, currentYearPresupuestoTotal]);
 
-  // Añade esta parte para recargar datos para un año específico
-  const reloadDataForYear = async (newYear) => {
-    if (!departamentoId) return;
+  // Calcular presupuesto actual = presupuesto total - gasto del año actual
+  const presupuestoActual = useMemo(() => {
+    return presupuestoTotalAnual - gastoTotalDelAñoActual;
+  }, [presupuestoTotalAnual, gastoTotalDelAñoActual]);
 
-    setIsLoading(true);
-    try {
-      // Usar nuestro nuevo hook para cargar datos específicos del año
-      const result = await fetchBolsasData(departamentoId, parseInt(newYear), 'inversion');
-      
-      if (result && result.inversion) {
-        // Actualizar estado con los datos para el año seleccionado
-        setCurrentYearInversionTotal(result.inversion.total_inversion || 0);
-        setInversionMensual(result.inversion.inversion_mensual || 0);
-      } else {
-        // En caso de no encontrar datos, establecer a 0
-        setCurrentYearInversionTotal(0);
-        setInversionMensual(0);
-      }
-    } catch (error) {
-      console.error(`Error loading investment data for year ${newYear}:`, error);
-      // En caso de error, establecer a 0
-      setCurrentYearInversionTotal(0);
-      setInversionMensual(0);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Calcular saldo actual en tiempo real (inversión total - gasto acumulado)
-  const saldoActual = useMemo(() => {
-    return inversionTotalAnual - gastoTotalDelAñoSeleccionado;
-  }, [inversionTotalAnual, gastoTotalDelAñoSeleccionado]);
-
-  const inversionTotal = inversionTotalAnual; // Total disponible para el año
-  const inversionActual = saldoActual; // Lo que queda disponible (total - gastado)
-
-  // Calcular inversión mensual recomendada basada en lo que queda por gastar
-  const inversionMensualRecomendada = useMemo(() => {
-    // Si no hay inversión actual restante, no hay recomendación
-    if (inversionActual <= 0) return 0;
+  // Calcular presupuesto mensual recomendado basado en lo que queda por gastar
+  const presupuestoMensualRecomendado = useMemo(() => {
+    // Si no hay presupuesto actual restante, no hay recomendación
+    if (presupuestoActual <= 0) return 0;
 
     // SIEMPRE calcular desde el mes actual hasta diciembre del año actual
     const mesActual = new Date().getMonth() + 1; // JavaScript cuenta desde 0 (enero = 0)
     const mesesRestantes = 12 - mesActual + 1; // +1 para incluir el mes actual
 
-    console.log(`📅 Cálculo de meses restantes: Mes actual: ${mesActual}, Meses restantes: ${mesesRestantes}`);
-
     // Evitar división por cero (aunque no debería pasar)
     if (mesesRestantes <= 0) return 0;
 
-    // Calcular recomendación: inversión restante / meses restantes del año actual
-    const recomendacion = inversionActual / mesesRestantes;
-
-    console.log(`💰 Inversión restante: ${inversionActual}, Meses restantes: ${mesesRestantes}, Recomendación mensual: ${recomendacion}`);
+    // Calcular recomendación: presupuesto restante / meses restantes del año actual
+    const recomendacion = presupuestoActual / mesesRestantes;
 
     return recomendacion;
-  }, [inversionActual]);
+  }, [presupuestoActual]);
 
-  // Calcular inversión mensual disponible para el mes específico
-  const inversionMensualDisponible = useMemo(() => {
-    return inversionMensualRecomendada - gastoDelMes;
-  }, [inversionMensualRecomendada, gastoDelMes]);
+  // Calcular presupuesto mensual disponible para el mes específico
+  const presupuestoMensualDisponible = useMemo(() => {
+    return presupuestoMensualRecomendado - gastoDelMes;
+  }, [presupuestoMensualRecomendado, gastoDelMes]);
 
   // Función para cambiar el departamento (solo para admin/contable)
   const handleChangeDepartamento = (newDepartamento) => {
-    if (userRole === "Jefe de Departamento") return
+    if (userRole === "Jefe de Departamento") return;
 
-    setDepartamento(newDepartamento)
+    setDepartamento(newDepartamento);
 
     // Guardar selección en window
     if (typeof window !== 'undefined') {
-      window.selectedDepartamento = newDepartamento
+      window.selectedDepartamento = newDepartamento;
     }
   }
 
   // Manejar cambio de mes
   const handleMesChange = (e) => {
-    setSelectedMes(e.target.value)
+    setSelectedMes(e.target.value);
   }
 
-  // En el manejador de cambio de año
+  // Función para recargar datos para un año específico
+  const reloadDataForYear = async (newYear) => {
+    if (!departamentoId) return;
+
+    setIsLoading(true);
+    try {
+      // Usar nuestro hook para cargar datos del año
+      const result = await fetchBolsasData(departamentoId, parseInt(newYear), 'presupuesto');
+      
+      if (result && result.presupuesto) {
+        // Actualizar datos de presupuesto
+        setCurrentYearPresupuestoTotal(result.presupuesto.total_presupuesto || 0);
+        setPresupuestoMensual(result.presupuesto.presupuesto_mensual || 0);
+      } else {
+        // Si no hay datos para ese año, establecer a 0
+        setCurrentYearPresupuestoTotal(0);
+        setPresupuestoMensual(0);
+      }
+    } catch (error) {
+      console.error(`Error loading budget data for year ${newYear}:`, error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Manejador de cambio de año
   const handleAñoChange = (e) => {
     const newYear = e.target.value;
     setSelectedAño(newYear);
 
     // Recargar datos para el nuevo año
     reloadDataForYear(parseInt(newYear));
+  };
+
+  // Función para refrescar datos
+  const refreshData = async () => {
+    if (!departamentoId) return;
+    
+    setLoadingRefresh(true);
+    try {
+      // Actualizar la lista de años con bolsas
+      const years = await getExistingYears(departamentoId);
+      if (years && years.length > 0) {
+        setAñosConBolsas(years);
+      }
+      
+      // Obtener datos actualizados para el año seleccionado
+      const result = await fetchBolsasData(departamentoId, parseInt(selectedAño), 'presupuesto');
+      
+      if (result && result.presupuesto) {
+        // Actualizar datos de presupuesto
+        setPresupuestoMensual(result.presupuesto.presupuesto_mensual || 0);
+        setCurrentYearPresupuestoTotal(result.presupuesto.total_presupuesto || 0);
+        
+        setSuccessMessage('Datos actualizados correctamente');
+        
+        // Ocultar mensaje después de 3 segundos
+        setTimeout(() => {
+          setSuccessMessage('');
+        }, 3000);
+      }
+    } catch (error) {
+      console.error("Error al refrescar datos:", error);
+    } finally {
+      setLoadingRefresh(false);
+    }
   };
 
   // Formatear valores monetarios
@@ -430,8 +438,13 @@ export default function InversionClient({
     return valor < 0 ? "text-red-600" : "";
   };
 
-  if (isDepartamentoLoading || isLoading) {
-    return <div className="p-6">Cargando...</div>
+  // Si el componente aún no está listo, mostramos un estado de carga consistente
+  if (!isComponentReady || isDepartamentoLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse text-gray-500">Cargando datos...</div>
+      </div>
+    );
   }
 
   return (
@@ -444,24 +457,7 @@ export default function InversionClient({
             Departamento {departamento || userDepartamento || ""}
           </h2>
         </div>
-        
-        {/* Botón de actualizar */}
-        <button 
-          onClick={refreshData} 
-          disabled={loadingRefresh}
-          className="bg-gray-100 hover:bg-gray-200 p-2 rounded-full flex items-center mr-2"
-          title="Actualizar datos"
-        >
-          <RefreshCw className={`w-5 h-5 ${loadingRefresh ? 'animate-spin' : ''}`} />
-        </button>
       </div>
-      
-      {/* Mensaje de éxito */}
-      {successMessage && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mt-2 mb-4">
-          {successMessage}
-        </div>
-      )}
 
       {/* Selector de fecha y botón de resumen */}
       <div className="flex justify-between mb-6 gap-4">
@@ -686,8 +682,8 @@ export default function InversionClient({
                         {filteredOrdenes.length === 0 && gastoTotalDelAñoSeleccionado > 0
                           ? `No hay órdenes de inversión para ${selectedMes} ${selectedAño}`
                           : gastoTotalDelAñoSeleccionado === 0
-                            ? inversionTotal > 0 
-                              ? `No hay órdenes de inversión registradas para ${selectedAño}` 
+                            ? inversionTotal > 0
+                              ? `No hay órdenes de inversión registradas para ${selectedAño}`
                               : "No hay órdenes ni inversiones para este período"
                             : "No hay órdenes de inversión que cumplan con los filtros seleccionados"}
                       </td>

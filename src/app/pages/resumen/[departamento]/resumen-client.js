@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { Calendar, Info, Plus, RefreshCw, Pencil } from "lucide-react"
+import { Calendar, Info, Plus, Pencil } from "lucide-react"
 import Link from "next/link"
 import useBolsasData from "@/app/hooks/useBolsasData"
 import BolsasForm from "@/app/components/forms/bolsas-form"
@@ -472,24 +472,7 @@ export default function ResumenClient({
                     <h1 className="text-3xl font-bold">Resumen</h1>
                     <h2 className="text-xl text-gray-400">Departamento {departamento}</h2>
                 </div>
-                
-                {/* Botón de actualizar */}
-                <button 
-                    onClick={refreshData} 
-                    disabled={loadingRefresh || isLoading}
-                    className="bg-gray-100 hover:bg-gray-200 p-2 rounded-full flex items-center mr-2"
-                    title="Actualizar datos"
-                >
-                    <RefreshCw className={`w-5 h-5 ${loadingRefresh || isLoading ? 'animate-spin' : ''}`} />
-                </button>
             </div>
-
-            {/* Mensaje de éxito */}
-            {successMessage && (
-                <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mt-4 mb-2">
-                    {successMessage}
-                </div>
-            )}
 
             {/* Fecha */}
             <div className="flex justify-end my-2">

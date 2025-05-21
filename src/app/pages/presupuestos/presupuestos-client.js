@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { ChevronDown, Calendar, Info, RefreshCw } from "lucide-react"
+import { ChevronDown, Calendar, Info } from "lucide-react"
 import Link from "next/link"
 import useUserDepartamento from "@/app/hooks/useUserDepartamento"
 import useBolsasData from "@/app/hooks/useBolsasData"
@@ -398,24 +398,7 @@ export default function PresupuestoClient({
             Departamento {departamento || userDepartamento || ""}
           </h2>
         </div>
-        
-        {/* Botón de actualizar */}
-        <button 
-          onClick={refreshData} 
-          disabled={loadingRefresh}
-          className="bg-gray-100 hover:bg-gray-200 p-2 rounded-full flex items-center mr-2"
-          title="Actualizar datos"
-        >
-          <RefreshCw className={`w-5 h-5 ${loadingRefresh ? 'animate-spin' : ''}`} />
-        </button>
       </div>
-      
-      {/* Mensaje de éxito */}
-      {successMessage && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mt-2 mb-4">
-          {successMessage}
-        </div>
-      )}
 
       {/* Selector de fecha y botón de resumen */}
       <div className="flex justify-between mb-6 gap-4">
