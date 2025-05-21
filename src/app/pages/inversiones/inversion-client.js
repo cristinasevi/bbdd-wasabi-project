@@ -6,11 +6,11 @@ import Link from "next/link"
 import useUserDepartamento from "@/app/hooks/useUserDepartamento"
 import useBolsasData from "@/app/hooks/useBolsasData"
 
-export default function PresupuestoClient({
+export default function InversionClient({
   initialOrden = [],
   initialDepartamentos = [],
-  presupuestosPorDepartamento = {},
-  gastosPorDepartamento = {},
+  inversionesPorDepartamento = {},
+  inversionesAcumPorDepartamento = {},
   mesActual = "",
   año = ""
 }) {
@@ -36,8 +36,8 @@ export default function PresupuestoClient({
   const [userRole, setUserRole] = useState(null)
   const [departamento, setDepartamento] = useState("")
   const [departamentoId, setDepartamentoId] = useState(null)
-  const [presupuestoMensual, setPresupuestoMensual] = useState(0)
-  const [presupuestoTotal, setPresupuestoTotal] = useState(0)
+  const [inversionMensual, setInversionMensual] = useState(0)
+  const [inversionTotal, setInversionTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [loadingRefresh, setLoadingRefresh] = useState(false)
   const [successMessage, setSuccessMessage] = useState("")
@@ -50,7 +50,7 @@ export default function PresupuestoClient({
   const actualYear = new Date().getFullYear().toString();
   const [selectedMes, setSelectedMes] = useState(mesActual)
   const [selectedAño, setSelectedAño] = useState(actualYear);
-  const [currentYearPresupuestoTotal, setCurrentYearPresupuestoTotal] = useState(0);
+  const [currentYearInversionTotal, setCurrentYearInversionTotal] = useState(0);
 
   const [initialLoadDone, setInitialLoadDone] = useState(false);
 
@@ -81,21 +81,25 @@ export default function PresupuestoClient({
 
       // 4. Cargar datos para el año seleccionado
       if (departId) {
-        const result = await fetchBolsasData(departId, parseInt(yearToLoad), 'presupuesto');
+        const result = await fetchBolsasData(departId, parseInt(yearToLoad), 'inversion');
         
-        if (result && result.presupuesto) {
-          setCurrentYearPresupuestoTotal(result.presupuesto.total_presupuesto || 0);
-          setPresupuestoMensual(result.presupuesto.presupuesto_mensual || 0);
+        if (result && result.inversion) {
+          setCurrentYearInversionTotal(result.inversion.total_inversion || 0);
+          setInversionMensual(result.inversion.inversion_mensual || 0);
+          setInversionTotal(result.inversion.total_inversion || 0);
         } else {
-          // Obtener datos de presupuesto desde presupuestosPorDepartamento como fallback
-          const presupuestoData = presupuestosPorDepartamento[departId] || [];
-          if (presupuestoData.length > 0) {
-            const presupMensual = presupuestoData[0]?.presupuesto_mensual || 0;
-            setPresupuestoMensual(presupMensual);
-            setCurrentYearPresupuestoTotal(presupMensual * 12);
+          // Obtener datos de inversión desde inversionesPorDepartamento como fallback
+          const inversionData = inversionesPorDepartamento[departId] || [];
+          if (inversionData.length > 0) {
+            const inversionMensualValue = inversionData[0]?.inversion_mensual || 0;
+            setInversionMensual(inversionMensualValue);
+            const inversionTotalValue = inversionData[0]?.total_inversion || (inversionMensualValue * 12);
+            setInversionTotal(inversionTotalValue);
+            setCurrentYearInversionTotal(inversionTotalValue);
           } else {
-            setPresupuestoMensual(0);
-            setCurrentYearPresupuestoTotal(0);
+            setInversionMensual(0);
+            setInversionTotal(0);
+            setCurrentYearInversionTotal(0);
           }
         }
       }
@@ -185,18 +189,18 @@ export default function PresupuestoClient({
     }
   }, [departamento]);
 
-  // CORREGIDO: Calcular gasto total del año actual (sin filtro de año)
-  const gastoTotalDelAñoActual = useMemo(() => {
+  // CALCULAR GASTO TOTAL DEL AÑO ACTUAL (órdenes con inversión)
+  const gastoTotalDelAñoSeleccionado = useMemo(() => {
     if (!departamento || !initialOrden.length) return 0;
 
-    // Filtrar órdenes del departamento sin inversión y del año actual
+    // Filtrar órdenes del departamento CON inversión y del año seleccionado
     const ordenesDelAño = initialOrden.filter(orden => {
-      // Solo órdenes del departamento y que NO tengan número de inversión
-      if (orden.Departamento !== departamento || orden.Num_inversion) {
+      // Solo órdenes del departamento y que TENGAN número de inversión
+      if (orden.Departamento !== departamento || !orden.Num_inversion) {
         return false;
       }
 
-      // Solo del año actual
+      // Solo del año seleccionado
       if (orden.Fecha) {
         const ordenDate = new Date(orden.Fecha);
         const ordenAño = ordenDate.getFullYear();
@@ -209,13 +213,18 @@ export default function PresupuestoClient({
     return ordenesDelAño.reduce((sum, orden) => sum + (parseFloat(orden.Importe) || 0), 0);
   }, [departamento, initialOrden, selectedAño]);
 
-  // Filtrar las órdenes por departamento, mes y año (solo presupuesto, no inversión)
+  // Calcular inversión actual = inversión total - gasto del año actual
+  const inversionActual = useMemo(() => {
+    return inversionTotal - gastoTotalDelAñoSeleccionado;
+  }, [inversionTotal, gastoTotalDelAñoSeleccionado]);
+
+  // Filtrar las órdenes por departamento, mes y año (solo inversiones, no presupuesto)
   const filteredOrdenes = useMemo(() => {
     if (!departamento || !initialOrden.length) return []
 
     const filtered = initialOrden.filter(o => {
-      // Solo órdenes del departamento y que NO tengan número de inversión
-      if (o.Departamento !== departamento || o.Num_inversion) {
+      // Solo órdenes del departamento y que TENGAN número de inversión
+      if (o.Departamento !== departamento || !o.Num_inversion) {
         return false;
       }
 
@@ -243,9 +252,9 @@ export default function PresupuestoClient({
     const añosSet = new Set();
 
     if (departamento && initialOrden.length) {
-      // Filtrar solo órdenes del departamento seleccionado sin inversión
+      // Filtrar solo órdenes del departamento seleccionado CON inversión
       const departamentoOrdenes = initialOrden.filter(o =>
-        o.Departamento === departamento && !o.Num_inversion
+        o.Departamento === departamento && o.Num_inversion
       );
 
       departamentoOrdenes.forEach(orden => {
@@ -264,7 +273,7 @@ export default function PresupuestoClient({
     mesesSet.add(mesActual);
     añosSet.add(año.toString());
     
-    // Añadir años que tienen bolsas presupuestarias
+    // Añadir años que tienen bolsas de inversión
     añosConBolsas.forEach(year => {
       añosSet.add(year.toString());
     });
@@ -286,29 +295,24 @@ export default function PresupuestoClient({
     return filteredOrdenes.reduce((sum, orden) => sum + (parseFloat(orden.Importe) || 0), 0);
   }, [filteredOrdenes]);
 
-  // Calcular presupuesto total anual para el año seleccionado
-  const presupuestoTotalAnual = useMemo(() => {
+  // Calcular inversión total anual para el año seleccionado
+  const inversionTotalAnual = useMemo(() => {
     // Si hay un valor específico para el año seleccionado, usarlo
-    if (selectedAño && currentYearPresupuestoTotal !== undefined) {
-      return currentYearPresupuestoTotal;
+    if (selectedAño && currentYearInversionTotal !== undefined) {
+      return currentYearInversionTotal;
     }
 
     // De lo contrario, usar el cálculo original de los datos iniciales
-    const presupuestoData = presupuestosPorDepartamento[departamentoId] || [];
-    const total = presupuestoData[0]?.total_presupuesto || (presupuestoData[0]?.presupuesto_mensual * 12) || 0;
+    const inversionData = inversionesPorDepartamento[departamentoId] || [];
+    const total = inversionData[0]?.total_inversion || (inversionData[0]?.inversion_mensual * 12) || 0;
 
     return total;
-  }, [presupuestosPorDepartamento, departamentoId, selectedAño, currentYearPresupuestoTotal]);
+  }, [inversionesPorDepartamento, departamentoId, selectedAño, currentYearInversionTotal]);
 
-  // Calcular presupuesto actual = presupuesto total - gasto del año actual
-  const presupuestoActual = useMemo(() => {
-    return presupuestoTotalAnual - gastoTotalDelAñoActual;
-  }, [presupuestoTotalAnual, gastoTotalDelAñoActual]);
-
-  // Calcular presupuesto mensual recomendado basado en lo que queda por gastar
-  const presupuestoMensualRecomendado = useMemo(() => {
-    // Si no hay presupuesto actual restante, no hay recomendación
-    if (presupuestoActual <= 0) return 0;
+  // Calcular inversión mensual recomendada basado en lo que queda por gastar
+  const inversionMensualRecomendada = useMemo(() => {
+    // Si no hay inversión actual restante, no hay recomendación
+    if (inversionActual <= 0) return 0;
 
     // SIEMPRE calcular desde el mes actual hasta diciembre del año actual
     const mesActual = new Date().getMonth() + 1; // JavaScript cuenta desde 0 (enero = 0)
@@ -317,16 +321,16 @@ export default function PresupuestoClient({
     // Evitar división por cero (aunque no debería pasar)
     if (mesesRestantes <= 0) return 0;
 
-    // Calcular recomendación: presupuesto restante / meses restantes del año actual
-    const recomendacion = presupuestoActual / mesesRestantes;
+    // Calcular recomendación: inversión restante / meses restantes del año actual
+    const recomendacion = inversionActual / mesesRestantes;
 
     return recomendacion;
-  }, [presupuestoActual]);
+  }, [inversionActual]);
 
-  // Calcular presupuesto mensual disponible para el mes específico
-  const presupuestoMensualDisponible = useMemo(() => {
-    return presupuestoMensualRecomendado - gastoDelMes;
-  }, [presupuestoMensualRecomendado, gastoDelMes]);
+  // Calcular inversión mensual disponible para el mes específico
+  const inversionMensualDisponible = useMemo(() => {
+    return inversionMensualRecomendada - gastoDelMes;
+  }, [inversionMensualRecomendada, gastoDelMes]);
 
   // Función para cambiar el departamento (solo para admin/contable)
   const handleChangeDepartamento = (newDepartamento) => {
@@ -352,19 +356,21 @@ export default function PresupuestoClient({
     setIsLoading(true);
     try {
       // Usar nuestro hook para cargar datos del año
-      const result = await fetchBolsasData(departamentoId, parseInt(newYear), 'presupuesto');
+      const result = await fetchBolsasData(departamentoId, parseInt(newYear), 'inversion');
       
-      if (result && result.presupuesto) {
-        // Actualizar datos de presupuesto
-        setCurrentYearPresupuestoTotal(result.presupuesto.total_presupuesto || 0);
-        setPresupuestoMensual(result.presupuesto.presupuesto_mensual || 0);
+      if (result && result.inversion) {
+        // Actualizar datos de inversión
+        setCurrentYearInversionTotal(result.inversion.total_inversion || 0);
+        setInversionMensual(result.inversion.inversion_mensual || 0);
+        setInversionTotal(result.inversion.total_inversion || 0);
       } else {
         // Si no hay datos para ese año, establecer a 0
-        setCurrentYearPresupuestoTotal(0);
-        setPresupuestoMensual(0);
+        setCurrentYearInversionTotal(0);
+        setInversionMensual(0);
+        setInversionTotal(0);
       }
     } catch (error) {
-      console.error(`Error loading budget data for year ${newYear}:`, error);
+      console.error(`Error loading investment data for year ${newYear}:`, error);
     } finally {
       setIsLoading(false);
     }
@@ -392,12 +398,13 @@ export default function PresupuestoClient({
       }
       
       // Obtener datos actualizados para el año seleccionado
-      const result = await fetchBolsasData(departamentoId, parseInt(selectedAño), 'presupuesto');
+      const result = await fetchBolsasData(departamentoId, parseInt(selectedAño), 'inversion');
       
-      if (result && result.presupuesto) {
-        // Actualizar datos de presupuesto
-        setPresupuestoMensual(result.presupuesto.presupuesto_mensual || 0);
-        setCurrentYearPresupuestoTotal(result.presupuesto.total_presupuesto || 0);
+      if (result && result.inversion) {
+        // Actualizar datos de inversión
+        setInversionMensual(result.inversion.inversion_mensual || 0);
+        setCurrentYearInversionTotal(result.inversion.total_inversion || 0);
+        setInversionTotal(result.inversion.total_inversion || 0);
         
         setSuccessMessage('Datos actualizados correctamente');
         

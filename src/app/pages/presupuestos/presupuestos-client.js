@@ -24,13 +24,16 @@ export default function PresupuestoClient({
   const [loadingRefresh, setLoadingRefresh] = useState(false)
   const [successMessage, setSuccessMessage] = useState("")
   const [añosConBolsas, setAñosConBolsas] = useState([])
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false)
 
   // Utilizar nuestro hook personalizado para cargar datos
   const { fetchBolsasData, getExistingYears } = useBolsasData()
 
-  // Estados para los filtros de fecha - inicializados con valores actuales
+  // Estados para los filtros de fecha - inicializamos con valores actuales
+  // Siempre inicializamos con el año actual (2025), no con el año con más datos
+  const currentYear = new Date().getFullYear().toString();
   const [selectedMes, setSelectedMes] = useState(mesActual)
-  const [selectedAño, setSelectedAño] = useState(año.toString())
+  const [selectedAño, setSelectedAño] = useState(currentYear)
 
   // Obtener información del usuario
   useEffect(() => {
@@ -94,14 +97,19 @@ export default function PresupuestoClient({
         if (years && years.length > 0) {
           setAñosConBolsas(years);
           
-          // Verificar si el año seleccionado actualmente está en la lista
-          // Si no está, seleccionar el año más reciente
-          if (!years.includes(selectedAño) && years.length > 0) {
-            // Ordenar años de más reciente a más antiguo
-            const sortedYears = [...years].sort((a, b) => parseInt(b) - parseInt(a));
-            setSelectedAño(sortedYears[0]);
-            // Cargar datos para el año seleccionado
-            reloadDataForYear(parseInt(sortedYears[0]));
+          // MODIFICADO: No cambiar automáticamente al año más reciente
+          // En su lugar, cargar los datos para el año actual si está disponible,
+          // o para el año seleccionado actualmente
+          
+          // Primero, verificar si el año actual está en la lista de años con bolsas
+          const yearToLoad = years.includes(parseInt(currentYear)) 
+            ? currentYear 
+            : selectedAño;
+            
+          // Cargar datos para el año seleccionado sin cambiar el año en el selector
+          if (!initialLoadComplete) {
+            await reloadDataForYear(parseInt(yearToLoad));
+            setInitialLoadComplete(true);
           }
         }
       } catch (error) {
@@ -110,7 +118,7 @@ export default function PresupuestoClient({
     }
     
     fetchYearsWithBolsas();
-  }, [departamentoId, getExistingYears]);
+  }, [departamentoId, getExistingYears, currentYear, selectedAño, initialLoadComplete]);
 
   // CORREGIDO: Calcular gasto total del año actual (sin filtro de año)
   const gastoTotalDelAñoActual = useMemo(() => {
@@ -123,7 +131,7 @@ export default function PresupuestoClient({
         return false;
       }
 
-      // Solo del año actual
+      // Solo del año seleccionado
       if (orden.Fecha) {
         const ordenDate = new Date(orden.Fecha);
         const ordenAño = ordenDate.getFullYear();
@@ -189,7 +197,9 @@ export default function PresupuestoClient({
 
     // Siempre incluir el mes y año actual
     mesesSet.add(mesActual);
-    añosSet.add(año.toString());
+    
+    // MODIFICADO: Asegurar que el año actual siempre esté en la lista
+    añosSet.add(currentYear);
     
     // Añadir años que tienen bolsas presupuestarias
     añosConBolsas.forEach(year => {
@@ -206,7 +216,7 @@ export default function PresupuestoClient({
     const sortedAños = Array.from(añosSet).sort((a, b) => parseInt(a) - parseInt(b));
 
     return { availableMeses: sortedMeses, availableAños: sortedAños };
-  }, [departamento, initialOrden, mesActual, año, añosConBolsas]);
+  }, [departamento, initialOrden, mesActual, currentYear, añosConBolsas]);
 
   // Calcular gasto del mes seleccionado
   const gastoDelMes = useMemo(() => {
@@ -289,15 +299,11 @@ export default function PresupuestoClient({
     const mesActual = new Date().getMonth() + 1; // JavaScript cuenta desde 0 (enero = 0)
     const mesesRestantes = 12 - mesActual + 1; // +1 para incluir el mes actual
 
-    console.log(`📅 Presupuesto - Mes actual: ${mesActual}, Meses restantes: ${mesesRestantes}`);
-
     // Evitar división por cero (aunque no debería pasar)
     if (mesesRestantes <= 0) return 0;
 
     // Calcular recomendación: presupuesto restante / meses restantes del año actual
     const recomendacion = presupuestoActual / mesesRestantes;
-    
-    console.log(`💰 Presupuesto restante: ${presupuestoActual}, Meses restantes: ${mesesRestantes}, Recomendación mensual: ${recomendacion}`);
 
     return recomendacion;
   }, [presupuestoActual]); // Solo depende de presupuestoActual
@@ -515,7 +521,7 @@ export default function PresupuestoClient({
                       </p>
                       <div className="bg-gray-50 p-2 rounded text-xs">
                         <p className="font-mono">
-                          {formatCurrency(presupuestoActual)} ÷ {12 - new Date().getMonth()} meses = {formatCurrency(presupuestoMensualRecomendado)}
+                          {formatCurrency(presupuestoActual)} ÷ {12 - new Date().getMonth() + 1} meses = {formatCurrency(presupuestoMensualRecomendado)}
                         </p>
                       </div>
                       <p className="mt-2 text-gray-600 text-xs">
