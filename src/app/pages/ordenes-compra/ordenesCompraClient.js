@@ -656,8 +656,8 @@ export default function OrdenesCompraClient({
 
     // Validación para cantidad - solo permitir números enteros
     if (name === 'cantidad') {
-      // Regex que solo permite números enteros positivos (mayor que 0)
-      const cantidadRegex = /^[1-9]\d{0,5}$/;
+      // Regex que solo permite números enteros positivos (mayor que 0, máximo 10000)
+      const cantidadRegex = /^[1-9]\d{0,4}$/;
 
       // Si no cumple el formato, no actualizar
       if (value !== '' && !cantidadRegex.test(value)) {
@@ -665,7 +665,7 @@ export default function OrdenesCompraClient({
       }
 
       // Verificar que no exceda el máximo cuando hay un valor numérico
-      if (value !== '' && parseInt(value) > 100000) {
+      if (value !== '' && parseInt(value) > 10000) {
         return;
       }
 
@@ -1553,8 +1553,14 @@ export default function OrdenesCompraClient({
                   onChange={handleInputChange}
                   className="border border-gray-300 rounded px-3 py-2 w-full"
                   placeholder="Descripción del artículo o servicio"
+                  maxLength={100}
                   required
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  {formularioOrden.descripcion ?
+                    `${formularioOrden.descripcion.length}/100 caracteres` :
+                    "0/100 caracteres"}
+                </p>
               </div>
 
               <div>
@@ -1562,20 +1568,21 @@ export default function OrdenesCompraClient({
                 <input
                   type="text"
                   min="1"
+                  max="10000"
                   name="cantidad"
                   value={formularioOrden.cantidad}
                   onChange={handleInputChange}
                   className="border border-gray-300 rounded px-3 py-2 w-full"
                   placeholder=""
-                  pattern="^[1-9]\d{0,5}$"
-                  title="Cantidad debe ser mayor que 0 (máximo: 100000)"
+                  pattern="^[1-9]\d{0,4}$"
+                  title="Cantidad debe ser mayor que 0 y máximo 10.000"
                   required
                 />
                 {formularioOrden.cantidad && parseInt(formularioOrden.cantidad) <= 0 && (
                   <p className="text-red-500 text-xs mt-1">La cantidad debe ser mayor que 0</p>
                 )}
-                {parseInt(formularioOrden.cantidad) > 100000 && (
-                  <p className="text-red-500 text-xs mt-1">La cantidad máxima permitida es 100.000</p>
+                {parseInt(formularioOrden.cantidad) > 10000 && (
+                  <p className="text-red-500 text-xs mt-1">La cantidad máxima permitida es 10.000</p>
                 )}
               </div>
 
