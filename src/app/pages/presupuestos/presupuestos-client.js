@@ -14,6 +14,24 @@ export default function PresupuestoClient({
   mesActual = "",
   año = ""
 }) {
+  // Estado para controlar la carga completa
+  const [isComponentReady, setIsComponentReady] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
+
+  // Estado para el efecto de parpadeo
+  const [visible, setVisible] = useState(true);
+
+  // Efecto para el parpadeo
+  useEffect(() => {
+    // Configurar el intervalo para alternar la visibilidad
+    const intervalId = setInterval(() => {
+      setVisible(prevVisible => !prevVisible);
+    }, 500); // Parpadeo cada 500ms
+
+    // Limpiar el intervalo cuando el componente se desmonte
+    return () => clearInterval(intervalId);
+  }, []);
+
   const { departamento: userDepartamento, isLoading: isDepartamentoLoading } = useUserDepartamento()
   const [userRole, setUserRole] = useState(null)
   const [departamento, setDepartamento] = useState("")
@@ -24,133 +42,183 @@ export default function PresupuestoClient({
   const [loadingRefresh, setLoadingRefresh] = useState(false)
   const [successMessage, setSuccessMessage] = useState("")
   const [añosConBolsas, setAñosConBolsas] = useState([])
-  const [initialLoadComplete, setInitialLoadComplete] = useState(false)
+  const [initialLoadDone, setInitialLoadDone] = useState(false)
+  const [currentYearPresupuestoTotal, setCurrentYearPresupuestoTotal] = useState(0);
 
   // Utilizar nuestro hook personalizado para cargar datos
   const { fetchBolsasData, getExistingYears } = useBolsasData()
 
   // Estados para los filtros de fecha - inicializamos con valores actuales
-  // Siempre inicializamos con el año actual (2025), no con el año con más datos
   const currentYear = new Date().getFullYear().toString();
   const [selectedMes, setSelectedMes] = useState(mesActual)
   const [selectedAño, setSelectedAño] = useState(currentYear)
 
-  // Obtener información del usuario
+  // Función para inicializar todos los datos necesarios de una vez
+  async function initializeComponent(departId) {
+    if (!departId) return;
+
+    try {
+      // 1. Obtener años con bolsas
+      const years = await getExistingYears(departId);
+      setAñosConBolsas(years || []);
+
+      // 2. Determinar qué año cargar inicialmente
+      let yearToLoad = currentYear;
+      if (years && years.length > 0) {
+        if (years.includes(parseInt(currentYear))) {
+          // El año actual tiene datos, usarlo
+          yearToLoad = currentYear;
+        } else {
+          // Usar el año más reciente
+          const sortedYears = [...years].sort((a, b) => parseInt(b) - parseInt(a));
+          yearToLoad = sortedYears[0].toString();
+        }
+      }
+
+      // 3. Establecer el año seleccionado (sin render adicional)
+      setSelectedAño(yearToLoad);
+
+      // Seleccionar un mes válido para el año inicial
+      const mesesDelAño = new Set();
+      initialOrden.forEach(orden => {
+        if (orden.Departamento === departamento && !orden.Num_inversion) {
+          const ordenDate = new Date(orden.Fecha);
+          const ordenAño = ordenDate.getFullYear().toString();
+          if (ordenAño === yearToLoad) {
+            const mesesNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+              "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+            mesesDelAño.add(mesesNames[ordenDate.getMonth()]);
+          }
+        }
+      });
+
+      // Si hay meses disponibles, seleccionar el primero
+      if (mesesDelAño.size > 0) {
+        const mesesOrder = {
+          "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4, "Mayo": 5, "Junio": 6,
+          "Julio": 7, "Agosto": 8, "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
+        };
+        const sortedMeses = Array.from(mesesDelAño).sort((a, b) => mesesOrder[a] - mesesOrder[b]);
+
+        if (sortedMeses.length > 0) {
+          setSelectedMes(sortedMeses[0]);
+        } else {
+          // Si no hay meses con datos, usar el mes actual
+          setSelectedMes(mesActual);
+        }
+      }
+
+      // 4. Cargar datos para el año seleccionado
+      if (departId) {
+        const result = await fetchBolsasData(departId, parseInt(yearToLoad), 'presupuesto');
+        
+        if (result && result.presupuesto) {
+          setCurrentYearPresupuestoTotal(result.presupuesto.total_presupuesto || 0);
+          setPresupuestoMensual(result.presupuesto.presupuesto_mensual || 0);
+          setPresupuestoTotal(result.presupuesto.total_presupuesto || 0);
+        } else {
+          // Obtener datos de presupuesto desde presupuestosPorDepartamento como fallback
+          const presupuestoData = presupuestosPorDepartamento[departId] || [];
+          if (presupuestoData.length > 0) {
+            const presupuestoMensualValue = presupuestoData[0]?.presupuesto_mensual || 0;
+            setPresupuestoMensual(presupuestoMensualValue);
+            const presupuestoTotalValue = presupuestoData[0]?.total_presupuesto || (presupuestoMensualValue * 12);
+            setPresupuestoTotal(presupuestoTotalValue);
+            setCurrentYearPresupuestoTotal(presupuestoTotalValue);
+          } else {
+            setPresupuestoMensual(0);
+            setPresupuestoTotal(0);
+            setCurrentYearPresupuestoTotal(0);
+          }
+        }
+      }
+
+      // 5. Marcar que la inicialización está completa
+      setInitialLoadDone(true);
+      setIsComponentReady(true);
+      setIsInitializing(false);
+    } catch (error) {
+      console.error("Error durante la inicialización:", error);
+      // Aún así mostrar el componente aunque haya habido un error
+      setIsComponentReady(true);
+      setIsInitializing(false);
+    }
+  }
+
+  // Obtener información del usuario y departamento
   useEffect(() => {
-    async function getUserInfo() {
+    async function initialize() {
       try {
-        setIsLoading(true)
+        // Obtener info del usuario
         const response = await fetch('/api/getSessionUser')
         if (response.ok) {
           const data = await response.json()
           setUserRole(data.usuario?.rol || '')
 
           const userDep = data.usuario?.departamento || ''
-          // Establecer departamento inicial
+
+          // Determinar departamento según el rol
+          let selectedDep = '';
           if (data.usuario?.rol === "Jefe de Departamento") {
-            setDepartamento(userDep)
+            selectedDep = userDep;
           } else if (data.usuario?.rol === "Administrador") {
-            setDepartamento("Informática")
+            const informaticaDep = initialDepartamentos.find(dep => dep.Nombre === "Informática");
+            selectedDep = informaticaDep ? "Informática" : (initialDepartamentos.length > 0 ? initialDepartamentos[0].Nombre : '');
           } else if (data.usuario?.rol === "Contable") {
-            if (typeof window !== 'undefined' && window.selectedDepartamento) {
-              setDepartamento(window.selectedDepartamento)
+            const savedDep = typeof window !== 'undefined' && window.selectedDepartamento;
+            if (savedDep && initialDepartamentos.some(dep => dep.Nombre === savedDep)) {
+              selectedDep = savedDep;
             } else {
-              setDepartamento("Informática")
+              const informaticaDep = initialDepartamentos.find(dep => dep.Nombre === "Informática");
+              selectedDep = informaticaDep ? "Informática" : (initialDepartamentos.length > 0 ? initialDepartamentos[0].Nombre : '');
+            }
+          } else if (initialDepartamentos.length > 0) {
+            selectedDep = initialDepartamentos[0].Nombre;
+          }
+
+          // Establecer departamento y obtener su ID
+          setDepartamento(selectedDep);
+
+          if (selectedDep && initialDepartamentos.length > 0) {
+            const depInfo = initialDepartamentos.find(dep => dep.Nombre === selectedDep);
+            if (depInfo) {
+              const depId = depInfo.id_Departamento;
+              setDepartamentoId(depId);
+
+              // Inicializar todos los datos del componente de una vez
+              await initializeComponent(depId);
+            } else {
+              setIsComponentReady(true);
+              setIsInitializing(false);
             }
           } else {
-            if (typeof window !== 'undefined' && window.selectedDepartamento) {
-              setDepartamento(window.selectedDepartamento)
-            } else if (initialDepartamentos.length > 0) {
-              setDepartamento(initialDepartamentos[0].Nombre)
-            }
+            setIsComponentReady(true);
+            setIsInitializing(false);
           }
+        } else {
+          setIsComponentReady(true);
+          setIsInitializing(false);
         }
       } catch (error) {
-        console.error("Error obteniendo información del usuario:", error)
-      } finally {
-        setIsLoading(false)
+        console.error("Error en la inicialización:", error);
+        setIsComponentReady(true);
+        setIsInitializing(false);
       }
     }
 
-    getUserInfo()
-  }, [initialDepartamentos])
+    initialize();
+    // Esta función solo debe ejecutarse una vez al montar el componente
+  }, []);
 
-  // Actualizar ID del departamento cuando cambia el nombre del departamento
+  // Recargar datos cuando se cambie explícitamente el departamento
   useEffect(() => {
-    if (departamento && initialDepartamentos.length > 0) {
-      const depInfo = initialDepartamentos.find(dep => dep.Nombre === departamento)
-      if (depInfo) {
-        setDepartamentoId(depInfo.id_Departamento)
-      }
+    if (initialLoadDone && departamentoId) {
+      // Solo recargar datos si ya se ha completado la carga inicial y cambia el departamento
+      initializeComponent(departamentoId);
     }
-  }, [departamento, initialDepartamentos])
+  }, [departamento]);
 
-  // Cargar años que tienen bolsas asociadas cuando cambia el departamento
-  useEffect(() => {
-    async function fetchYearsWithBolsas() {
-      if (!departamentoId) return;
-
-      try {
-        // Usar el hook para obtener años con bolsas
-        const years = await getExistingYears(departamentoId);
-
-        if (years && years.length > 0) {
-          setAñosConBolsas(years);
-
-          // MODIFICADO: No cambiar automáticamente al año más reciente
-          // En su lugar, cargar los datos para el año actual si está disponible,
-          // o para el año seleccionado actualmente
-
-          // Primero, verificar si el año actual está en la lista de años con bolsas
-          const yearToLoad = years.includes(parseInt(currentYear))
-            ? currentYear
-            : selectedAño;
-
-          // Cargar datos para el año seleccionado sin cambiar el año en el selector
-          if (!initialLoadComplete) {
-            await reloadDataForYear(parseInt(yearToLoad));
-
-            // NUEVO: Seleccionar un mes válido para el año inicial
-            const mesesDelAño = new Set();
-            initialOrden.forEach(orden => {
-              if (orden.Departamento === departamento && !orden.Num_inversion) {
-                const ordenDate = new Date(orden.Fecha);
-                const ordenAño = ordenDate.getFullYear().toString();
-                if (ordenAño === yearToLoad) {
-                  const mesesNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-                    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-                  mesesDelAño.add(mesesNames[ordenDate.getMonth()]);
-                }
-              }
-            });
-
-            if (mesesDelAño.size > 0) {
-              const mesesOrder = {
-                "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4, "Mayo": 5, "Junio": 6,
-                "Julio": 7, "Agosto": 8, "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
-              };
-              const sortedMeses = Array.from(mesesDelAño).sort((a, b) => mesesOrder[a] - mesesOrder[b]);
-
-              if (sortedMeses.length > 0) {
-                setSelectedMes(sortedMeses[0]);
-              } else {
-                // Si no hay meses con datos, usar el mes actual
-                setSelectedMes(mesActual);
-              }
-            }
-
-            setInitialLoadComplete(true);
-          }
-        }
-      } catch (error) {
-        console.error("Error cargando años con bolsas:", error);
-      }
-    }
-
-    fetchYearsWithBolsas();
-  }, [departamentoId, getExistingYears, currentYear, selectedAño, initialLoadComplete]);
-
-  // CORREGIDO: Calcular gasto total del año actual (sin filtro de año)
+  // Calcular gasto total del año actual (sin filtro de año)
   const gastoTotalDelAñoActual = useMemo(() => {
     if (!departamento || !initialOrden.length) return 0;
 
@@ -213,6 +281,7 @@ export default function PresupuestoClient({
         o.Departamento === departamento && !o.Num_inversion
       );
 
+      // Si hay un año seleccionado, filtrar los meses disponibles solo para ese año
       departamentoOrdenes.forEach(orden => {
         const ordenDate = new Date(orden.Fecha);
         const ordenAño = ordenDate.getFullYear().toString();
@@ -266,74 +335,26 @@ export default function PresupuestoClient({
     return filteredOrdenes.reduce((sum, orden) => sum + (parseFloat(orden.Importe) || 0), 0);
   }, [filteredOrdenes]);
 
-  // Cargar datos cuando cambie el departamento
-  useEffect(() => {
-    if (!departamentoId) return
-
-    try {
-      // Obtener datos de presupuesto desde presupuestosPorDepartamento
-      const presupuestoData = presupuestosPorDepartamento[departamentoId] || [];
-
-      // CORREGIDO: Usar el presupuesto total anual directamente desde la API
-      // Si hay datos en presupuestosPorDepartamento, usar esos datos
-      if (presupuestoData.length > 0) {
-        const presupMensual = presupuestoData[0]?.presupuesto_mensual || 0;
-        setPresupuestoMensual(presupMensual);
-
-        // Calcular presupuesto total anual (12 meses)
-        setPresupuestoTotal(presupMensual * 12);
-      } else {
-        // Si no hay datos, intentar obtener desde gastosPorDepartamento (si existe)
-        const gastoData = gastosPorDepartamento[departamentoId] || [];
-        // Esto sería un fallback, pero idealmente deberíamos tener los datos de presupuesto
-        setPresupuestoMensual(0);
-        setPresupuestoTotal(0);
-      }
-    } catch (error) {
-      console.error("Error cargando datos de presupuesto:", error);
+  // Calcular presupuesto total anual para el año seleccionado
+  const presupuestoTotalAnual = useMemo(() => {
+    // Si hay un valor específico para el año seleccionado, usarlo
+    if (selectedAño && currentYearPresupuestoTotal !== undefined) {
+      return currentYearPresupuestoTotal;
     }
-  }, [departamentoId, presupuestosPorDepartamento, gastosPorDepartamento]);
 
-  // Función para refrescar datos
-  const refreshData = async () => {
-    if (!departamentoId) return;
+    // De lo contrario, usar el cálculo original de los datos iniciales
+    const presupuestoData = presupuestosPorDepartamento[departamentoId] || [];
+    const total = presupuestoData[0]?.total_presupuesto || (presupuestoData[0]?.presupuesto_mensual * 12) || 0;
 
-    setLoadingRefresh(true);
-    try {
-      // Actualizar la lista de años con bolsas
-      const years = await getExistingYears(departamentoId);
-      if (years && years.length > 0) {
-        setAñosConBolsas(years);
-      }
+    return total;
+  }, [presupuestosPorDepartamento, departamentoId, selectedAño, currentYearPresupuestoTotal]);
 
-      // Obtener datos actualizados para el año seleccionado
-      const result = await fetchBolsasData(departamentoId, parseInt(selectedAño), 'presupuesto');
-
-      if (result && result.presupuesto) {
-        // Actualizar datos de presupuesto
-        setPresupuestoMensual(result.presupuesto.presupuesto_mensual || 0);
-        setPresupuestoTotal(result.presupuesto.total_presupuesto || 0);
-
-        setSuccessMessage('Datos actualizados correctamente');
-
-        // Ocultar mensaje después de 3 segundos
-        setTimeout(() => {
-          setSuccessMessage('');
-        }, 3000);
-      }
-    } catch (error) {
-      console.error("Error al refrescar datos:", error);
-    } finally {
-      setLoadingRefresh(false);
-    }
-  };
-
-  // CORREGIDO: Calcular presupuesto actual = presupuesto total - gasto del año actual
+  // Calcular presupuesto actual = presupuesto total - gasto del año actual
   const presupuestoActual = useMemo(() => {
     return presupuestoTotal - gastoTotalDelAñoActual;
   }, [presupuestoTotal, gastoTotalDelAñoActual]);
 
-  // NUEVO: Calcular presupuesto mensual recomendado basado en lo que queda por gastar
+  // Calcular presupuesto mensual recomendado basado en lo que queda por gastar
   const presupuestoMensualRecomendado = useMemo(() => {
     // Si no hay presupuesto actual restante, no hay recomendación
     if (presupuestoActual <= 0) return 0;
@@ -351,8 +372,7 @@ export default function PresupuestoClient({
     return recomendacion;
   }, [presupuestoActual]); // Solo depende de presupuestoActual
 
-  // Calcular presupuesto mensual disponible para el mes y año seleccionados
-  // CORREGIDO: Calcular presupuesto mensual disponible para el mes específico
+  // Calcular presupuesto mensual disponible para el mes específico
   const presupuestoMensualDisponible = useMemo(() => {
     return presupuestoMensualRecomendado - gastoDelMes;
   }, [presupuestoMensualRecomendado, gastoDelMes]);
@@ -374,23 +394,25 @@ export default function PresupuestoClient({
     setSelectedMes(e.target.value)
   }
 
-  // En ambos componentes cliente, añadimos esta función y la llamamos cuando cambia el año
+  // Función para recargar datos para un año específico
   const reloadDataForYear = async (newYear) => {
     if (!departamentoId) return;
 
     setIsLoading(true);
     try {
-      // Usar nuestro nuevo hook para cargar datos del año
+      // Usar nuestro hook para cargar datos del año
       const result = await fetchBolsasData(departamentoId, parseInt(newYear), 'presupuesto');
-
+      
       if (result && result.presupuesto) {
         // Actualizar datos de presupuesto
         setPresupuestoTotal(result.presupuesto.total_presupuesto || 0);
         setPresupuestoMensual(result.presupuesto.presupuesto_mensual || 0);
+        setCurrentYearPresupuestoTotal(result.presupuesto.total_presupuesto || 0);
       } else {
         // Si no hay datos para ese año, establecer a 0
         setPresupuestoTotal(0);
         setPresupuestoMensual(0);
+        setCurrentYearPresupuestoTotal(0);
       }
     } catch (error) {
       console.error(`Error loading budget data for year ${newYear}:`, error);
@@ -399,7 +421,7 @@ export default function PresupuestoClient({
     }
   };
 
-  // En el manejador de cambio de año
+  // Manejador de cambio de año
   const handleAñoChange = (e) => {
     const newYear = e.target.value;
     setSelectedAño(newYear);
@@ -439,6 +461,41 @@ export default function PresupuestoClient({
       });
   };
 
+  // Función para refrescar datos
+  const refreshData = async () => {
+    if (!departamentoId) return;
+    
+    setLoadingRefresh(true);
+    try {
+      // Actualizar la lista de años con bolsas
+      const years = await getExistingYears(departamentoId);
+      if (years && years.length > 0) {
+        setAñosConBolsas(years);
+      }
+      
+      // Obtener datos actualizados para el año seleccionado
+      const result = await fetchBolsasData(departamentoId, parseInt(selectedAño), 'presupuesto');
+      
+      if (result && result.presupuesto) {
+        // Actualizar datos de presupuesto
+        setPresupuestoMensual(result.presupuesto.presupuesto_mensual || 0);
+        setPresupuestoTotal(result.presupuesto.total_presupuesto || 0);
+        setCurrentYearPresupuestoTotal(result.presupuesto.total_presupuesto || 0);
+        
+        setSuccessMessage('Datos actualizados correctamente');
+        
+        // Ocultar mensaje después de 3 segundos
+        setTimeout(() => {
+          setSuccessMessage('');
+        }, 3000);
+      }
+    } catch (error) {
+      console.error("Error al refrescar datos:", error);
+    } finally {
+      setLoadingRefresh(false);
+    }
+  };
+
   // Formatear valores monetarios
   const formatCurrency = (value) => {
     if (value === null || value === undefined || isNaN(value)) return "0,00 €"
@@ -464,8 +521,13 @@ export default function PresupuestoClient({
     return valor < 0 ? "text-red-600" : "";
   };
 
-  if (isDepartamentoLoading || isLoading) {
-    return <div className="p-6">Cargando...</div>
+  // Si el componente aún no está listo, mostramos un estado de carga consistente
+  if (!isComponentReady || isDepartamentoLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse text-gray-500">Cargando datos...</div>
+      </div>
+    );
   }
 
   return (
@@ -505,7 +567,7 @@ export default function PresupuestoClient({
         </div>
 
         <div className="flex gap-4">
-          {/* Selector de mes - con ancho fijo */}
+          {/* Selector de mes */}
           <div className="relative">
             <select
               value={selectedMes}
@@ -586,7 +648,7 @@ export default function PresupuestoClient({
                 <h3 className="text-gray-500 text-xl">Presupuesto mensual recomendado</h3>
                 <div className="relative group">
                   <Info className="w-4 h-4 text-blue-500 cursor-pointer" />
-                  {/* Tooltip explicativo */}
+                  {/* Tooltip */}
                   <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 rounded p-3 shadow-lg z-50 w-80">
                     <div className="text-xs">
                       <p className="font-semibold mb-1">Cálculo dinámico:</p>
@@ -647,17 +709,17 @@ export default function PresupuestoClient({
             <div className="overflow-hidden max-h-[480px] overflow-y-auto">
               <table className="w-full table-fixed">
                 <thead className="bg-white sticky top-0 z-10">
-                  <tr className="text-left">
-                    <th className="pb-2 font-normal text-gray-500 w-1/3 px-3">Número</th>
-                    <th className="pb-2 font-normal text-gray-500 w-1/2 px-3">Descripción</th>
-                    <th className="pb-2 font-normal text-gray-500 text-right w-1/6 px-3">Total</th>
+                  <tr className="border-b border-gray-200">
+                    <th className="pb-2 font-normal text-gray-500 text-left w-1/3">Número</th>
+                    <th className="pb-2 font-normal text-gray-500 text-left w-1/2">Descripción</th>
+                    <th className="pb-2 font-normal text-gray-500 text-right w-1/6">Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredOrdenes && filteredOrdenes.length > 0 ? (
                     filteredOrdenes.map((item, index) => (
                       <tr key={`${item.idOrden}-${index}`} className="border-t border-gray-200">
-                        <td className="py-2 px-3 w-1/3">{item.Num_orden}</td>
+                        <td className="border-t border-gray-200">{item.Num_orden}</td>
                         <td className="py-2 w-1/2">
                           <div className="truncate" title={item.Descripcion}>
                             {item.Descripcion || "-"}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { ChevronDown, Calendar, Info } from "lucide-react"
 import Link from "next/link"
 import useUserDepartamento from "@/app/hooks/useUserDepartamento"
@@ -427,10 +427,6 @@ export default function InversionClient({
     const newYear = e.target.value;
     setSelectedAño(newYear);
 
-    // Recalcular los meses disponibles cuando cambie el año
-    // Esto se hará automáticamente por el useMemo, pero tenemos que asegurarnos
-    // de que el mes seleccionado siga siendo válido con el nuevo año
-
     // Recargar datos para el nuevo año
     reloadDataForYear(parseInt(newYear))
       .then(() => {
@@ -659,7 +655,7 @@ export default function InversionClient({
                 <h3 className="text-gray-500 text-xl">Inversión mensual recomendada</h3>
                 <div className="relative group">
                   <Info className="w-4 h-4 text-blue-500 cursor-pointer" />
-                  {/* Tooltip más ancho y con texto más corto */}
+                  {/* Tooltip */}
                   <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 rounded p-3 shadow-lg z-50 w-80">
                     <div className="text-xs">
                       <p className="font-semibold mb-1">Cálculo dinámico:</p>
