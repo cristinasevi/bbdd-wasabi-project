@@ -2,6 +2,45 @@ import { NextResponse } from "next/server";
 import { pool } from "@/app/api/lib/db";
 import { validateNIF } from "@/app/utils/validations";
 
+// Función de validación de email para el backend
+const validateEmailBackend = (email) => {
+  if (!email || email.trim().length === 0) {
+    return { valid: true, formatted: null }; // Email es opcional
+  }
+  
+  const cleanEmail = email.trim().toLowerCase();
+  
+  // Verificar longitud máxima
+  if (cleanEmail.length > 255) {
+    return { valid: false, error: "El email es demasiado largo (máximo 255 caracteres)" };
+  }
+  
+  // Patrón de validación de email
+  const emailPattern = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+  
+  if (!emailPattern.test(cleanEmail)) {
+    return { valid: false, error: "El formato del email no es válido (ejemplo: usuario@dominio.com)" };
+  }
+  
+  // Validaciones adicionales
+  const parts = cleanEmail.split('@');
+  if (parts.length !== 2) {
+    return { valid: false, error: "El email debe contener exactamente un símbolo @" };
+  }
+  
+  const [localPart, domain] = parts;
+  
+  if (localPart.length === 0 || domain.length === 0) {
+    return { valid: false, error: "El email debe tener texto antes y después del símbolo @" };
+  }
+  
+  if (!domain.includes('.')) {
+    return { valid: false, error: "El dominio debe contener al menos un punto (ejemplo: gmail.com)" };
+  }
+  
+  return { valid: true, formatted: cleanEmail };
+};
+
 // POST - Crear un nuevo proveedor
 export async function POST(request) {
   try {
@@ -29,7 +68,17 @@ export async function POST(request) {
       }, { status: 400 });
     }
     
-    // ELIMINADAS las validaciones de email y teléfono
+    // Validar email (si se proporciona)
+    let emailFormatted = null;
+    if (data.email && data.email.trim().length > 0) {
+      const emailValidation = validateEmailBackend(data.email);
+      if (!emailValidation.valid) {
+        return NextResponse.json({ 
+          error: emailValidation.error 
+        }, { status: 400 });
+      }
+      emailFormatted = emailValidation.formatted;
+    }
     
     // Validar dirección
     if (data.direccion && data.direccion.length > 200) {
@@ -56,6 +105,21 @@ export async function POST(request) {
         }, { status: 400 });
       }
       
+      // Verificar si ya existe un proveedor con el mismo email (si se proporciona)
+      if (emailFormatted) {
+        const [existingEmail] = await connection.query(
+          'SELECT idProveedor FROM Proveedor WHERE Email = ?',
+          [emailFormatted]
+        );
+        
+        if (existingEmail.length > 0) {
+          await connection.rollback();
+          return NextResponse.json({ 
+            error: "Ya existe un proveedor con este email" 
+          }, { status: 400 });
+        }
+      }
+      
       // Insertar el proveedor
       const [proveedorResult] = await connection.query(`
         INSERT INTO Proveedor (Nombre, NIF, Direccion, Telefono, Email, Fecha_alta)
@@ -65,7 +129,7 @@ export async function POST(request) {
         nifValidation.formatted,
         data.direccion?.trim() || null,
         data.telefono?.trim() || null,
-        data.email?.trim().toLowerCase() || null
+        emailFormatted
       ]);
       
       const proveedorId = proveedorResult.insertId;
@@ -105,10 +169,13 @@ export async function POST(request) {
       
       // Manejar errores específicos de la base de datos
       if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) {
-        // Solo verificar duplicados para NIF
         if (error.message.includes('NIF')) {
           return NextResponse.json({ 
             error: "Ya existe un proveedor con este NIF/CIF" 
+          }, { status: 400 });
+        } else if (error.message.includes('Email')) {
+          return NextResponse.json({ 
+            error: "Ya existe un proveedor con este email" 
           }, { status: 400 });
         } else {
           return NextResponse.json({ 

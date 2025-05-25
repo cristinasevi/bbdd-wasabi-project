@@ -70,8 +70,75 @@ export const validateNIF = (nif) => {
   return { valid: true, formatted: cleanNIF };
 };
 
-// Función de validación del formulario - actualizada para solo validar NIF
-const validateProveedorForm = (formData, proveedoresList, editingId = null) => {
+// Validación de email
+export const validateEmail = (email) => {
+  if (!email || email.trim().length === 0) {
+    return { valid: true, formatted: '' }; // Email es opcional
+  }
+  
+  // Limpiar el email
+  const cleanEmail = email.trim().toLowerCase();
+  
+  // Verificar longitud máxima
+  if (cleanEmail.length > 255) {
+    return { valid: false, error: "El email es demasiado largo (máximo 255 caracteres)" };
+  }
+  
+  // Patrón de validación de email más robusto
+  const emailPattern = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+  
+  if (!emailPattern.test(cleanEmail)) {
+    return { valid: false, error: "El formato del email no es válido (ejemplo: usuario@dominio.com)" };
+  }
+  
+  // Validaciones adicionales
+  const parts = cleanEmail.split('@');
+  if (parts.length !== 2) {
+    return { valid: false, error: "El email debe contener exactamente un símbolo @" };
+  }
+  
+  const [localPart, domain] = parts;
+  
+  // Validar parte local (antes del @)
+  if (localPart.length === 0) {
+    return { valid: false, error: "El email debe tener texto antes del símbolo @" };
+  }
+  
+  if (localPart.length > 64) {
+    return { valid: false, error: "La parte local del email es demasiado larga" };
+  }
+  
+  // Validar dominio (después del @)
+  if (domain.length === 0) {
+    return { valid: false, error: "El email debe tener un dominio después del símbolo @" };
+  }
+  
+  if (domain.length > 253) {
+    return { valid: false, error: "El dominio del email es demasiado largo" };
+  }
+  
+  // Verificar que el dominio tenga al menos un punto
+  if (!domain.includes('.')) {
+    return { valid: false, error: "El dominio debe contener al menos un punto (ejemplo: gmail.com)" };
+  }
+  
+  // Verificar que no empiece o termine con punto o guión
+  if (domain.startsWith('.') || domain.endsWith('.') || domain.startsWith('-') || domain.endsWith('-')) {
+    return { valid: false, error: "El dominio no puede empezar o terminar con punto o guión" };
+  }
+  
+  // Verificar que la extensión del dominio tenga al menos 2 caracteres
+  const domainParts = domain.split('.');
+  const extension = domainParts[domainParts.length - 1];
+  if (extension.length < 2) {
+    return { valid: false, error: "La extensión del dominio debe tener al menos 2 caracteres" };
+  }
+  
+  return { valid: true, formatted: cleanEmail };
+};
+
+// Función de validación del formulario - CON validación de email incluida
+export const validateProveedorForm = (formData, proveedoresList, editingId = null) => {
   const errors = {};
 
   // Validar nombre (obligatorio)
@@ -89,13 +156,30 @@ const validateProveedorForm = (formData, proveedoresList, editingId = null) => {
     if (!nifValidation.valid) {
       errors.nif = nifValidation.error;
     } else {
-      // Verificar duplicados
+      // Verificar duplicados de NIF
       const nifExists = proveedoresList.some(p => 
         p.NIF && p.NIF.toUpperCase() === nifValidation.formatted && 
         p.idProveedor !== editingId
       );
       if (nifExists) {
         errors.nif = "Ya existe un proveedor con este NIF/CIF";
+      }
+    }
+  }
+
+  // Validar email (opcional, pero debe tener formato correcto si se proporciona)
+  if (formData.email && formData.email.trim().length > 0) {
+    const emailValidation = validateEmail(formData.email);
+    if (!emailValidation.valid) {
+      errors.email = emailValidation.error;
+    } else {
+      // Verificar duplicados de email
+      const emailExists = proveedoresList.some(p => 
+        p.Email && p.Email.toLowerCase() === emailValidation.formatted && 
+        p.idProveedor !== editingId
+      );
+      if (emailExists) {
+        errors.email = "Ya existe un proveedor con este email";
       }
     }
   }

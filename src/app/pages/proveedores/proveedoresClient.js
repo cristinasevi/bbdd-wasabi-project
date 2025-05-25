@@ -6,7 +6,7 @@ import Button from "@/app/components/ui/button";
 import useNotifications from "@/app/hooks/useNotifications";
 import ConfirmationDialog from "@/app/components/ui/confirmation-dialog";
 import useUserDepartamento from "@/app/hooks/useUserDepartamento";
-import { validateNIF } from "@/app/utils/validations";
+import { validateNIF, validateEmail, validateProveedorForm } from "@/app/utils/validations";
 
 export default function ProveedoresClient({
   initialProveedores,
@@ -226,7 +226,7 @@ export default function ProveedoresClient({
       setFormErrors(newErrors);
     }
 
-    // Solo validación en tiempo real para el NIF
+    // Validación en tiempo real para el NIF
     if (name === "nif" && value.trim().length > 0) {
       const nifValidation = validateNIF(value);
       if (!nifValidation.valid) {
@@ -243,59 +243,29 @@ export default function ProveedoresClient({
       }
     }
 
-    // Teléfonos pueden repetirse, no hay validación
-    if (name === "telefono") {
-      // Si se modifica el teléfono, quitar cualquier error anterior
-      const newErrors = { ...formErrors };
-      delete newErrors.telefono;
-      setFormErrors(newErrors);
-    }
-  };
-
-  // Función de validación del formulario - actualizada para validar NIF, teléfono y email
-  const validateProveedorForm = (formData, proveedoresList, editingId = null) => {
-    const errors = {};
-
-    // Validar nombre (obligatorio)
-    if (!formData.nombre || formData.nombre.trim().length === 0) {
-      errors.nombre = "El nombre es obligatorio";
-    } else if (formData.nombre.trim().length > 100) {
-      errors.nombre = "El nombre es demasiado largo (máximo 100 caracteres)";
-    }
-
-    // Validar NIF/CIF (obligatorio)
-    if (!formData.nif || formData.nif.trim().length === 0) {
-      errors.nif = "El NIF/CIF es obligatorio";
-    } else {
-      const nifValidation = validateNIF(formData.nif);
-      if (!nifValidation.valid) {
-        errors.nif = nifValidation.error;
+    // Validación en tiempo real para el email
+    if (name === "email" && value.trim().length > 0) {
+      const emailValidation = validateEmail(value);
+      if (!emailValidation.valid) {
+        setFormErrors(prev => ({ ...prev, email: emailValidation.error }));
       } else {
-        // Verificar duplicados de NIF
-        const nifExists = proveedoresList.some(p =>
-          p.NIF && p.NIF.toUpperCase() === nifValidation.formatted &&
-          p.idProveedor !== editingId
+        // Verificar duplicados de email
+        const emailExists = proveedores.some(p =>
+          p.Email && p.Email.toLowerCase() === emailValidation.formatted &&
+          p.idProveedor !== formularioProveedor.idProveedor
         );
-        if (nifExists) {
-          errors.nif = "Ya existe un proveedor con este NIF/CIF";
+        if (emailExists) {
+          setFormErrors(prev => ({ ...prev, email: "Ya existe un proveedor con este email" }));
         }
       }
     }
 
-    // Validar departamento (obligatorio)
-    if (!formData.departamento || formData.departamento.trim().length === 0) {
-      errors.departamento = "El departamento es obligatorio";
+    // Limpiar errores para campos que no necesitan validación en tiempo real
+    if (name === "telefono") {
+      const newErrors = { ...formErrors };
+      delete newErrors.telefono;
+      setFormErrors(newErrors);
     }
-
-    // Validar dirección (opcional, pero con límite de longitud)
-    if (formData.direccion && formData.direccion.length > 200) {
-      errors.direccion = "La dirección es demasiado larga (máximo 200 caracteres)";
-    }
-
-    return {
-      isValid: Object.keys(errors).length === 0,
-      errors
-    };
   };
 
   // Validar formulario
@@ -361,13 +331,20 @@ export default function ProveedoresClient({
       const nifValidation = validateNIF(formularioProveedor.nif);
       const nifFormateado = nifValidation.formatted;
 
+      // Limpiar y formatear el email (si se proporciona)
+      let emailFormateado = '';
+      if (formularioProveedor.email && formularioProveedor.email.trim().length > 0) {
+        const emailValidation = validateEmail(formularioProveedor.email);
+        emailFormateado = emailValidation.formatted;
+      }
+
       // Datos del proveedor a enviar
       const proveedorData = {
         nombre: String(formularioProveedor.nombre || "").trim(),
         nif: nifFormateado,
         direccion: String(formularioProveedor.direccion || "").trim(),
         telefono: String(formularioProveedor.telefono || "").trim(),
-        email: String(formularioProveedor.email || "").trim(),
+        email: emailFormateado,
         departamento: formularioProveedor.departamento,
       };
 
@@ -706,6 +683,7 @@ export default function ProveedoresClient({
             type="text"
             placeholder="Buscar por nombre, NIF, email..."
             value={searchTerm}
+            maxLength={150}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full p-2 border border-gray-300 rounded-md pl-10"
           />
@@ -888,6 +866,7 @@ export default function ProveedoresClient({
                 <input
                   type="text"
                   name="nombre"
+                  maxLength={100}
                   value={formularioProveedor.nombre}
                   onChange={handleInputChange}
                   className="border border-gray-300 rounded px-3 py-2 w-full"
@@ -917,6 +896,7 @@ export default function ProveedoresClient({
                 <input
                   type="text"
                   name="direccion"
+                  maxLength={150}
                   value={formularioProveedor.direccion}
                   onChange={handleInputChange}
                   className="border border-gray-300 rounded px-3 py-2 w-full"
@@ -930,9 +910,16 @@ export default function ProveedoresClient({
                   name="telefono"
                   value={formularioProveedor.telefono}
                   onChange={handleInputChange}
+                  onInput={(e) => {
+                    // Filtrar solo números en tiempo real
+                    e.target.value = e.target.value.replace(/[^0-9]/g, '');
+                  }}
                   className={`border rounded px-3 py-2 w-full ${formErrors.telefono ? 'border-red-500' : 'border-gray-300'
                     }`}
                   placeholder="Teléfono"
+                  pattern="[0-9]*"
+                  inputMode="numeric"
+                  maxLength={9}
                 />
                 {formErrors.telefono && (
                   <div className="flex items-center mt-1 text-red-600 text-sm">
@@ -942,7 +929,10 @@ export default function ProveedoresClient({
                 )}
               </div>
               <div>
-                <label className="block text-gray-700 mb-1">Email</label>
+                <label className="block text-gray-700 mb-1">
+                  Email
+                  <span className="text-sm text-gray-500 ml-1"></span>
+                </label>
                 <input
                   type="email"
                   name="email"
@@ -950,7 +940,8 @@ export default function ProveedoresClient({
                   onChange={handleInputChange}
                   className={`border rounded px-3 py-2 w-full ${formErrors.email ? 'border-red-500' : 'border-gray-300'
                     }`}
-                  placeholder="Email"
+                  placeholder="usuario@dominio.com"
+                  autoComplete="email"
                 />
                 {formErrors.email && (
                   <div className="flex items-center mt-1 text-red-600 text-sm">

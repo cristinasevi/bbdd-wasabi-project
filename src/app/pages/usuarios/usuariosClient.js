@@ -585,6 +585,7 @@ export default function UsuariosClient({
               type="text"
               placeholder="Buscar por nombre, email o DNI..."
               value={searchTerm}
+              maxLength={100}
               onChange={handleSearchChange} // Usamos la función específica
               className="w-full p-2 border border-gray-300 rounded-md pl-10"
             />

@@ -395,6 +395,7 @@ export default function InventarioClient({
             type="text"
             placeholder="Buscar por descripción..."
             value={searchTerm}
+            maxLength={100}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full p-2 border border-gray-300 rounded-md pl-10"
           />

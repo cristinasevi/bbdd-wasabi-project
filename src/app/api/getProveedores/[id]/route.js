@@ -2,6 +2,45 @@ import { NextResponse } from "next/server";
 import { pool } from "@/app/api/lib/db";
 import { validateNIF } from "@/app/utils/validations";
 
+// Función de validación de email para el backend
+const validateEmailBackend = (email) => {
+  if (!email || email.trim().length === 0) {
+    return { valid: true, formatted: null }; // Email es opcional
+  }
+  
+  const cleanEmail = email.trim().toLowerCase();
+  
+  // Verificar longitud máxima
+  if (cleanEmail.length > 255) {
+    return { valid: false, error: "El email es demasiado largo (máximo 255 caracteres)" };
+  }
+  
+  // Patrón de validación de email
+  const emailPattern = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+  
+  if (!emailPattern.test(cleanEmail)) {
+    return { valid: false, error: "El formato del email no es válido (ejemplo: usuario@dominio.com)" };
+  }
+  
+  // Validaciones adicionales
+  const parts = cleanEmail.split('@');
+  if (parts.length !== 2) {
+    return { valid: false, error: "El email debe contener exactamente un símbolo @" };
+  }
+  
+  const [localPart, domain] = parts;
+  
+  if (localPart.length === 0 || domain.length === 0) {
+    return { valid: false, error: "El email debe tener texto antes y después del símbolo @" };
+  }
+  
+  if (!domain.includes('.')) {
+    return { valid: false, error: "El dominio debe contener al menos un punto (ejemplo: gmail.com)" };
+  }
+  
+  return { valid: true, formatted: cleanEmail };
+};
+
 // PUT - Actualizar un proveedor específico
 export async function PUT(request, { params }) {
   try {
@@ -31,6 +70,18 @@ export async function PUT(request, { params }) {
       }, { status: 400 });
     }
     
+    // Validar email (si se proporciona)
+    let emailFormatted = null;
+    if (data.email && data.email.trim().length > 0) {
+      const emailValidation = validateEmailBackend(data.email);
+      if (!emailValidation.valid) {
+        return NextResponse.json({ 
+          error: emailValidation.error 
+        }, { status: 400 });
+      }
+      emailFormatted = emailValidation.formatted;
+    }
+    
     // Validar dirección
     if (data.direccion && data.direccion.length > 200) {
       return NextResponse.json({ 
@@ -43,6 +94,34 @@ export async function PUT(request, { params }) {
     await connection.beginTransaction();
     
     try {
+      // Verificar si ya existe otro proveedor con el mismo NIF (excluyendo el actual)
+      const [existingNIF] = await connection.query(
+        'SELECT idProveedor FROM Proveedor WHERE NIF = ? AND idProveedor != ?',
+        [nifValidation.formatted, proveedorId]
+      );
+      
+      if (existingNIF.length > 0) {
+        await connection.rollback();
+        return NextResponse.json({ 
+          error: "Ya existe otro proveedor con este NIF/CIF" 
+        }, { status: 400 });
+      }
+      
+      // Verificar si ya existe otro proveedor con el mismo email (si se proporciona)
+      if (emailFormatted) {
+        const [existingEmail] = await connection.query(
+          'SELECT idProveedor FROM Proveedor WHERE Email = ? AND idProveedor != ?',
+          [emailFormatted, proveedorId]
+        );
+        
+        if (existingEmail.length > 0) {
+          await connection.rollback();
+          return NextResponse.json({ 
+            error: "Ya existe otro proveedor con este email" 
+          }, { status: 400 });
+        }
+      }
+      
       // Actualizar los datos del proveedor
       await connection.query(`
         UPDATE Proveedor 
@@ -53,7 +132,7 @@ export async function PUT(request, { params }) {
         nifValidation.formatted,
         data.direccion?.trim() || null,
         data.telefono?.trim() || null,
-        data.email?.trim().toLowerCase() || null,
+        emailFormatted,
         proveedorId
       ]);
       
@@ -109,9 +188,19 @@ export async function PUT(request, { params }) {
       
       // Manejar errores específicos de la base de datos
       if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) {
-        return NextResponse.json({ 
-          error: "Ya existe otro proveedor con este NIF/CIF" 
-        }, { status: 400 });
+        if (error.message.includes('NIF')) {
+          return NextResponse.json({ 
+            error: "Ya existe otro proveedor con este NIF/CIF" 
+          }, { status: 400 });
+        } else if (error.message.includes('Email')) {
+          return NextResponse.json({ 
+            error: "Ya existe otro proveedor con este email" 
+          }, { status: 400 });
+        } else {
+          return NextResponse.json({ 
+            error: "Ya existe otro proveedor con esos datos" 
+          }, { status: 400 });
+        }
       }
       
       if (error.code === 'ER_DATA_TOO_LONG' || error.errno === 1406) {
