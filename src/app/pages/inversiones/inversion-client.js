@@ -82,7 +82,7 @@ export default function InversionClient({
       // Seleccionar un mes válido para el año inicial
       const mesesDelAño = new Set();
       initialOrden.forEach(orden => {
-        if (orden.Departamento === departamento && orden.Num_inversion) {
+        if (orden.Departamento === departamento && orden.Num_inversion) { // CON inversión para inversiones
           const ordenDate = new Date(orden.Fecha);
           const ordenAño = ordenDate.getFullYear().toString();
           if (ordenAño === yearToLoad) {
@@ -94,20 +94,37 @@ export default function InversionClient({
       });
 
       // Si hay meses disponibles, seleccionar el primero
-      if (mesesDelAño.size > 0) {
-        const mesesOrder = {
-          "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4, "Mayo": 5, "Junio": 6,
-          "Julio": 7, "Agosto": 8, "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
-        };
-        const sortedMeses = Array.from(mesesDelAño).sort((a, b) => mesesOrder[a] - mesesOrder[b]);
+      let mesASeleccionar = mesActual; // Por defecto, usar el mes actual
 
-        if (sortedMeses.length > 0) {
-          setSelectedMes(sortedMeses[0]);
+      if (yearToLoad === actualYear) {
+        // Si es el año actual, siempre usar el mes actual
+        mesASeleccionar = mesActual;
+      } else {
+        // Para años diferentes al actual
+        if (mesesDelAño.size > 0) {
+          // Verificar si el mes actual está disponible en el año seleccionado
+          if (mesesDelAño.has(mesActual)) {
+            // Si el mes actual está disponible, usarlo
+            mesASeleccionar = mesActual;
+          } else {
+            // Si no está disponible, usar el último mes con datos
+            const mesesOrder = {
+              "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4, "Mayo": 5, "Junio": 6,
+              "Julio": 7, "Agosto": 8, "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
+            };
+            const sortedMeses = Array.from(mesesDelAño).sort((a, b) => mesesOrder[a] - mesesOrder[b]);
+
+            // Seleccionar el último mes disponible (más reciente)
+            mesASeleccionar = sortedMeses[sortedMeses.length - 1];
+          }
         } else {
-          // Si no hay meses con datos, usar el mes actual
-          setSelectedMes(mesActual);
+          // Si no hay datos, usar Enero como fallback
+          mesASeleccionar = "Enero";
         }
       }
+
+      // Establecer el mes seleccionado
+      setSelectedMes(mesASeleccionar);
 
       // 4. Cargar datos para el año seleccionado
       if (departId) {
@@ -360,18 +377,32 @@ export default function InversionClient({
     // Si no hay inversión actual restante, no hay recomendación
     if (inversionActual <= 0) return 0;
 
-    // SIEMPRE calcular desde el mes actual hasta diciembre del año actual
-    const mesActual = new Date().getMonth() + 1; // JavaScript cuenta desde 0 (enero = 0)
-    const mesesRestantes = 12 - mesActual + 1; // +1 para incluir el mes actual
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1; // Mes actual real (1-12)
+    const selectedYearInt = parseInt(selectedAño);
 
-    // Evitar división por cero (aunque no debería pasar)
+    let mesesRestantes;
+
+    if (selectedYearInt === currentYear) {
+      // Si estamos viendo el año actual, calcular desde el mes actual hasta diciembre
+      mesesRestantes = 12 - currentMonth + 1; // +1 para incluir el mes actual
+    } else if (selectedYearInt > currentYear) {
+      // Si estamos viendo un año futuro, usar todos los 12 meses
+      mesesRestantes = 12;
+    } else {
+      // Si estamos viendo un año pasado, el "recomendado" no tiene sentido
+      // pero podemos calcular como si fuera el promedio mensual del año
+      mesesRestantes = 12;
+    }
+
+    // Evitar división por cero
     if (mesesRestantes <= 0) return 0;
 
-    // Calcular recomendación: inversión restante / meses restantes del año actual
+    // Calcular recomendación
     const recomendacion = inversionActual / mesesRestantes;
 
     return recomendacion;
-  }, [inversionActual]);
+  }, [inversionActual, selectedAño]);
 
   // Calcular inversión mensual disponible para el mes específico
   const inversionMensualDisponible = useMemo(() => {
@@ -430,9 +461,10 @@ export default function InversionClient({
     // Recargar datos para el nuevo año
     reloadDataForYear(parseInt(newYear))
       .then(() => {
-        // Después de cargar los datos, verificar si el mes actual es válido
-        // Recalcular meses disponibles para el nuevo año
+        // Después de cargar los datos, determinar qué mes seleccionar
         const mesesDelAño = new Set();
+
+        // Obtener meses que tienen órdenes de inversión para el nuevo año
         initialOrden.forEach(orden => {
           if (orden.Departamento === departamento && orden.Num_inversion) {
             const ordenDate = new Date(orden.Fecha);
@@ -445,20 +477,42 @@ export default function InversionClient({
           }
         });
 
-        // Si el mes seleccionado ya no está disponible, seleccionar el primer mes disponible
-        if (mesesDelAño.size > 0 && !mesesDelAño.has(selectedMes)) {
-          // Ordenar los meses
-          const mesesOrder = {
-            "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4, "Mayo": 5, "Junio": 6,
-            "Julio": 7, "Agosto": 8, "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
-          };
-          const sortedMeses = Array.from(mesesDelAño).sort((a, b) => mesesOrder[a] - mesesOrder[b]);
+        // Lógica mejorada para seleccionar el mes
+        let mesASeleccionar = selectedMes; // Por defecto, mantener el mes actual
 
-          // Seleccionar el primer mes disponible
-          if (sortedMeses.length > 0) {
-            setSelectedMes(sortedMeses[0]);
+        // Si el año seleccionado es el año actual
+        if (newYear === actualYear) {
+          // Siempre usar el mes actual si estamos en el año actual
+          mesASeleccionar = mesActual;
+        } else {
+          // Para años diferentes al actual
+          if (mesesDelAño.size > 0) {
+            // Si el mes actual seleccionado no está disponible en el nuevo año
+            if (!mesesDelAño.has(selectedMes)) {
+              // Ordenar los meses cronológicamente
+              const mesesOrder = {
+                "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4, "Mayo": 5, "Junio": 6,
+                "Julio": 7, "Agosto": 8, "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
+              };
+              const sortedMeses = Array.from(mesesDelAño).sort((a, b) => mesesOrder[a] - mesesOrder[b]);
+
+              // Seleccionar el mes más reciente (último) disponible
+              mesASeleccionar = sortedMeses[sortedMeses.length - 1];
+            }
+            // Si el mes actual está disponible, se mantiene (mesASeleccionar ya tiene el valor correcto)
+          } else {
+            // Si no hay datos para el año, usar Enero como fallback
+            mesASeleccionar = "Enero";
           }
         }
+
+        // Actualizar el mes seleccionado si es diferente
+        if (mesASeleccionar !== selectedMes) {
+          setSelectedMes(mesASeleccionar);
+        }
+      })
+      .catch(error => {
+        console.error("Error al cambiar año:", error);
       });
   };
 
@@ -664,7 +718,13 @@ export default function InversionClient({
                       </p>
                       <div className="bg-gray-50 p-2 rounded text-xs">
                         <p className="font-mono">
-                          {formatCurrency(inversionActual)} ÷ {12 - new Date().getMonth() + 1} meses = {formatCurrency(inversionMensualRecomendada)}
+                          {formatCurrency(inversionActual)} ÷ {
+                            parseInt(selectedAño) === new Date().getFullYear()
+                              ? `${12 - new Date().getMonth()} meses restantes`
+                              : parseInt(selectedAño) > new Date().getFullYear()
+                                ? "12 meses (año futuro)"
+                                : "12 meses (promedio anual)"
+                          } = {formatCurrency(inversionMensualRecomendada)}
                         </p>
                       </div>
                       <p className="mt-2 text-gray-600 text-xs">
