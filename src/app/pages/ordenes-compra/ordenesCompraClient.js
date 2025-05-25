@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useMemo, useEffect, useRef } from "react"
+import { useState, useMemo, useEffect, useRef, useCallback } from "react"
 import { ChevronDown, Pencil, X, Search, Filter, Check, Info, Calendar, Download, FileText } from "lucide-react";
 import Button from "@/app/components/ui/button"
 import useNotifications from "@/app/hooks/useNotifications"
 import ConfirmationDialog from "@/app/components/ui/confirmation-dialog"
 import useUserDepartamento from "@/app/hooks/useUserDepartamento"
+import OrdenModal from "@/app/components/modals/OrdenModal";
 
 export default function OrdenesCompraClient({
   initialOrdenes,
@@ -623,56 +624,6 @@ export default function OrdenesCompraClient({
         [name]: Boolean(checked), // ← Asegurar que sea booleano
       }));
       return;
-    }
-
-    // Validaciones para el campo de fecha
-    if (name === 'fecha') {
-      const fechaSeleccionada = new Date(value);
-      if (fechaSeleccionada < fechaLimite) {
-        return; // No actualizar si la fecha es anterior al límite
-      }
-    }
-
-    // Validación para el campo de importe
-    if (name === 'importe') {
-      // Regex que solo permite números mayor que 0 y hasta dos decimales (punto como separador)
-      const importeRegex = /^([1-9]\d{0,5}(\.\d{0,2})?|0\.[1-9]\d?|0\.0[1-9])$/;
-
-      // Si no cumple el formato, no actualizar
-      if (value !== '' && !importeRegex.test(value)) {
-        return;
-      }
-
-      // Verificar que no exceda el máximo cuando hay un valor numérico
-      if (value !== '' && parseFloat(value) > 100000) {
-        return;
-      }
-
-      // Verificar que sea mayor que 0
-      if (value !== '' && parseFloat(value) <= 0) {
-        return;
-      }
-    }
-
-    // Validación para cantidad - solo permitir números enteros
-    if (name === 'cantidad') {
-      // Regex que solo permite números enteros positivos (mayor que 0, máximo 10000)
-      const cantidadRegex = /^[1-9]\d{0,4}$/;
-
-      // Si no cumple el formato, no actualizar
-      if (value !== '' && !cantidadRegex.test(value)) {
-        return;
-      }
-
-      // Verificar que no exceda el máximo cuando hay un valor numérico
-      if (value !== '' && parseInt(value) > 10000) {
-        return;
-      }
-
-      // Verificar que sea mayor que 0
-      if (value !== '' && parseInt(value) <= 0) {
-        return;
-      }
     }
 
     // Para todos los demás inputs
@@ -1425,312 +1376,21 @@ export default function OrdenesCompraClient({
       </div>
 
       {/* Modal para añadir/editar orden */}
-      {showModal && (
-        <div
-          className="fixed inset-0 flex items-center justify-center z-50"
-          style={{
-            backgroundColor: "rgba(0, 0, 0, 0.3)",
-            backdropFilter: "blur(2px)",
-          }}
-        >
-          <div className="bg-white rounded-lg p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-xl">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">
-                {modalMode === "add" ? "Añadir Nueva Orden" : "Editar Orden"}
-              </h2>
-              <button
-                onClick={handleCloseModal}
-                className="text-gray-500 hover:text-red-600"
-              >
-                <X className="w-6 h-6 cursor-pointer" />
-              </button>
-            </div>
-
-            {/* Mensaje de error del formulario */}
-            {formError && (
-              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-                {formError}
-              </div>
-            )}
-
-            {/* Formulario */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              {/* Campos principales */}
-              <div>
-                <label className="block text-gray-700 mb-1">Departamento *</label>
-                <div className="relative">
-                  <select
-                    name="departamento"
-                    value={formularioOrden.departamento}
-                    onChange={handleInputChange}
-                    className="appearance-none border border-gray-300 rounded px-3 py-2 w-full pr-8 text-gray-500"
-                    required
-                    disabled={userRole === "Jefe de Departamento"} // Deshabilitar si es jefe de departamento
-                  >
-                    <option value="">Seleccionar departamento</option>
-                    {departamentos.map((departamento) => (
-                      <option key={departamento.id_Departamento} value={departamento.Nombre}>
-                        {departamento.Nombre}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                    <ChevronDown className="w-4 h-4 text-gray-500" />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 mb-1">Proveedor *</label>
-                <div className="relative">
-                  <select
-                    name="proveedor"
-                    value={formularioOrden.proveedor}
-                    onChange={handleInputChange}
-                    className="appearance-none border border-gray-300 rounded px-3 py-2 w-full pr-8 text-gray-500"
-                    required
-                  >
-                    <option value="">Seleccionar proveedor</option>
-                    {Array.isArray(proveedores) && proveedores.map((proveedor, index) => {
-                      // Crear una clave completamente única usando nombre, id e índice
-                      const uniqueKey = `prov-${proveedor.Nombre}-${proveedor.idProveedor}-${index}`;
-                      return (
-                        <option key={uniqueKey} value={proveedor.Nombre}>
-                          {proveedor.Nombre}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                    <ChevronDown className="w-4 h-4 text-gray-500" />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 mb-1">Importe (€) *</label>
-                <input
-                  type="text"
-                  name="importe"
-                  value={formularioOrden.importe}
-                  onChange={handleInputChange}
-                  className="border border-gray-300 rounded px-3 py-2 w-full"
-                  placeholder=""
-                  pattern="^([1-9]\d{0,5}(\.\d{0,2})?|0\.[1-9]\d?|0\.0[1-9])$"
-                  title="Ingrese un importe válido mayor que 0 (máximo 100.000€, hasta 2 decimales)"
-                  required
-                />
-                {formularioOrden.importe && parseFloat(formularioOrden.importe) <= 0 && (
-                  <p className="text-red-500 text-xs mt-1">El importe debe ser mayor que 0</p>
-                )}
-                {parseFloat(formularioOrden.importe) > 100000 && (
-                  <p className="text-red-500 text-xs mt-1">El importe máximo permitido es 100.000€</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-gray-700 mb-1">Fecha *</label>
-                <input
-                  type="date"
-                  name="fecha"
-                  value={formularioOrden.fecha}
-                  onChange={handleInputChange}
-                  className="border border-gray-300 rounded px-3 py-2 w-full text-gray-500"
-                  min={fechaLimiteFormatted}
-                  required
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  La fecha no puede ser anterior a {new Date(fechaLimiteFormatted).toLocaleDateString()}
-                </p>
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-gray-700 mb-1">Descripción *</label>
-                <input
-                  type="text"
-                  name="descripcion"
-                  value={formularioOrden.descripcion}
-                  onChange={handleInputChange}
-                  className="border border-gray-300 rounded px-3 py-2 w-full"
-                  placeholder="Descripción del artículo o servicio"
-                  maxLength={100}
-                  required
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  {formularioOrden.descripcion ?
-                    `${formularioOrden.descripcion.length}/100 caracteres` :
-                    "0/100 caracteres"}
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 mb-1">Cantidad *</label>
-                <input
-                  type="text"
-                  min="1"
-                  max="10000"
-                  name="cantidad"
-                  value={formularioOrden.cantidad}
-                  onChange={handleInputChange}
-                  className="border border-gray-300 rounded px-3 py-2 w-full"
-                  placeholder=""
-                  pattern="^[1-9]\d{0,4}$"
-                  title="Cantidad debe ser mayor que 0 y máximo 10.000"
-                  required
-                />
-                {formularioOrden.cantidad && parseInt(formularioOrden.cantidad) <= 0 && (
-                  <p className="text-red-500 text-xs mt-1">La cantidad debe ser mayor que 0</p>
-                )}
-                {parseInt(formularioOrden.cantidad) > 10000 && (
-                  <p className="text-red-500 text-xs mt-1">La cantidad máxima permitida es 10.000</p>
-                )}
-              </div>
-
-
-              {/* Campos para tipo y número de orden */}
-              <div className="flex flex-col">
-                <label className="block text-gray-700 mb-1">Tipo *</label>
-                <div className="flex items-center space-x-6 py-2">
-                  <label className="inline-flex items-center">
-                    <input
-                      type="checkbox"
-                      name="inventariable"
-                      checked={formularioOrden.inventariable}
-                      onChange={handleInputChange}
-                      className="form-checkbox h-5 w-5 text-red-600 cursor-pointer"
-                    />
-                    <span className="ml-2">Inventariable</span>
-                  </label>
-                  <span className="text-gray-500">
-                    {!formularioOrden.inventariable && "Fungible"}
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 mb-1">
-                  Número Orden
-                  <span className="ml-2 text-gray-500 text-xs">
-                    (generado automáticamente)
-                  </span>
-                </label>
-                <input
-                  type="text"
-                  name="numero"
-                  value={formularioOrden.numero}
-                  className="border border-gray-300 rounded px-3 py-2 w-full bg-gray-100"
-                  placeholder={formularioOrden.departamento ? "Se generará al guardar" : "Selecciona departamento"}
-                  disabled
-                />
-              </div>
-
-              {/* Casilla y campo para inversión */}
-              <div className="flex flex-col">
-                <label className="block text-gray-700 mb-1">Inversión</label>
-                <div className="flex items-center space-x-4 py-2">
-                  <label className="inline-flex items-center">
-                    <input
-                      type="checkbox"
-                      name="esInversion"
-                      checked={formularioOrden.esInversion}
-                      onChange={handleInputChange}
-                      className="form-checkbox h-5 w-5 text-red-600 cursor-pointer"
-                    />
-                    <span className="ml-2">Es inversión</span>
-                  </label>
-                  {formularioOrden.esInversion && (
-                    <div className="flex items-center">
-                      <Info className="w-4 h-4 text-gray-400 mr-1" />
-                      <span className="text-xs text-gray-500">
-                        Se cargará a inversiones
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {formularioOrden.esInversion && (
-                <div>
-                  <label className="block text-gray-700 mb-1">
-                    Número Inversión *
-                    <span className="ml-2 text-gray-500 text-xs">
-                      (generado automáticamente)
-                    </span>
-                  </label>
-                  <input
-                    type="text"
-                    name="numInversion"
-                    value={formularioOrden.numInversion}
-                    onChange={handleInputChange}
-                    className="border border-gray-300 rounded px-3 py-2 w-full bg-gray-100"
-                    placeholder={formularioOrden.departamento ? "Se generará al guardar" : "Selecciona departamento"}
-                    disabled
-                  />
-                </div>
-              )}
-
-              {/* Campo para Factura - añadir en la sección del formulario */}
-              <div className="flex flex-col">
-                <label className="block text-gray-700 mb-1">Factura</label>
-                <div className="flex items-center space-x-4 py-2">
-                  <label className="inline-flex items-center">
-                    <input
-                      type="checkbox"
-                      name="factura"
-                      checked={formularioOrden.factura}
-                      onChange={handleInputChange}
-                      className="form-checkbox h-5 w-5 text-red-600 cursor-pointer"
-                    />
-                    <span className="ml-2">
-                      {formularioOrden.factura ? "Factura adjuntada" : "Sin factura"}
-                    </span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Estado de la orden */}
-              <div>
-                <label className="block text-gray-700 mb-1">Estado</label>
-                <div className="relative">
-                  <select
-                    name="estadoOrden"
-                    value={formularioOrden.estadoOrden}
-                    onChange={handleInputChange}
-                    className="appearance-none border border-gray-300 rounded px-3 py-2 w-full pr-8 text-gray-500"
-                  >
-                    {estadosOrden.map(estado => (
-                      <option key={estado.id_EstadoOrden} value={estado.tipo}>
-                        {estado.tipo}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                    <ChevronDown className="w-4 h-4 text-gray-500" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Botones del formulario */}
-            <div className="flex justify-end gap-4">
-              <button
-                type="button"
-                onClick={handleCloseModal}
-                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100 cursor-pointer"
-                disabled={isLoading}
-              >
-                Cancelar
-              </button>
-              <Button
-                onClick={handleGuardarOrden}
-                disabled={isLoading}
-              >
-                {isLoading ? "Guardando..." : "Guardar"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <OrdenModal
+        showModal={showModal}
+        modalMode={modalMode}
+        formularioOrden={formularioOrden}
+        setFormularioOrden={setFormularioOrden}
+        departamentos={departamentos}
+        proveedores={proveedores}
+        estadosOrden={estadosOrden}
+        onClose={handleCloseModal}
+        onSave={handleGuardarOrden}
+        isLoading={isLoading}
+        formError={formError}
+        userRole={userRole}
+        fechaLimiteFormatted={fechaLimiteFormatted}
+      />
 
       {/* NUEVO: Modal para previsualizar y exportar Excel */}
       {showExportModal && (
