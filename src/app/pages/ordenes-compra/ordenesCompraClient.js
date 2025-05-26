@@ -1246,9 +1246,9 @@ export default function OrdenesCompraClient({
                     <td className="py-3 px-3 text-center">
                       <div className="flex justify-center">
                         {orden.Inventariable === 1 || orden.Inventariable === true ? (
-                          <Check className="w-5 h-5 text-green-500" />
+                          "Sí"
                         ) : (
-                          <X className="w-5 h-5 text-red-500" />
+                          "No"
                         )}
                       </div>
                     </td>

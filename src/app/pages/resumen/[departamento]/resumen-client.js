@@ -481,7 +481,18 @@ export default function ResumenClient({
             </div>
 
             {/* Fecha */}
-            <div className="flex justify-end my-2">
+            <div className="flex justify-end my-2 gap-6">
+                {/* Botón para agregar bolsas */}
+            {canAddBolsa && (
+                <button
+                    onClick={handleOpenModal}
+                    className="bg-red-600 opacity-80 flex items-center gap-2 text-white px-4 py-3 rounded-md hover:bg-red-700 cursor-pointer"
+                    aria-label="Añadir nueva bolsa presupuestaria"
+                >
+                    <Plus className="w-5 h-5" size={18} />
+                    <span className="text-mb">Añadir bolsa</span>
+                </button>
+            )}
                 <div className="relative">
                     <div className="appearance-none bg-gray-100 border border-gray-200 rounded-full px-4 py-2 flex items-center gap-2">
                         <Calendar className="w-4 h-4" />
@@ -639,17 +650,7 @@ export default function ResumenClient({
                     </div>
                 </div>
             </div>
-            {/* Botón para agregar bolsas */}
-            {canAddBolsa && (
-                <button
-                    onClick={handleOpenModal}
-                    className="bg-red-600 opacity-80 flex items-center gap-2 text-white px-4 py-3 rounded-md hover:bg-red-700 cursor-pointer"
-                    aria-label="Añadir nueva bolsa presupuestaria"
-                >
-                    <Plus className="w-5 h-5" size={18} />
-                    <span className="text-mb">Añadir bolsa</span>
-                </button>
-            )}
+            
 
             {/* Modal para agregar bolsas presupuestarias */}
             {showModal && (
